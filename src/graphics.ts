@@ -5,44 +5,65 @@ export class TextureObject {
     // readonly texLoc: WebGLUniformLocation,
   ) { }
 
-  public update(gl: WebGLRenderingContext, image: ImageData) {
+  public update(gl: WebGL2RenderingContext, image: ImageData) {
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, this.tex)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
   };
 }
 
-export class VertexArrayObject {
+export class BufferObject {
   constructor(
-    readonly vao: WebGLBuffer,
-    readonly length: number,
-    readonly glDrawType: number,
-    readonly onDraw: (gl: WebGLRenderingContext) => boolean,
+    readonly buffer: WebGLBuffer,
     public setAttribPointers: () => void,
+    public ondraw: (gl: WebGL2RenderingContext) => boolean,
   ) { }
 
-  public draw(gl: WebGLRenderingContext) {
-    if (this.onDraw(gl)) {
-      this.setAttribPointers()
-      // console.log("draw vao", this)
-      // gl.bindVertexArray(this.vao)
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.vao)
-      gl.drawArrays(this.glDrawType, 0, this.length)
-    }
+  public bindBuffer(gl: WebGL2RenderingContext) {
+    this.setAttribPointers()
+    this.ondraw(gl)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
   }
 }
 
-export class VAOConfig {
+export class BufferConfig {
   constructor(
     public vertices: Float32Array,
     public vertAttr: string,
     public texAttr: string,
     public stride: number,
     public size: number,
-    public glDrawType: number,
-    public onDraw: (gl: WebGLRenderingContext) => boolean,
+    public ondraw: (gl: WebGL2RenderingContext) => boolean,
   ) { }
 }
+
+export class VertexArrayObject {
+  constructor(
+    readonly buffer: BufferObject,
+    readonly offset: number,
+    readonly length: number,
+    readonly glDrawType: number,
+    readonly onDraw: (gl: WebGL2RenderingContext) => boolean,
+  ) { }
+
+  public draw(gl: WebGL2RenderingContext) {
+    if (this.onDraw(gl)) {
+      gl.drawArrays(this.glDrawType, this.offset, this.length)
+    }
+  }
+}
+
+// export class VAOConfig {
+//   constructor(
+//     public buffer: Float32Array,
+//     public vertAttr: string,
+//     public texAttr: string,
+//     public stride: number,
+//     public size: number,
+//     public glDrawType: number,
+//     public onDraw: (gl: WebGL2RenderingContext) => boolean,
+//   ) { }
+// }
 
 export class TextureConfig {
   constructor(
@@ -62,20 +83,21 @@ export class ShaderConfig {
 }
 
 export class Graphics {
-  public gl: WebGLRenderingContext;
+  public gl: WebGL2RenderingContext;
 
   private program: WebGLProgram;
   private shaders: Array<WebGLShader>;
   private uniforms: Map<string, WebGLUniformLocation>;
   private attributes: Map<string, number>;
 
+  private bos: Array<WebGLBuffer> = [];
   private vaos: Array<VertexArrayObject> = [];
   private textures: Array<TextureObject> = [];
 
   public onRender: (gfx: Graphics) => void;
 
   constructor(
-    gl: WebGLRenderingContext,
+    gl: WebGL2RenderingContext,
     shaders: Array<ShaderConfig>,
     onRender: (g: Graphics) => void,
   ) {
@@ -133,7 +155,7 @@ export class Graphics {
     return null
   }
 
-  public newVertexArrayObject(cfg: VAOConfig) {
+  public newBufferObject(cfg: BufferConfig) {
     const gl = this.gl
 
     const stride = 4 * cfg.stride
@@ -160,11 +182,14 @@ export class Graphics {
       gl.enableVertexAttribArray(tattr)
       gl.vertexAttribPointer(tattr, 2, gl.FLOAT, false, stride, cfg.size * 4)
     }
-    // gl.bindVertexArray(null)
 
-    const vo = new VertexArrayObject(buffer, 2 * cfg.size, cfg.glDrawType, cfg.onDraw, setAttribPointers)
-    this.vaos.push(vo)
-    return vo
+    const bo = new BufferObject(buffer, setAttribPointers, cfg.ondraw)
+    this.bos.push(bo)
+    return bo
+  }
+
+  public addVertexArrayObject(vao: VertexArrayObject) {
+    this.vaos.push(vao)
   }
 
   public newTextureObject(cfg: TextureConfig) {
@@ -194,10 +219,12 @@ export class Graphics {
   }
 
   public start() {
+    this.gl.useProgram(this.program)
+
     requestAnimationFrame(this.render.bind(this))
   }
 
-  private render(now: number) {
+  private async render(now: number) {
     const gl = this.gl
 
     this.resize(gl.canvas)
@@ -207,13 +234,20 @@ export class Graphics {
     gl.clearColor(0, 0, 0, 1)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-    gl.useProgram(this.program)
+    // gl.useProgram(this.program)
 
     this.onRender(this)
 
-    this.vaos.forEach(v => v.draw(gl))
+    let currentBuffer: (BufferObject | null) = null
+    this.vaos.forEach(v => {
+      if (currentBuffer !== v.buffer) {
+        v.buffer.bindBuffer(gl)
+        currentBuffer = v.buffer
+      }
+      v.draw(gl)
+    })
 
-    // gl.flush()
+    gl.flush()
 
     requestAnimationFrame(this.render.bind(this))
   }

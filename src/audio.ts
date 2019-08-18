@@ -31,13 +31,21 @@ export class AudioProcessor {
     const processor = new FrequencyProcessor(this.buckets, this.length, this.params)
     this.fs = processor
 
-    navigator.getUserMedia({
+    // try {
+    navigator.mediaDevices.getUserMedia({
       audio: true,
-    },
-    this.handleMediaStream.bind(this),
-    err => {
-      console.log(err)
-    }) 
+    }).then(
+      this.handleMediaStream.bind(this),
+      err => {
+        console.log(err)
+      })
+    // } catch (e) {
+    //   navigator.getUserMedia({ audio: true },
+    //     this.handleMediaStream.bind(this),
+    //     err => {
+    //       console.log(err)
+    //     })
+    // }
   }
 
   handleMediaStream(stream: MediaStream) {
@@ -45,8 +53,13 @@ export class AudioProcessor {
 
     const ctx = this.ctx
     const source = ctx.createMediaStreamSource(stream)
+
+    this.analyzer = ctx.createAnalyser()
+    this.analyzer.fftSize = this.blockSize
+    this.analyzer.smoothingTimeConstant = 0
     source.connect(this.analyzer)
 
+    setInterval(this.process.bind(this), 1000 * this.blockSize / 44100)
     // const ffter = new SlidingFFT(this.blockSize, this.size)
     // const fft = ctx.createScriptProcessor(this.blockSize, 1, 1)
     // fft.onaudioprocess = ffter.process.bind(ffter)
@@ -59,7 +72,7 @@ export class AudioProcessor {
     // const bucket = ctx.createScriptProcessor(this.size, 1, 1)
     // bucket.onaudioprocess = bucketer.bucket.bind(bucketer)
     // fft.connect(bucket)
-    
+
     // const proc = ctx.createScriptProcessor(Math.max(this.buckets, 256), 1, 1)
     // proc.onaudioprocess = this.fs.process.bind(this.fs)
     // bucket.connect(proc)
@@ -84,6 +97,7 @@ export class AudioProcessor {
     const bucketed = this.bucketer.bucket(fft) // frame
 
     return this.fs.process(bucketed)
+    // return this.getDrivers()
   }
 
   public getDrivers() {
@@ -112,12 +126,12 @@ class WindowBuffer {
     }
 
     for (let i = this.index; i < en; i++) {
-      this.buffer[i] = x[i-this.index]
+      this.buffer[i] = x[i - this.index]
     }
     if (wrap) {
       const os = this.buffer.length - this.index
       for (let i = 0; i < x.length - os; i++) {
-        this.buffer[i] = x[i+os]
+        this.buffer[i] = x[i + os]
       }
     }
 
@@ -139,12 +153,12 @@ class WindowBuffer {
     }
 
     for (let i = st; i < en; i++) {
-      out[i-st] = this.buffer[i]
+      out[i - st] = this.buffer[i]
     }
     if (wrap) {
-      const os = en-st
+      const os = en - st
       for (let i = 0; i < this.index; i++) {
-        out[i+os] = this.buffer[i]
+        out[i + os] = this.buffer[i]
       }
     }
 
@@ -152,14 +166,14 @@ class WindowBuffer {
   }
 }
 
-function blackmanHarris (i: number, N: number) {
+function blackmanHarris(i: number, N: number) {
   const a0 = 0.35875,
-      a1 = 0.48829,
-      a2 = 0.14128,
-      a3 = 0.01168,
-      f = 6.283185307179586*i/(N-1)
+    a1 = 0.48829,
+    a2 = 0.14128,
+    a3 = 0.01168,
+    f = 6.283185307179586 * i / (N - 1)
 
-  return a0 - a1*Math.cos(f) +a2*Math.cos(2*f) - a3*Math.cos(3*f)
+  return a0 - a1 * Math.cos(f) + a2 * Math.cos(2 * f) - a3 * Math.cos(3 * f)
 }
 
 class SlidingFFT {
@@ -199,9 +213,9 @@ class SlidingFFT {
 
     // const output = e.outputBuffer.getChannelData(0)
     const output = new Float32Array(this.fftSize)
-    for (let i = 0; i < this.fftSize * 2; i+=2) {
-      const v = Math.sqrt(out[i]*out[i] + out[i+1]*out[i+1])
-      output[i/2] = Math.log2(1 + v)
+    for (let i = 0; i < this.fftSize * 2; i += 2) {
+      const v = Math.sqrt(out[i] * out[i] + out[i + 1] * out[i + 1])
+      output[i / 2] = Math.log2(1 + v)
     }
 
     return output
@@ -211,7 +225,7 @@ class SlidingFFT {
 class Bucketer {
   private indices: Array<number>
 
-  constructor (
+  constructor(
     readonly inputSize: number,
     readonly buckets: number,
     readonly fMin: number,
@@ -220,16 +234,16 @@ class Bucketer {
     const sMin = this.toLogScale(fMin)
     const sMax = this.toLogScale(fMax)
     const space = (sMax - sMin) / buckets
-    const indices = new Array<number>(buckets-1)
+    const indices = new Array<number>(buckets - 1)
 
     let lastIdx = 0
     let offset = 1
     const offsetDelta = (sMax - sMin) / inputSize
 
     for (let i = 0; i < indices.length; i++) {
-      const adjSpace = space - offsetDelta * offset/buckets
-      
-      const v = this.fromLogScale((i+1)*adjSpace + sMin + offsetDelta*offset)
+      const adjSpace = space - offsetDelta * offset / buckets
+
+      const v = this.fromLogScale((i + 1) * adjSpace + sMin + offsetDelta * offset)
       let idx = Math.ceil(inputSize * v / fMax)
 
       if (idx <= lastIdx) {
@@ -248,11 +262,11 @@ class Bucketer {
   }
 
   private toLogScale(x: number) {
-    return Math.log2(1+x)
+    return Math.log2(1 + x)
   }
 
   private fromLogScale(x: number) {
-    return 2**(x) + 1
+    return 2 ** (x) + 1
   }
 
   public bucket(input: Float32Array) {
@@ -261,15 +275,15 @@ class Bucketer {
     const output = new Float32Array(this.buckets)
 
     for (let i = 0; i < this.buckets; i++) {
-      let start = (i === 0) ? 0 : this.indices[i-1]
-      let stop = (i === this.buckets-1) ? input.length : this.indices[i]
+      let start = (i === 0) ? 0 : this.indices[i - 1]
+      let stop = (i === this.buckets - 1) ? input.length : this.indices[i]
 
       let sum = 0
-      for(let j = start; j < stop; j++) {
+      for (let j = start; j < stop; j++) {
         sum += input[j]
       }
 
-      output[i] = sum / (stop-start)
+      output[i] = sum / (stop - start)
     }
 
     return output
@@ -279,8 +293,8 @@ class Bucketer {
 export class Drivers {
   private columnIdx = 0
 
-  constructor (
-    readonly amp : Array<Float32Array>,
+  constructor(
+    readonly amp: Array<Float32Array>,
     readonly scales: Float32Array,
     readonly energy: Float32Array,
     readonly diff: Float32Array,
@@ -300,7 +314,7 @@ export class Drivers {
 }
 
 export class AudioProcessorParams {
-  constructor (
+  constructor(
     public preemphasis: number,
     public gainFilterParams: Float32Array,
     public gainFeedbackParams: Float32Array,
@@ -317,10 +331,10 @@ export class AudioProcessorParams {
 class Filter {
   public values: Float32Array
 
-  constructor (
+  constructor(
     readonly size: number,
     public params: Float32Array,
-  ){
+  ) {
     this.values = new Float32Array(size).fill(0)
   }
 
@@ -344,11 +358,11 @@ class GainController {
   private gain: Float32Array
   private err: Float32Array
 
-  constructor (
+  constructor(
     readonly size: number,
     public kp = 0.001,
     public kd = 0.005,
-  ){
+  ) {
     this.filter = new Filter(size, new Float32Array([0.005, 0.995]))
     this.gain = new Float32Array(size).fill(0)
     for (let i = 0; i < this.size; i++) {
@@ -368,7 +382,7 @@ class GainController {
     for (let i = 0; i < this.size; i++) {
       e[i] = logError(1 - filtered[i]);
     }
-    
+
     // apply pd controller
     let u;
     const kp = this.kp;
@@ -429,7 +443,7 @@ class FrequencyProcessor {
     // const ts = e.timeStamp
     // console.log("fps:", 1000 / (ts - this.lastTime))
     // this.lastTime = ts
-    
+
     this.applyPreemphasis(input)
     this.applyGainControl(input)
     this.applyFilters(input)
@@ -443,7 +457,7 @@ class FrequencyProcessor {
   private applyPreemphasis(x: Float32Array) {
     const incr = (this.params.preemphasis - 1) / this.size
     for (let i = 0; i < this.size; i++) {
-      x[i] *= 1 + i*incr
+      x[i] *= 1 + i * incr
     }
   }
 
@@ -470,7 +484,7 @@ class FrequencyProcessor {
     const ag = this.params.ampScale
     const ao = this.params.ampOffset
 
-    const decay = 1 - (2 / this.length)
+    const decay = 1 - (.5 / this.length)
     for (let i = 0; i < this.length; i++) {
       for (let j = 0; j < this.size; j++) {
         this.drivers.amp[i][j] *= decay
@@ -485,7 +499,7 @@ class FrequencyProcessor {
     for (let i = 0; i < this.size; i++) {
       amp[i] = this.gainFilter.values[i] + this.gainFeedback.values[i]
       amp[i] = ao + ag * amp[i]
-      
+
       diff[i] = this.diffFilter.values[i] + this.diffFeedback.values[i]
 
       let ph = energy[i] + .001
@@ -506,13 +520,13 @@ class FrequencyProcessor {
     let diff, sign
     for (let i = 0; i < this.size; i++) {
       if (i !== 0) {
-        diff = energy[i-1] - energy[i]
+        diff = energy[i - 1] - energy[i]
         sign = (diff < 0) ? -1 : 1
         diff = sign * diff * diff
         energy[i] += this.params.sync * diff
       }
       if (i !== this.size - 1) {
-        diff = energy[i+1] - energy[i]
+        diff = energy[i + 1] - energy[i]
         sign = (diff < 0) ? -1.0 : 1.0
         diff = sign * diff * diff
         energy[i] += this.params.sync * diff
@@ -528,25 +542,25 @@ class FrequencyProcessor {
       mean += energy[i]
     }
     mean /= this.size
-  
-    if (mean < -2*Math.PI) {
+
+    if (mean < -2 * Math.PI) {
       // wait until all elements go past the mark so theres no sign flips
       for (let i = 0; i < this.size; i++) {
-        if (energy[i] >= -2*Math.PI) return
+        if (energy[i] >= -2 * Math.PI) return
       }
       for (let i = 0; i < this.size; i++) {
-        energy[i] = 2*Math.PI + (energy[i] % 2*Math.PI)
+        energy[i] = 2 * Math.PI + (energy[i] % 2 * Math.PI)
       }
-      mean = 2*Math.PI + (mean % 2*Math.PI)
+      mean = 2 * Math.PI + (mean % 2 * Math.PI)
     }
-    if (mean > 2*Math.PI) {
+    if (mean > 2 * Math.PI) {
       for (let i = 0; i < this.size; i++) {
-        if (energy[i] <= 2*Math.PI) return;
+        if (energy[i] <= 2 * Math.PI) return;
       }
       for (let i = 0; i < this.size; i++) {
-        energy[i] = (energy[i] % 2*Math.PI)
+        energy[i] = (energy[i] % 2 * Math.PI)
       }
-      mean = (mean % 2*Math.PI)
+      mean = (mean % 2 * Math.PI)
     }
   }
 

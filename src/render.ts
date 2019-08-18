@@ -12,7 +12,7 @@ export class RenderParams {
     public scaleScale: number,
     public scaleOffset: number,
     public period: number,
-  ){ }
+  ) { }
 }
 
 export class Renderer {
@@ -30,7 +30,7 @@ export class Renderer {
     this.display = new ImageData(columns, rows)
   }
 
-  public render(drivers: Drivers) {
+  public render(drivers: Drivers): [ImageData, Float32Array, Float32Array] {
     const display = this.display
 
     this.calculateWarp(drivers)
@@ -38,16 +38,16 @@ export class Renderer {
 
     this.updateDisplay(drivers)
 
-    return display
+    return [display, this.warp, this.scale]
   }
 
   private calculateWarp(drivers: Drivers) {
     for (let i = 0; i < this.rows; i++) {
       this.warp[i] = this.params.warpScale * drivers.diff[i] + this.params.warpOffset
     }
-    for (let i = 1; i < this.rows-1; i++) {
-      const wl = this.warp[i-1]
-      const wr = this.warp[i+1]
+    for (let i = 1; i < this.rows - 1; i++) {
+      const wl = this.warp[i - 1]
+      const wr = this.warp[i + 1]
       const w = this.warp[i]
       this.warp[i] = (wl + w + wr) / 3
     }
@@ -61,7 +61,7 @@ export class Renderer {
         s += drivers.scales[j] * (amp[j] - 1)
       }
       s /= this.rows
-      this.scale[i] = s
+      this.scale[i] = this.params.scaleScale * s + this.params.scaleOffset
     }
   }
 
@@ -76,7 +76,7 @@ export class Renderer {
 
     const val = ss * sigmoid(vs * amp + vo) + so
 
-    let [r, g, b] = hsluvToRgb([hue, 100, 100*val])
+    let [r, g, b] = hsluvToRgb([hue, 100, 100 * val])
     r *= r
     g *= g
     b *= b
@@ -91,8 +91,8 @@ export class Renderer {
       const amp = drivers.getColumn(i)
       const phi = ws * i
       let decay = i / this.columns
-      decay = 1 - (decay*decay)
-      
+      decay = 1 - (decay * decay)
+
       for (let j = 0; j < this.rows; j++) {
         const val = drivers.scales[j] * (amp[j] - 1)
         const ph = drivers.energy[j]
@@ -103,10 +103,10 @@ export class Renderer {
 
         let didx = i + this.columns * j
         didx *= 4
-        this.display.data[didx]   = 255 * r
-        this.display.data[didx+1] = 255 * g
-        this.display.data[didx+2] = 255 * b
-        this.display.data[didx+3] = 255
+        this.display.data[didx] = 255 * r
+        this.display.data[didx + 1] = 255 * g
+        this.display.data[didx + 2] = 255 * b
+        this.display.data[didx + 3] = 255
       }
     }
   }
