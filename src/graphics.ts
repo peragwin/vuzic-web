@@ -5,7 +5,7 @@ export class TextureObject {
     // readonly texLoc: WebGLUniformLocation,
   ) { }
 
-  public update(gl: WebGL2RenderingContext, image: ImageData) {
+  public update(gl: WebGLRenderingContext, image: ImageData) {
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, this.tex)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
@@ -14,16 +14,19 @@ export class TextureObject {
 
 export class VertexArrayObject {
   constructor(
-    readonly vao: WebGLVertexArrayObject,
+    readonly vao: WebGLBuffer,
     readonly length: number,
     readonly glDrawType: number,
-    readonly onDraw: (gl: WebGL2RenderingContext) => boolean,
+    readonly onDraw: (gl: WebGLRenderingContext) => boolean,
+    public setAttribPointers: () => void,
   ) { }
 
-  public draw(gl: WebGL2RenderingContext) {
+  public draw(gl: WebGLRenderingContext) {
     if (this.onDraw(gl)) {
+      this.setAttribPointers()
       // console.log("draw vao", this)
-      gl.bindVertexArray(this.vao)
+      // gl.bindVertexArray(this.vao)
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.vao)
       gl.drawArrays(this.glDrawType, 0, this.length)
     }
   }
@@ -37,7 +40,7 @@ export class VAOConfig {
     public stride: number,
     public size: number,
     public glDrawType: number,
-    public onDraw: (gl: WebGL2RenderingContext) => boolean,
+    public onDraw: (gl: WebGLRenderingContext) => boolean,
   ) { }
 }
 
@@ -59,7 +62,7 @@ export class ShaderConfig {
 }
 
 export class Graphics {
-  public gl: WebGL2RenderingContext;
+  public gl: WebGLRenderingContext;
 
   private program: WebGLProgram;
   private shaders: Array<WebGLShader>;
@@ -72,7 +75,7 @@ export class Graphics {
   public onRender: (gfx: Graphics) => void;
 
   constructor(
-    gl: WebGL2RenderingContext,
+    gl: WebGLRenderingContext,
     shaders: Array<ShaderConfig>,
     onRender: (g: Graphics) => void,
   ) {
@@ -136,27 +139,30 @@ export class Graphics {
     const stride = 4 * cfg.stride
 
     const buffer = gl.createBuffer()
+    if (buffer === null) throw new Error("failed to create gl buffer")
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, cfg.vertices, gl.STATIC_DRAW)
     // console.log(cfg.vertices)
 
-    const vao = gl.createVertexArray()
-    if (vao === null) throw new Error("failed to create vao")
-    gl.bindVertexArray(vao)
+    // const vao = gl.createVertexArray()
+    // if (vao === null) throw new Error("failed to create vao")
+    // gl.bindVertexArray(vao)
 
     const vattr = this.attributes.get(cfg.vertAttr)
     if (vattr === undefined) throw new Error(`unknown vertex attribute ${cfg.vertAttr}`)
-    gl.enableVertexAttribArray(vattr)
-    gl.vertexAttribPointer(vattr, cfg.size, gl.FLOAT, false, stride, 0)
-
     const tattr = this.attributes.get(cfg.texAttr)
     if (tattr === undefined) throw new Error(`unknown texture attribute ${cfg.texAttr}`)
-    gl.enableVertexAttribArray(tattr)
-    gl.vertexAttribPointer(tattr, 2, gl.FLOAT, false, stride, cfg.size * 4)
 
-    gl.bindVertexArray(null)
+    const setAttribPointers = () => {
+      gl.enableVertexAttribArray(vattr)
+      gl.vertexAttribPointer(vattr, cfg.size, gl.FLOAT, false, stride, 0)
 
-    const vo = new VertexArrayObject(vao, 2 * cfg.size, cfg.glDrawType, cfg.onDraw)
+      gl.enableVertexAttribArray(tattr)
+      gl.vertexAttribPointer(tattr, 2, gl.FLOAT, false, stride, cfg.size * 4)
+    }
+    // gl.bindVertexArray(null)
+
+    const vo = new VertexArrayObject(buffer, 2 * cfg.size, cfg.glDrawType, cfg.onDraw, setAttribPointers)
     this.vaos.push(vo)
     return vo
   }
@@ -175,7 +181,7 @@ export class Graphics {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, cfg.image.width, cfg.image.height, 0,
-      gl.RGBA, gl.UNSIGNED_BYTE, cfg.image)
+      gl.RGBA, gl.UNSIGNED_BYTE, cfg.image.data)
 
     // const texLoc = this.uniforms.get(cfg.uniformName)
     // if (texLoc === undefined) throw new Error(`unknown uniform location for ${cfg.uniformName}`)
