@@ -18,15 +18,15 @@ const vertexShaderSource = `#version 300 es
 	void main() {
 
     x = vertPos.x;
+    y = vertPos.y;
+
+    sv = scale[int((x+1.)*float({1})/2.)];
     wv = warp[int((y+1.)*float({0})/2.)];
 
-    y = vertPos.y;
-    sv = scale[int((x+1.)*float({1})/2.)];
-
 		if (x <= 0.0) {
-			x = pow(x + 1.0, wv) - 1.0;
+			x = pow(x + 1.1, wv) - 1.0;
 		} else {
-			x = 1.0 - pow(abs(x - 1.0), wv);
+			x = 1.0 - pow(abs(x - 1.1), wv);
 		}
 
     if (y <= 0.0) {
@@ -46,54 +46,54 @@ const vertexShaderSource = `#version 300 es
 const fragmenShaderSource = `#version 300 es
 	precision highp float;
 
-	// vec2 iResolution = vec2(1920.0, 1080.0);
+	vec2 iResolution = vec2(1920.0, 1080.0);
 	uniform sampler2D tex;
   // varying vec2 fragTexPos;
   in vec2 fragTexPos;
 	out vec4 fragColor;
 
-	// vec4 blur(sampler2D image, vec2 uv, vec2 resolution) {
-	// 	vec4 color = vec4(0.0);
-	// 	const float radius = 2.0;
-	// 	for (float scale = 1.0; scale < radius; scale++)
-	// 	{
-	// 	vec2 direction = vec2(scale,0.0);
+	vec4 blur(sampler2D image, vec2 uv, vec2 resolution) {
+		vec4 color = vec4(0.0);
+		const float radius = 2.0;
+		for (float scale = 1.0; scale < radius; scale++)
+		{
+		vec2 direction = vec2(scale,0.0);
 
-	// 	vec2 off1 = vec2(1.411764705882353) * direction;
-	// 	vec2 off2 = vec2(3.2941176470588234) * direction;
-	// 	vec2 off3 = vec2(5.176470588235294) * direction;
+		vec2 off1 = vec2(1.411764705882353) * direction;
+		vec2 off2 = vec2(3.2941176470588234) * direction;
+		vec2 off3 = vec2(5.176470588235294) * direction;
 
-	// 	color += texture2D(image, uv) * 0.1964825501511404;
-	// 	color += texture2D(image, uv + (off1 / resolution)) * 0.2969069646728344;
-	// 	color += texture2D(image, uv - (off1 / resolution)) * 0.2969069646728344;
-	// 	color += texture2D(image, uv + (off2 / resolution)) * 0.09447039785044732;
-	// 	color += texture2D(image, uv - (off2 / resolution)) * 0.09447039785044732;
-	// 	color += texture2D(image, uv + (off3 / resolution)) * 0.010381362401148057;
-	// 	color += texture2D(image, uv - (off3 / resolution)) * 0.010381362401148057;
+		color += texture(image, uv) * 0.1964825501511404;
+		color += texture(image, uv + (off1 / resolution)) * 0.2969069646728344;
+		color += texture(image, uv - (off1 / resolution)) * 0.2969069646728344;
+		color += texture(image, uv + (off2 / resolution)) * 0.09447039785044732;
+		color += texture(image, uv - (off2 / resolution)) * 0.09447039785044732;
+		color += texture(image, uv + (off3 / resolution)) * 0.010381362401148057;
+		color += texture(image, uv - (off3 / resolution)) * 0.010381362401148057;
 
-	// 	direction = vec2(0,scale);
-	// 	off1 = vec2(1.411764705882353) * direction;
-	// 	off2 = vec2(3.2941176470588234) * direction;
-	// 	off3 = vec2(5.176470588235294) * direction;
+		direction = vec2(0,scale);
+		off1 = vec2(1.411764705882353) * direction;
+		off2 = vec2(3.2941176470588234) * direction;
+		off3 = vec2(5.176470588235294) * direction;
 
-	// 	color += texture2D(image, uv) * 0.1964825501511404;
-	// 	color += texture2D(image, uv + (off1 / resolution)) * 0.2969069646728344;
-	// 	color += texture2D(image, uv - (off1 / resolution)) * 0.2969069646728344;
-	// 	color += texture2D(image, uv + (off2 / resolution)) * 0.09447039785044732;
-	// 	color += texture2D(image, uv - (off2 / resolution)) * 0.09447039785044732;
-	// 	color += texture2D(image, uv + (off3 / resolution)) * 0.010381362401148057;
-	// 	color += texture2D(image, uv - (off3 / resolution)) * 0.010381362401148057;
-	// 	}
+		color += texture(image, uv) * 0.1964825501511404;
+		color += texture(image, uv + (off1 / resolution)) * 0.2969069646728344;
+		color += texture(image, uv - (off1 / resolution)) * 0.2969069646728344;
+		color += texture(image, uv + (off2 / resolution)) * 0.09447039785044732;
+		color += texture(image, uv - (off2 / resolution)) * 0.09447039785044732;
+		color += texture(image, uv + (off3 / resolution)) * 0.010381362401148057;
+		color += texture(image, uv - (off3 / resolution)) * 0.010381362401148057;
+		}
 
-	// 	return color / 2.0 / (radius-1.0);
-	// }
+		return color / 2.0 / (radius-1.0);
+	}
 
 	void main() {
 		//vec2 uv = fragTexPos.xy / iResolution;
-    // gl_FragColor = vec4(blur(tex, fragTexPos.xy, iResolution).rgb, 1);
-		vec3 v = texture(tex, fragTexPos).rgb;
+    fragColor = vec4(blur(tex, fragTexPos.xy, iResolution).rgb, 1);
+		// vec3 v = texture(tex, fragTexPos).rgb;
     // gl_FragColor = vec4(v, 1);
-    fragColor = vec4(v, 1);
+    // fragColor = vec4(v, 1);
   }`
 
 
@@ -146,7 +146,7 @@ export class WarpGrid {
     const vertexSrc = vertexShaderSource
       .replace(/\{0\}/g, rows.toString())
       .replace(/\{1\}/g, columns.toString())
-    // console.log(vertexSrc)
+
     const shaderConfigs = [
       new ShaderConfig(
         vertexSrc,
@@ -235,6 +235,9 @@ export class WarpGrid {
       new BufferConfig(verts, 'vertPos', 'texPos', 5, 3,
         (gl: WebGLRenderingContext) => {
           // console.log(warp, scale)
+          // for (let i = 0; i < warp.length; i++) {
+          //   warp[i] = 2 * (1 - i / warp.length);
+          // }
           gl.uniform1fv(wuloc, warp)
           gl.uniform1fv(suloc, scale)
           return true

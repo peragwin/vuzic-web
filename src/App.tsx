@@ -1,18 +1,85 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useReducer, Reducer } from 'react';
 import './App.css';
 import { WarpGrid } from './display';
-import { AudioProcessor, AudioProcessorParams } from './audio';
-import { Renderer, RenderParams } from './render';
-import PixelMap, { RGBA } from "./pixelmap";
+import { AudioProcessor, AudioProcessorParams, audioParamReducer, AudioParamKey } from './audio';
+import { Renderer, RenderParams, renderParamReducer } from './render';
+import { makeStyles } from '@material-ui/core';
+import Button from '@material-ui/core/Button';
+import MenuPanel from './MenuPanel'
 
-let count = 0
+const useStyles = makeStyles({
+  button: {
+    background: 'linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)',
+    border: 0,
+    borderRadius: 3,
+    boxShadow: '0 3px 5px 2px rgba(255, 105, 135, .3)',
+    color: 'white',
+    height: 48,
+    padding: '0 30px',
+  },
+  app: {
+    background: 'linear-gradient(135deg, #45484d 0%,#000000 100%)',
+    minHeight: '100vh',
+    minWidth: '100vw',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 'calc(10px + 2vmin)',
+    color: 'white',
+  },
+  canvas: { width: '100vw', height: '100vh' },
+});
+
 const buckets = 16
-const length = 60
+const length = 240
+
+const m = {"renderParams":{"valueScale":2,"valueOffset":0,"lightnessScale":0.88,"lightnessOffset":0,"warpScale":16,"warpOffset":1.35,"scaleScale":2.26,"scaleOffset":0.45,"period":180},
+"audioParams":{"preemphasis":2,"gainFilterParams":{"tao":2.9240999999999997,"gain":1},"gainFeedbackParams":{"tao":138,"gain":-1},"diffFilterParams":{"tao":10.497600000000002,"gain":1},
+"diffFeedbackParams":{"tao":56.6,"gain":-0.05},
+"posScaleFilterParams":{"tao":69,"gain":1},"negScaleFilterParams":{"tao":693,"gain":1},"diffGain":1.3,"ampScale":1.2,"ampOffset":0,"sync":0.01}}
+
+const renderParamsInit = new RenderParams(
+  2, //valueScale,
+  0, //valueOffset,
+  .88, //satScale,
+  0, //satOffset,
+  16, //warpScale,
+  1.35, //warpOffset,
+  2.26, //scaleScale,
+  .45, //scaleOffset,
+  3 * 60, //period
+  .00001, // colorCycle
+)
+
+const audioParamsInit = new AudioProcessorParams(
+  2, //preemph
+  {tao: 2.924, gain: 1}, // gain filter params
+  {tao: 138, gain: -1}, // gain feedback params
+  {tao: 10.5, gain: 1}, // diff filter params
+  {tao: 56.6, gain: -.05}, // diff feedback param
+  {tao: 69, gain: 1}, // pos value scale params
+  {tao: 693, gain: 1}, // neg value scale params
+  1.3, //diffGain
+  1.2, // amp scale
+  0, //amp offset
+  1e-2, //sync
+  .35, // decay
+)
 
 const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [renderParams, updateRenderParam] = useReducer(
+    renderParamReducer,
+    renderParamsInit)
+  const [audioParams, updateAudioParam] = useReducer(
+    audioParamReducer,
+    audioParamsInit)
 
   const [start, setStart] = useState<boolean>()
+
+  const renderer = useRef<Renderer | null>(null)
+  const audioProcessor = useRef<AudioProcessor | null>(null)
 
   useEffect(() => {
     const cv = canvasRef.current
@@ -20,39 +87,17 @@ const App: React.FC = () => {
 
     if (!start) return
 
-    const audio = new AudioProcessor(1024, 256, buckets, length,
-      new AudioProcessorParams(
-        2,
-        new Float32Array([.1, .9]),
-        new Float32Array([.005, .995]),
-        new Float32Array([.2, .8]),
-        new Float32Array([.01, .99]),
-        new Float32Array([.01, .99, .001, .999]),
-        .2,
-        2,
-        -1,
-        1e-2,
-      ))
+    audioProcessor.current = new AudioProcessor(1024, 512, buckets, length, audioParams)
 
-    const render = new Renderer(length, buckets,
-      new RenderParams(
-        2, //valueScale,
-        -1, //valueOffset,
-        .75, //satScale,
-        0, //satOffset,
-        4, //warpScale,
-        .5, //warpOffset,
-        .5, //scaleScale,
-        .5, //scaleOffset,
-        3 * 60, //period
-      ))
+    renderer.current = new Renderer(length, buckets, renderParams)
 
-    // window.framecount = 0
     const wg = new WarpGrid(cv, buckets * 2, length * 2, async (wg: WarpGrid) => {
-      const drivers = audio.getDrivers()
+      if (!audioProcessor.current) return
+      const drivers = audioProcessor.current.getDrivers()
       // console.log(drivers)
 
-      const [display, warp, scale] = render.render(drivers)
+      if (!renderer.current) return
+      const [display, warp, scale] = renderer.current.render(drivers)
 
       const mwarp = new Float32Array(warp.length * 2)
       const wo = warp.length
@@ -72,7 +117,6 @@ const App: React.FC = () => {
 
       const xo = display.width
       const yo = display.height
-      // const pix = new PixelMap(display)
       for (let x = 0; x < display.width; x++) {
         for (let y = 0; y < display.height; y++) {
           const idx = 4 * (x + display.width * y)
@@ -83,26 +127,33 @@ const App: React.FC = () => {
           wg.setPixelSlice(xo - 1 - x, yo - 1 - y, c)
         }
       }
-      // for (let x = 0; x < wg.columns; x++) {
-      //   for (let y = 0; y < wg.rows; y++) {
-      //     wg.setPixel(x, y, (x + y) % 2 === 0 ? new RGBA(255, 255, 255, 255) : new RGBA(0, 0, 0, 0))
-      //   }
-      // }
 
     })
   }, [start])
 
+  useEffect(() => {
+    if (renderer.current)
+      renderer.current.setRenderParams(renderParams)
+  }, [renderParams])
+
+  useEffect(() =>{
+    if (audioProcessor.current)
+      audioProcessor.current.setAudioParams(audioParams)
+  }, [audioParams])
+
+  const classes = useStyles()
 
   return (
-    <div className="App" //onMouseMove={start ? undefined : () => setStart(true)}
-      style={{ width: '100hv', height: '100vh' }}>
+    <div className={classes.app}>
       {(start ?
-        <canvas
-          ref={canvasRef}
-          style={{ width: '100hv', height: '100vh' }}
-        />
+        <div>
+          <MenuPanel renderParams={renderParams} updateRenderParam={updateRenderParam} audioParams={audioParams} updateAudioParam={updateAudioParam} canvas={canvasRef}/>
+          <canvas ref={canvasRef} className={classes.canvas} onDoubleClick={e=>e.currentTarget.requestFullscreen()} />
+        </div>
         :
-        <button onClick={() => setStart(true)}>Start</button>
+        <div>
+          <Button className={classes.button} onClick={() => setStart(true)}>Start</Button>
+        </div>
       )}
     </div>
   );

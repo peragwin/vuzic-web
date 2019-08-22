@@ -1,5 +1,6 @@
-import FFT from "fft.js";
-
+import { Bucketer } from './bucketer'
+import { SlidingFFT } from './sfft'
+import { number } from 'prop-types';
 export class AudioProcessor {
   private ctx: AudioContext;
   private fs: FrequencyProcessor
@@ -14,7 +15,14 @@ export class AudioProcessor {
     readonly length: number,
     public params: AudioProcessorParams,
   ) {
-    const ctx = new AudioContext()
+    let audioContext
+    try {
+      audioContext = AudioContext
+    } catch (_) {
+      // @ts-ignore
+      audioContext = window.AudioContext || window.webkitAudioContext;
+    }
+    const ctx = new audioContext()
     this.ctx = ctx
 
     const analyzer = ctx.createAnalyser()
@@ -22,7 +30,7 @@ export class AudioProcessor {
     analyzer.fftSize = this.blockSize
     analyzer.smoothingTimeConstant = 0
 
-    const bucketer = new Bucketer(this.size, this.buckets, 32, 12000)
+    const bucketer = new Bucketer(this.size/2, this.buckets, 32, 12000)
     this.bucketer = bucketer
 
     const fft = new SlidingFFT(this.blockSize, this.size)
@@ -103,190 +111,10 @@ export class AudioProcessor {
   public getDrivers() {
     return this.fs.getDrivers()
   }
-}
 
-class WindowBuffer {
-  private buffer: Float32Array
-  private index = 0
-
-  constructor(
-    readonly capacity: number,
-  ) {
-    this.buffer = new Float32Array(capacity).fill(0)
-  }
-
-  public push(x: Float32Array) {
-    if (x.length > this.buffer.length) throw new Error("cannot push size greater than capacity")
-
-    let wrap = false
-    let en = this.index + x.length
-    if (en > this.buffer.length) {
-      en = this.buffer.length
-      wrap = true
-    }
-
-    for (let i = this.index; i < en; i++) {
-      this.buffer[i] = x[i - this.index]
-    }
-    if (wrap) {
-      const os = this.buffer.length - this.index
-      for (let i = 0; i < x.length - os; i++) {
-        this.buffer[i] = x[i + os]
-      }
-    }
-
-    this.index = (this.index + x.length) % this.capacity
-  }
-
-  public get(size: number) {
-    if (size > this.capacity) throw new Error("cannot get size greater than capacity")
-
-    const out = new Float32Array(size).fill(0)
-
-    let wrap = false
-    let st = this.index - size
-    let en = this.index
-    if (st < 0) {
-      st = this.capacity + st
-      en = this.capacity
-      wrap = true
-    }
-
-    for (let i = st; i < en; i++) {
-      out[i - st] = this.buffer[i]
-    }
-    if (wrap) {
-      const os = en - st
-      for (let i = 0; i < this.index; i++) {
-        out[i + os] = this.buffer[i]
-      }
-    }
-
-    return out
-  }
-}
-
-function blackmanHarris(i: number, N: number) {
-  const a0 = 0.35875,
-    a1 = 0.48829,
-    a2 = 0.14128,
-    a3 = 0.01168,
-    f = 6.283185307179586 * i / (N - 1)
-
-  return a0 - a1 * Math.cos(f) + a2 * Math.cos(2 * f) - a3 * Math.cos(3 * f)
-}
-
-class SlidingFFT {
-  private buffer: WindowBuffer
-  private fft: FFT
-  private window: Float32Array
-
-  private lastTime = 0
-
-  constructor(
-    readonly frameSize: number,
-    readonly fftSize: number,
-  ) {
-    this.buffer = new WindowBuffer(fftSize)
-    this.fft = new FFT(fftSize)
-    this.window = new Float32Array(fftSize).fill(0)
-    for (let i = 0; i < fftSize; i++) {
-      this.window[i] = blackmanHarris(i, fftSize)
-    }
-  }
-
-  public process(input: Float32Array) {
-    // const ts = e.timeStamp
-    // console.log("fps:", 1000 / (ts - this.lastTime), ts)
-    // this.lastTime = ts
-
-    // const input = e.inputBuffer.getChannelData(0)
-    this.buffer.push(input)
-
-    const frame = this.buffer.get(this.fftSize)
-    for (let i = 0; i < this.fftSize; i++) {
-      frame[i] *= this.window[i]
-    }
-
-    const out = this.fft.createComplexArray() //new Float32Array(this.fftSize/2).fill(0)
-    this.fft.realTransform(out, frame)
-
-    // const output = e.outputBuffer.getChannelData(0)
-    const output = new Float32Array(this.fftSize)
-    for (let i = 0; i < this.fftSize * 2; i += 2) {
-      const v = Math.sqrt(out[i] * out[i] + out[i + 1] * out[i + 1])
-      output[i / 2] = Math.log2(1 + v)
-    }
-
-    return output
-  }
-}
-
-class Bucketer {
-  private indices: Array<number>
-
-  constructor(
-    readonly inputSize: number,
-    readonly buckets: number,
-    readonly fMin: number,
-    readonly fMax: number,
-  ) {
-    const sMin = this.toLogScale(fMin)
-    const sMax = this.toLogScale(fMax)
-    const space = (sMax - sMin) / buckets
-    const indices = new Array<number>(buckets - 1)
-
-    let lastIdx = 0
-    let offset = 1
-    const offsetDelta = (sMax - sMin) / inputSize
-
-    for (let i = 0; i < indices.length; i++) {
-      const adjSpace = space - offsetDelta * offset / buckets
-
-      const v = this.fromLogScale((i + 1) * adjSpace + sMin + offsetDelta * offset)
-      let idx = Math.ceil(inputSize * v / fMax)
-
-      if (idx <= lastIdx) {
-        idx = lastIdx + 1
-        offset++
-      }
-      if (idx >= inputSize) {
-        idx = inputSize - 1
-      }
-
-      indices[i] = idx
-      lastIdx = idx
-    }
-
-    this.indices = indices
-  }
-
-  private toLogScale(x: number) {
-    return Math.log2(1 + x)
-  }
-
-  private fromLogScale(x: number) {
-    return 2 ** (x) + 1
-  }
-
-  public bucket(input: Float32Array) {
-    // const input = e.inputBuffer.getChannelData(0)
-    // const output = e.outputBuffer.getChannelData(0)
-    const output = new Float32Array(this.buckets)
-
-    for (let i = 0; i < this.buckets; i++) {
-      let start = (i === 0) ? 0 : this.indices[i - 1]
-      let stop = (i === this.buckets - 1) ? input.length : this.indices[i]
-
-      let sum = 0
-      for (let j = start; j < stop; j++) {
-        sum += input[j]
-      }
-
-      output[i] = sum / (stop - start)
-    }
-
-    return output
+  public setAudioParams(params: AudioProcessorParams) {
+    this.params = params
+    this.fs.setParams(params)
   }
 }
 
@@ -316,34 +144,184 @@ export class Drivers {
 export class AudioProcessorParams {
   constructor(
     public preemphasis: number,
-    public gainFilterParams: Float32Array,
-    public gainFeedbackParams: Float32Array,
-    public diffFilterParams: Float32Array,
-    public diffFeedbackParams: Float32Array,
-    public scaleFilterParams: Float32Array,
+    public gainFilterParams: FilterParams,
+    public gainFeedbackParams: FilterParams,
+    public diffFilterParams: FilterParams,
+    public diffFeedbackParams: FilterParams,
+    public posScaleFilterParams: FilterParams,
+    public negScaleFilterParams: FilterParams,
     public diffGain: number,
     public ampScale: number,
     public ampOffset: number,
     public sync: number,
+    public decay: number,
   ) { }
+}
+
+export enum AudioParamKey {
+  preemphasis,
+  gainFilterParams,
+  gainFeedbackParams,
+  diffFilterParams,
+  diffFeedbackParams,
+  posScaleFilterParams,
+  negScaleFilterParams,
+  diffGain,
+  ampScale,
+  ampOffset,
+  sync,
+  decay,
+  all,
+}
+
+export interface AudioParamUpdate {
+  type: AudioParamKey,
+  value: number | FilterParams | AudioProcessorParams,
+}
+
+export const audioParamReducer = (state: AudioProcessorParams, action: AudioParamUpdate) => {
+  state = {...state}
+  let fp
+  switch (action.type) {
+    case AudioParamKey.preemphasis:
+      state.preemphasis = action.value as number
+      break
+    case AudioParamKey.gainFilterParams:
+      state.gainFilterParams = action.value as FilterParams
+      break
+    case AudioParamKey.gainFeedbackParams:
+      state.gainFeedbackParams = action.value as FilterParams
+      break
+    case AudioParamKey.diffFilterParams:
+      state.diffFilterParams = action.value as FilterParams
+      break
+    case AudioParamKey.diffFeedbackParams:
+      state.diffFeedbackParams = action.value as FilterParams
+      break
+    case AudioParamKey.posScaleFilterParams:
+      state.posScaleFilterParams = action.value as FilterParams
+      break
+    case AudioParamKey.negScaleFilterParams:
+      state.negScaleFilterParams = action.value as FilterParams
+      break
+    case AudioParamKey.diffGain:
+      state.diffGain = action.value as number
+      break
+    case AudioParamKey.ampScale:
+      state.ampScale = action.value as number
+      break
+    case AudioParamKey.ampOffset:
+      state.ampOffset = action.value as number
+      break
+    case AudioParamKey.sync:
+      state.sync = action.value as number
+      break
+  case AudioParamKey.decay:
+      state.decay = action.value as number
+      break
+    case AudioParamKey.all:
+      state = action.value as AudioProcessorParams
+      break
+  }
+  return state
 }
 
 class Filter {
   public values: Float32Array
+  private _params: Float32Array
 
   constructor(
     readonly size: number,
-    public params: Float32Array,
+    public params: FilterParams,
   ) {
     this.values = new Float32Array(size).fill(0)
+    this._params = fromFilterParams(params)
+    // console.log(this._params)
   }
 
   public process(x: Float32Array) {
     for (let i = 0; i < this.size; i++) {
-      this.values[i] = this.params[0] * x[i] + this.params[1] * this.values[i]
+      this.values[i] = this._params[0] * x[i] + this._params[1] * this.values[i]
     }
     return this.values
   }
+
+  public setParams(fp: FilterParams) {
+    this._params = fromFilterParams(fp)
+    // console.log(this._params)
+  }
+}
+
+class BiasedFilter {
+  public values: Float32Array
+  private _params: Float32Array
+
+  constructor(
+    readonly size: number,
+    public posfp: FilterParams,
+    public negfp: FilterParams,
+  ){
+    this.values = new Float32Array(size).fill(0)
+    const posp = fromFilterParams(posfp)
+    const negp = fromFilterParams(negfp)
+    this._params = new Float32Array([posp[0], posp[1], negp[0], negp[1]])
+    // console.log(this._params)
+  }
+
+  public process(x: Float32Array) {
+    for (let i = 0; i < this.size; i++) {
+      if (x[i] <= this.values[i]) {
+        this.values[i] = this._params[0] * x[i] + this._params[1] * this.values[i]
+      } else {
+        this.values[i] = this._params[2] * x[i] + this._params[3] * this.values[i]
+      }
+    }
+    return this.values
+  }
+
+  public setParams(posfp: FilterParams, negfp: FilterParams) {
+    const posp = fromFilterParams(posfp)
+    const negp = fromFilterParams(negfp)
+    this._params = new Float32Array([posp[0], posp[1], negp[0], negp[1]])
+    // console.log(this._params)
+  }
+}
+
+
+export interface FilterParams {
+  tao: number,
+  gain: number,
+}
+
+export const toFilterParams = (fp: Float32Array) => {
+  return {
+    tao: tao(fp),
+    gain: gain(fp),
+  } as FilterParams
+}
+
+// .5 = b ^ n -> n = -ln(2)/ln(b)
+const tao = (fp: Float32Array) => {
+  const g = gain(fp)
+  if (g === 0) return 0
+
+  const b = fp[1] / g
+  if (b === 0) return 0
+
+  return -Math.log(2) / Math.log(b)
+}
+const gain = (fp: Float32Array) => Math.abs(fp[0]) + Math.abs(fp[1])
+
+export const fromFilterParams = (fp: FilterParams) => {
+  if (fp.tao === 0) return new Float32Array([1, 0])
+
+  // .5 = b ^ t -> ln(b) = -ln(2)/t -> b ?????????? fuck i really suck at math now
+  // b = .5 * 2 ^ ((t-1)/t)
+  let b = .5 * Math.pow(2, (fp.tao-1)/fp.tao)
+  let a = 1 - b
+  a *= fp.gain
+  b *= fp.gain
+  return new Float32Array([a, b])
 }
 
 function logError(x: number) {
@@ -363,7 +341,7 @@ class GainController {
     public kp = 0.001,
     public kd = 0.005,
   ) {
-    this.filter = new Filter(size, new Float32Array([0.005, 0.995]))
+    this.filter = new Filter(size, {tao: 138, gain: 1})
     this.gain = new Float32Array(size).fill(0)
     for (let i = 0; i < this.size; i++) {
       this.gain[i] = 1
@@ -408,7 +386,7 @@ class FrequencyProcessor {
   private gainFeedback: Filter
   private diffFilter: Filter
   private diffFeedback: Filter
-  private scaleFilter: Filter
+  private scaleFilter: BiasedFilter
 
   private lastTime = 0
 
@@ -434,7 +412,7 @@ class FrequencyProcessor {
     this.gainFeedback = new Filter(size, params.gainFeedbackParams)
     this.diffFilter = new Filter(size, params.diffFilterParams)
     this.diffFeedback = new Filter(size, params.diffFeedbackParams)
-    this.scaleFilter = new Filter(size, params.scaleFilterParams)
+    this.scaleFilter = new BiasedFilter(size, params.posScaleFilterParams, params.negScaleFilterParams)
   }
 
   public process(input: Float32Array) {
@@ -484,7 +462,7 @@ class FrequencyProcessor {
     const ag = this.params.ampScale
     const ao = this.params.ampOffset
 
-    const decay = 1 - (.5 / this.length)
+    const decay = 1 - (this.params.decay / this.length)
     for (let i = 0; i < this.length; i++) {
       for (let j = 0; j < this.size; j++) {
         this.drivers.amp[i][j] *= decay
@@ -500,12 +478,13 @@ class FrequencyProcessor {
       amp[i] = this.gainFilter.values[i] + this.gainFeedback.values[i]
       amp[i] = ao + ag * amp[i]
 
-      diff[i] = this.diffFilter.values[i] + this.diffFeedback.values[i]
+      diff[i] = dg * (this.diffFilter.values[i] + this.diffFeedback.values[i])
 
       let ph = energy[i] + .001
-      ph -= dg * Math.abs(diff[i])
+      ph -= diff[i] //Math.abs(diff[i])
       energy[i] = ph
     }
+    console.log(energy)
   }
 
   private applySync() {
@@ -549,40 +528,37 @@ class FrequencyProcessor {
         if (energy[i] >= -2 * Math.PI) return
       }
       for (let i = 0; i < this.size; i++) {
-        energy[i] = 2 * Math.PI + (energy[i] % 2 * Math.PI)
+        energy[i] = 2 * Math.PI + energy[i] // (energy[i] % 2 * Math.PI)
       }
-      mean = 2 * Math.PI + (mean % 2 * Math.PI)
+      mean = 2 * Math.PI + mean //(mean % 2 * Math.PI)
     }
     if (mean > 2 * Math.PI) {
       for (let i = 0; i < this.size; i++) {
         if (energy[i] <= 2 * Math.PI) return;
       }
       for (let i = 0; i < this.size; i++) {
-        energy[i] = (energy[i] % 2 * Math.PI)
+        energy[i] -= 2*Math.PI //(energy[i] % 2 * Math.PI)
       }
-      mean = (mean % 2 * Math.PI)
+      mean -= 2*Math.PI //(mean % 2 * Math.PI)
     }
   }
 
   private applyValueScaling() {
+    const x = this.drivers.getColumn(0)
+    const sval = new Float32Array(this.size)
+
     for (let i = 0; i < this.size; i++) {
-      const x = this.drivers.getColumn(0)
+      const vs = this.drivers.scales[i]
+      const sv = vs * (x[i] - 1)
+      sval[i] = Math.abs(sv)
+    }
+
+    this.scaleFilter.process(sval)
+
+    for (let  i = 0; i < this.size; i++) {
       let vsh = this.scaleFilter.values[i]
-      let vs = this.drivers.scales[i]
-
-      let sval = vs * (x[i] - 1)
-      if (sval < 0) sval = -sval
-
-      const params = this.scaleFilter.params
-      if (sval < vsh) {
-        vsh = params[0] * sval + params[1] * vsh
-      } else {
-        vsh = params[2] * sval + params[3] * vsh
-      }
-
       if (vsh < .001) vsh = .001
-      vs = 1 / vsh
-
+      const vs = 1 / vsh
       this.scaleFilter.values[i] = vsh
       this.drivers.scales[i] = vs
     }
@@ -590,5 +566,14 @@ class FrequencyProcessor {
 
   public getDrivers() {
     return this.drivers
+  }
+
+  public setParams(params: AudioProcessorParams) {
+    this.gainFilter.setParams(params.gainFilterParams)
+    this.gainFeedback.setParams(params.gainFeedbackParams)
+    this.diffFilter.setParams(params.diffFilterParams)
+    this.diffFeedback.setParams(params.diffFeedbackParams)
+    this.scaleFilter.setParams(params.posScaleFilterParams, params.negScaleFilterParams)
+    this.params = params
   }
 }

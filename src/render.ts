@@ -12,7 +12,67 @@ export class RenderParams {
     public scaleScale: number,
     public scaleOffset: number,
     public period: number,
+    public colorCycle: number,
   ) { }
+}
+
+export enum RenderParamKey {
+  valueScale,
+  valueOffset,
+  lightnessScale,
+  lightnessOffset,
+  warpScale,
+  warpOffset,
+  scaleScale,
+  scaleOffset,
+  period,
+  colorCycle,
+  all,
+}
+
+export interface RenderParamUpdate {
+  type: RenderParamKey,
+  value: number | RenderParams,
+}
+
+export const renderParamReducer = (state: RenderParams, action: RenderParamUpdate) => {
+  state = {...state}
+  switch (action.type) {
+    case RenderParamKey.valueScale:
+      state.valueScale = action.value as number
+      break
+    case RenderParamKey.valueOffset:
+      state.valueOffset = action.value as number
+      break
+    case RenderParamKey.lightnessScale:
+      state.lightnessScale = action.value as number
+      break
+    case RenderParamKey.lightnessOffset:
+      state.lightnessOffset = action.value as number
+      break
+    case RenderParamKey.warpScale:
+      state.warpScale = action.value as number
+      break
+    case RenderParamKey.warpOffset:
+      state.warpOffset = action.value as number
+      break
+    case RenderParamKey.scaleScale:
+      state.scaleScale = action.value as number
+      break
+    case RenderParamKey.scaleOffset:
+      state.scaleOffset = action.value as number
+      break
+    case RenderParamKey.period:
+      state.period = action.value as number
+      break
+    case RenderParamKey.colorCycle:
+      state.colorCycle = action.value as number
+      break
+    case RenderParamKey.all:
+      state = action.value as RenderParams
+      break
+  }
+  return state
 }
 
 export class Renderer {
@@ -61,7 +121,8 @@ export class Renderer {
         s += drivers.scales[j] * (amp[j] - 1)
       }
       s /= this.rows
-      this.scale[i] = this.params.scaleScale * s + this.params.scaleOffset
+      const ss = 1 - (this.columns - i/2)/this.columns
+      this.scale[i] = this.params.scaleScale * ss * s + this.params.scaleOffset
     }
   }
 
@@ -71,7 +132,7 @@ export class Renderer {
     const ss = this.params.lightnessScale
     const so = this.params.lightnessOffset
 
-    let hue = (180 * (phi + ph) / Math.PI) % 360
+    let hue = (180 * (this.params.colorCycle*phi + ph) / Math.PI) % 360
     if (hue < 0) hue += 360
 
     const val = ss * sigmoid(vs * amp + vo) + so
@@ -109,6 +170,10 @@ export class Renderer {
         this.display.data[didx + 3] = 255
       }
     }
+  }
+
+  public setRenderParams(params: RenderParams) {
+    this.params = params
   }
 }
 
