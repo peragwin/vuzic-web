@@ -31,19 +31,25 @@ const useStyles = makeStyles({
   canvas: { width: '100vw', height: '100vh' },
 });
 
-const buckets = 16
-const length = 240
+const buckets = 32
+const length = 120
 
-const m = {"renderParams":{"valueScale":2,"valueOffset":0,"lightnessScale":0.88,"lightnessOffset":0,"warpScale":16,"warpOffset":1.35,"scaleScale":2.26,"scaleOffset":0.45,"period":180},
-"audioParams":{"preemphasis":2,"gainFilterParams":{"tao":2.9240999999999997,"gain":1},"gainFeedbackParams":{"tao":138,"gain":-1},"diffFilterParams":{"tao":10.497600000000002,"gain":1},
-"diffFeedbackParams":{"tao":56.6,"gain":-0.05},
-"posScaleFilterParams":{"tao":69,"gain":1},"negScaleFilterParams":{"tao":693,"gain":1},"diffGain":1.3,"ampScale":1.2,"ampOffset":0,"sync":0.01}}
+const m = {
+  "renderParams": { "valueScale": 2, "valueOffset": 0, "lightnessScale": 0.88, "lightnessOffset": 0, "warpScale": 16, "warpOffset": 1.35, "scaleScale": 2.26, "scaleOffset": 0.45, "period": 180 },
+  "audioParams": {
+    "preemphasis": 2, "gainFilterParams": { "tao": 2.9240999999999997, "gain": 1 }, "gainFeedbackParams": { "tao": 138, "gain": -1 }, "diffFilterParams": { "tao": 10.497600000000002, "gain": 1 },
+    "diffFeedbackParams": { "tao": 56.6, "gain": -0.05 },
+    "posScaleFilterParams": { "tao": 69, "gain": 1 }, "negScaleFilterParams": { "tao": 693, "gain": 1 }, "diffGain": 1.3, "ampScale": 1.2, "ampOffset": 0, "sync": 0.01
+  }
+}
 
 const renderParamsInit = new RenderParams(
   2, //valueScale,
   0, //valueOffset,
   .88, //satScale,
   0, //satOffset,
+  1, // alphaScale
+  .25, // alphaOffset
   16, //warpScale,
   1.35, //warpOffset,
   2.26, //scaleScale,
@@ -54,12 +60,12 @@ const renderParamsInit = new RenderParams(
 
 const audioParamsInit = new AudioProcessorParams(
   2, //preemph
-  {tao: 2.924, gain: 1}, // gain filter params
-  {tao: 138, gain: -1}, // gain feedback params
-  {tao: 10.5, gain: 1}, // diff filter params
-  {tao: 56.6, gain: -.05}, // diff feedback param
-  {tao: 69, gain: 1}, // pos value scale params
-  {tao: 693, gain: 1}, // neg value scale params
+  { tao: 2.924, gain: 1 }, // gain filter params
+  { tao: 138, gain: -1 }, // gain feedback params
+  { tao: 10.5, gain: 1 }, // diff filter params
+  { tao: 56.6, gain: -.05 }, // diff feedback param
+  { tao: 69, gain: 1 }, // pos value scale params
+  { tao: 693, gain: 1 }, // neg value scale params
   1.3, //diffGain
   1.2, // amp scale
   0, //amp offset
@@ -91,7 +97,7 @@ const App: React.FC = () => {
 
     renderer.current = new Renderer(length, buckets, renderParams)
 
-    const wg = new WarpGrid(cv, buckets * 2, length * 2, async (wg: WarpGrid) => {
+    const wg = new WarpGrid(cv, buckets * 2, length * 2, 4 / 3, async (wg: WarpGrid) => {
       if (!audioProcessor.current) return
       const drivers = audioProcessor.current.getDrivers()
       // console.log(drivers)
@@ -136,7 +142,7 @@ const App: React.FC = () => {
       renderer.current.setRenderParams(renderParams)
   }, [renderParams])
 
-  useEffect(() =>{
+  useEffect(() => {
     if (audioProcessor.current)
       audioProcessor.current.setAudioParams(audioParams)
   }, [audioParams])
@@ -147,8 +153,8 @@ const App: React.FC = () => {
     <div className={classes.app}>
       {(start ?
         <div>
-          <MenuPanel renderParams={renderParams} updateRenderParam={updateRenderParam} audioParams={audioParams} updateAudioParam={updateAudioParam} canvas={canvasRef}/>
-          <canvas ref={canvasRef} className={classes.canvas} onDoubleClick={e=>e.currentTarget.requestFullscreen()} />
+          <MenuPanel renderParams={renderParams} updateRenderParam={updateRenderParam} audioParams={audioParams} updateAudioParam={updateAudioParam} canvas={canvasRef} />
+          <canvas ref={canvasRef} className={classes.canvas} onDoubleClick={e => e.currentTarget.requestFullscreen()} />
         </div>
         :
         <div>

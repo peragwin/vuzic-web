@@ -99,13 +99,13 @@ const ParamSlider: React.FC<ParamSliderProps> = (props: ParamSliderProps) => {
         {title} = {value}
       </Typography>
       <Slider className={classes.slider}
-          min={min} max={max}
-          aria-labelledby={`slider-${title}`}
-          step={step}
-          value={value || 0}
-          // @ts-ignore
-          onChange={onChange}
-          valueLabelDisplay="auto"
+        min={min} max={max}
+        aria-labelledby={`slider-${title}`}
+        step={step}
+        value={value || 0}
+        // @ts-ignore
+        onChange={onChange}
+        valueLabelDisplay="auto"
       />
     </div>
   )
@@ -125,10 +125,10 @@ const FilterParamSlider: React.FC<FilterParamSliderProps> = (props: FilterParamS
   const handleChange = (key: 'tao' | 'gain') => (e: React.ChangeEvent<{}>, val: number | number[]) => {
     switch (key) {
       case 'tao':
-        onChange(e, {...value, tao: (val as number) * (val as number)})
+        onChange(e, { ...value, tao: (val as number) * (val as number) })
         break
       case 'gain':
-        onChange(e, {...value, gain: val as number})
+        onChange(e, { ...value, gain: val as number })
         break
     }
   }
@@ -142,23 +142,23 @@ const FilterParamSlider: React.FC<FilterParamSliderProps> = (props: FilterParamS
         Tao = {value.tao}
       </Typography>
       <Slider className={classes.slider}
-          min={Math.sqrt(min)} max={Math.sqrt(max)}
-          aria-labelledby={`slider-${title}-tao`}
-          step={step}
-          value={Math.sqrt(value.tao)}
-          onChange={handleChange('tao')}
-          valueLabelDisplay="off"
+        min={Math.sqrt(min)} max={Math.sqrt(max)}
+        aria-labelledby={`slider-${title}-tao`}
+        step={step}
+        value={Math.sqrt(value.tao)}
+        onChange={handleChange('tao')}
+        valueLabelDisplay="off"
       />
       <Typography id={`slider-${title}-gain`} gutterBottom>
         Gain = {value.gain}
       </Typography>
       <Slider className={classes.slider}
-          min={-2} max={2}
-          aria-labelledby={`slider-${title}-gain`}
-          step={.01}
-          value={value.gain}
-          onChange={handleChange('gain')}
-          valueLabelDisplay="auto"
+        min={-2} max={2}
+        aria-labelledby={`slider-${title}-gain`}
+        step={.01}
+        value={value.gain}
+        onChange={handleChange('gain')}
+        valueLabelDisplay="auto"
       />
     </div>
   )
@@ -185,9 +185,9 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
     setAnchorMenu(null);
   }
 
-  const {renderParams, audioParams} = props
+  const { renderParams, audioParams } = props
   const saveProfile = (name: string) => {
-    window.localStorage.setItem(`profile.${name}`, JSON.stringify({renderParams, audioParams}))
+    window.localStorage.setItem(`profile.${name}`, JSON.stringify({ renderParams, audioParams }))
     handleCloseMenu()
   }
 
@@ -195,57 +195,57 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
     const profile = window.localStorage.getItem(`profile.${name}`)
     if (profile === null) return
     console.log(profile)
-    const {renderParams, audioParams} = JSON.parse(profile)
-    props.updateRenderParam({type: RenderParamKey.all, value: renderParams})
-    props.updateAudioParam({type: AudioParamKey.all, value: audioParams})
+    const { renderParams, audioParams } = JSON.parse(profile)
+    props.updateRenderParam({ type: RenderParamKey.all, value: renderParams })
+    props.updateAudioParam({ type: AudioParamKey.all, value: audioParams })
     handleCloseMenu()
   }
 
   const classes = useStyles()
 
   return (
-  <div className={classes.title}>
-    <IconButton
-      aria-label="account of current user"
-      aria-controls="menu-appbar"
-      aria-haspopup="true"
-      onClick={handleShowMenu}
-      color="inherit"
-    >
-      <SaveIcon />
-    </IconButton>
-    <Menu
-      id="menu-appbar"
-      anchorEl={anchorMenu}
-      anchorOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      keepMounted
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      open={open}
-      onClose={handleCloseMenu}
-    >
-      {["Default", "Bright", "Dim", "Sensitive", "Other"].map(name =>
-      <div>
-        <MenuItem key={"save"+name} onClick={() => saveProfile(name)}>
-          <ListItemIcon>
-            <CreateIcon />
-          </ListItemIcon>
-          <Typography variant="inherit">{`Save Profile: ${name}`}</Typography>
-        </MenuItem>
-        <MenuItem key={"load"+name} onClick={() => loadProfile(name)}>
-          <ListItemIcon>
-            <FolderOpenIcon />
-          </ListItemIcon>
-          <Typography variant="inherit">{`Load Profile: ${name}`}</Typography>
-        </MenuItem>
-      </div>)}
-    </Menu>
-  </div>)
+    <div className={classes.title}>
+      <IconButton
+        aria-label="account of current user"
+        aria-controls="menu-appbar"
+        aria-haspopup="true"
+        onClick={handleShowMenu}
+        color="inherit"
+      >
+        <SaveIcon />
+      </IconButton>
+      <Menu
+        id="menu-appbar"
+        anchorEl={anchorMenu}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        keepMounted
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        open={open}
+        onClose={handleCloseMenu}
+      >
+        {["Default", "Bright", "Dim", "Sensitive", "Other"].map(name =>
+          <div>
+            <MenuItem key={"save" + name} onClick={() => saveProfile(name)}>
+              <ListItemIcon>
+                <CreateIcon />
+              </ListItemIcon>
+              <Typography variant="inherit">{`Save Profile: ${name}`}</Typography>
+            </MenuItem>
+            <MenuItem key={"load" + name} onClick={() => loadProfile(name)}>
+              <ListItemIcon>
+                <FolderOpenIcon />
+              </ListItemIcon>
+              <Typography variant="inherit">{`Load Profile: ${name}`}</Typography>
+            </MenuItem>
+          </div>)}
+      </Menu>
+    </div>)
 }
 
 const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
@@ -277,25 +277,25 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
 
   const renderParams = props.renderParams
   const setRenderParam = (type: RenderParamKey) =>
-    (e: React.ChangeEvent<{}>, value: number) => props.updateRenderParam({type, value})
+    (e: React.ChangeEvent<{}>, value: number) => props.updateRenderParam({ type, value })
 
   const audioParams = props.audioParams
   const setAudioParam = (type: AudioParamKey) =>
-    (e: React.ChangeEvent<{}>, value: number | FilterParams) => props.updateAudioParam({type, value})
+    (e: React.ChangeEvent<{}>, value: number | FilterParams) => props.updateAudioParam({ type, value })
 
   return (<div>
-    <div className={classes.menuTriggerArea} onClick={()=>console.log("foo")} onMouseOver={handleShowMenu} onMouseOut={()=>setShowMenu(false)}>
+    <div className={classes.menuTriggerArea} onClick={() => console.log("foo")} onMouseOver={handleShowMenu} onMouseOut={() => setShowMenu(false)}>
       <Slide appear={false} in={showMenu} direction="down">
         <AppBar position="static" className={classes.background}>
           <Toolbar>
             <IconButton edge="start" className={classes.menuButton} color="inherit" aria-label="renderMenu">
-              <MenuIcon onClick={handleShowRenderSettings}/>
+              <MenuIcon onClick={handleShowRenderSettings} />
             </IconButton>
             <Typography variant="h6" className={classes.title} onClick={handleShowRenderSettings}>
               Visualizer
             </Typography>
             <IconButton edge="start" className={classes.menuButton} color="inherit" aria-label="audioMenu">
-              <MenuIcon onClick={handleShowAudioSettings}/>
+              <MenuIcon onClick={handleShowAudioSettings} />
             </IconButton>
             <Typography variant="h6" className={classes.title} onClick={handleShowAudioSettings}>
               Audio
@@ -310,36 +310,38 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
         <ClickAwayListener onClickAway={handleHideRenderSettings}>
           <Paper className={classes.settings}>
             <div className={classes.settingsOptions}>
-            <ParamSlider title="Color Scaler" min={-4} max={4} step={.01} value={renderParams.valueScale} onChange={setRenderParam(RenderParamKey.valueScale)} />
-            <ParamSlider title="Color Offset" min={-4} max={4} step={.01} value={renderParams.valueOffset} onChange={setRenderParam(RenderParamKey.valueOffset)} />
-            <ParamSlider title="Lightness Scaler" min={-4} max={4} step={.01} value={renderParams.lightnessScale} onChange={setRenderParam(RenderParamKey.lightnessScale)} />
-            <ParamSlider title="Lightness Offset" min={-4} max={4} step={.01} value={renderParams.lightnessOffset} onChange={setRenderParam(RenderParamKey.lightnessOffset)} />
-            <ParamSlider title="Horizontal Warp" min={0} max={16} step={.05} value={renderParams.warpScale} onChange={setRenderParam(RenderParamKey.warpScale)} />
-            <ParamSlider title="Horizontal Warp Offset" min={-1} max={4} step={.01} value={renderParams.warpOffset} onChange={setRenderParam(RenderParamKey.warpOffset)} />
-            <ParamSlider title="Vertical Warp" min={-2} max={8} step={.01} value={renderParams.scaleScale} onChange={setRenderParam(RenderParamKey.scaleScale)} />
-            <ParamSlider title="Vertical Warp Offset" min={-1} max={4} step={.01} value={renderParams.scaleOffset} onChange={setRenderParam(RenderParamKey.scaleOffset)} />
-            <ParamSlider title="Color Period" min={1} max={360} step={1} value={renderParams.period} onChange={setRenderParam(RenderParamKey.period)} />
-            <ParamSlider title="Color Cycle Rate" min={.0001} max={.01} step={.0005} value={renderParams.colorCycle} onChange={setRenderParam(RenderParamKey.colorCycle)} />
+              <ParamSlider title="Color Scaler" min={-4} max={4} step={.01} value={renderParams.valueScale} onChange={setRenderParam(RenderParamKey.valueScale)} />
+              <ParamSlider title="Color Offset" min={-4} max={4} step={.01} value={renderParams.valueOffset} onChange={setRenderParam(RenderParamKey.valueOffset)} />
+              <ParamSlider title="Lightness Scaler" min={-4} max={4} step={.01} value={renderParams.lightnessScale} onChange={setRenderParam(RenderParamKey.lightnessScale)} />
+              <ParamSlider title="Lightness Offset" min={-4} max={4} step={.01} value={renderParams.lightnessOffset} onChange={setRenderParam(RenderParamKey.lightnessOffset)} />
+              <ParamSlider title="Alpha Scale" min={-2} max={8} step={.01} value={renderParams.alphaScale} onChange={setRenderParam(RenderParamKey.alphaScale)} />
+              <ParamSlider title="Alpha Offset" min={-4} max={4} step={.01} value={renderParams.alphaOffset} onChange={setRenderParam(RenderParamKey.alphaOffset)} />
+              <ParamSlider title="Horizontal Warp" min={0} max={16} step={.05} value={renderParams.warpScale} onChange={setRenderParam(RenderParamKey.warpScale)} />
+              <ParamSlider title="Horizontal Warp Offset" min={-1} max={4} step={.01} value={renderParams.warpOffset} onChange={setRenderParam(RenderParamKey.warpOffset)} />
+              <ParamSlider title="Vertical Warp" min={-2} max={8} step={.01} value={renderParams.scaleScale} onChange={setRenderParam(RenderParamKey.scaleScale)} />
+              <ParamSlider title="Vertical Warp Offset" min={-1} max={4} step={.01} value={renderParams.scaleOffset} onChange={setRenderParam(RenderParamKey.scaleOffset)} />
+              <ParamSlider title="Color Period" min={1} max={360} step={1} value={renderParams.period} onChange={setRenderParam(RenderParamKey.period)} />
+              <ParamSlider title="Color Cycle Rate" min={.0001} max={.01} step={.0005} value={renderParams.colorCycle} onChange={setRenderParam(RenderParamKey.colorCycle)} />
             </div>
           </Paper>
         </ClickAwayListener>
-        : null }
-        {showAudioSettings ?
-          <ClickAwayListener onClickAway={handleHideAudioSettings}>
+        : null}
+      {showAudioSettings ?
+        <ClickAwayListener onClickAway={handleHideAudioSettings}>
           <Paper className={classes.settings}>
             <div className={classes.settingsOptions}>
-            <ParamSlider title="Preemphasis" min={1} max={16} step={.01} value={audioParams.preemphasis} onChange={setAudioParam(AudioParamKey.preemphasis)} />
-            <ParamSlider title="Sensitivity Scale" min={-1} max={8} step={.01} value={audioParams.ampScale} onChange={setAudioParam(AudioParamKey.ampScale)} />
-            <ParamSlider title="Sensitivity Offset" min={-2} max={8} step={.01} value={audioParams.ampOffset} onChange={setAudioParam(AudioParamKey.ampOffset)} />
-            <ParamSlider title="Differential Sensitivity" min={-1} max={4} step={.01} value={audioParams.diffGain} onChange={setAudioParam(AudioParamKey.diffGain)} />
-            <ParamSlider title="Differential Sync" min={0} max={.1} step={.001} value={audioParams.sync} onChange={setAudioParam(AudioParamKey.sync)} />
-            <ParamSlider title="Decay" min={0} max={2} step={.001} value={audioParams.decay} onChange={setAudioParam(AudioParamKey.decay)} />
-            <FilterParamSlider title="Intensity Filter" min={0} max={12} step={.01} value={audioParams.gainFilterParams} onChange={setAudioParam(AudioParamKey.gainFilterParams)} />
-            <FilterParamSlider title="Intensity Feedback" min={0} max={1000} step={1} value={audioParams.gainFeedbackParams} onChange={setAudioParam(AudioParamKey.gainFeedbackParams)} />
-            <FilterParamSlider title="Differential Filter" min={0} max={12} step={.01} value={audioParams.diffFilterParams} onChange={setAudioParam(AudioParamKey.diffFilterParams)} />
-            <FilterParamSlider title="Differential Feedback" min={0} max={1000} step={1} value={audioParams.diffFeedbackParams} onChange={setAudioParam(AudioParamKey.diffFeedbackParams)} />
-            <FilterParamSlider title="Positive Bias Scale Filter" min={0} max={1000} step={1} value={audioParams.posScaleFilterParams} onChange={setAudioParam(AudioParamKey.posScaleFilterParams)} />
-            <FilterParamSlider title="Negative Bias Scale Filter" min={0} max={1000} step={1} value={audioParams.negScaleFilterParams} onChange={setAudioParam(AudioParamKey.negScaleFilterParams)} />
+              <ParamSlider title="Preemphasis" min={1} max={16} step={.01} value={audioParams.preemphasis} onChange={setAudioParam(AudioParamKey.preemphasis)} />
+              <ParamSlider title="Sensitivity Scale" min={-1} max={8} step={.01} value={audioParams.ampScale} onChange={setAudioParam(AudioParamKey.ampScale)} />
+              <ParamSlider title="Sensitivity Offset" min={-2} max={8} step={.01} value={audioParams.ampOffset} onChange={setAudioParam(AudioParamKey.ampOffset)} />
+              <ParamSlider title="Differential Sensitivity" min={-1} max={4} step={.01} value={audioParams.diffGain} onChange={setAudioParam(AudioParamKey.diffGain)} />
+              <ParamSlider title="Differential Sync" min={0} max={.1} step={.001} value={audioParams.sync} onChange={setAudioParam(AudioParamKey.sync)} />
+              <ParamSlider title="Decay" min={0} max={2} step={.001} value={audioParams.decay} onChange={setAudioParam(AudioParamKey.decay)} />
+              <FilterParamSlider title="Intensity Filter" min={0} max={12} step={.01} value={audioParams.gainFilterParams} onChange={setAudioParam(AudioParamKey.gainFilterParams)} />
+              <FilterParamSlider title="Intensity Feedback" min={0} max={1000} step={1} value={audioParams.gainFeedbackParams} onChange={setAudioParam(AudioParamKey.gainFeedbackParams)} />
+              <FilterParamSlider title="Differential Filter" min={0} max={12} step={.01} value={audioParams.diffFilterParams} onChange={setAudioParam(AudioParamKey.diffFilterParams)} />
+              <FilterParamSlider title="Differential Feedback" min={0} max={1000} step={1} value={audioParams.diffFeedbackParams} onChange={setAudioParam(AudioParamKey.diffFeedbackParams)} />
+              <FilterParamSlider title="Positive Bias Scale Filter" min={0} max={1000} step={1} value={audioParams.posScaleFilterParams} onChange={setAudioParam(AudioParamKey.posScaleFilterParams)} />
+              <FilterParamSlider title="Negative Bias Scale Filter" min={0} max={1000} step={1} value={audioParams.negScaleFilterParams} onChange={setAudioParam(AudioParamKey.negScaleFilterParams)} />
             </div>
           </Paper>
         </ClickAwayListener>

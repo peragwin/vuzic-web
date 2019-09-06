@@ -1,6 +1,7 @@
 import { Bucketer } from './bucketer'
 import { SlidingFFT } from './sfft'
-import { number } from 'prop-types';
+import { polyfill } from './getFloatTimeDomainData'
+
 export class AudioProcessor {
   private ctx: AudioContext;
   private fs: FrequencyProcessor
@@ -15,6 +16,8 @@ export class AudioProcessor {
     readonly length: number,
     public params: AudioProcessorParams,
   ) {
+    polyfill()
+
     let audioContext
     try {
       audioContext = AudioContext
@@ -30,7 +33,7 @@ export class AudioProcessor {
     analyzer.fftSize = this.blockSize
     analyzer.smoothingTimeConstant = 0
 
-    const bucketer = new Bucketer(this.size/2, this.buckets, 32, 12000)
+    const bucketer = new Bucketer(this.size / 2, this.buckets, 32, 12000)
     this.bucketer = bucketer
 
     const fft = new SlidingFFT(this.blockSize, this.size)
@@ -180,7 +183,7 @@ export interface AudioParamUpdate {
 }
 
 export const audioParamReducer = (state: AudioProcessorParams, action: AudioParamUpdate) => {
-  state = {...state}
+  state = { ...state }
   let fp
   switch (action.type) {
     case AudioParamKey.preemphasis:
@@ -216,7 +219,7 @@ export const audioParamReducer = (state: AudioProcessorParams, action: AudioPara
     case AudioParamKey.sync:
       state.sync = action.value as number
       break
-  case AudioParamKey.decay:
+    case AudioParamKey.decay:
       state.decay = action.value as number
       break
     case AudioParamKey.all:
@@ -260,7 +263,7 @@ class BiasedFilter {
     readonly size: number,
     public posfp: FilterParams,
     public negfp: FilterParams,
-  ){
+  ) {
     this.values = new Float32Array(size).fill(0)
     const posp = fromFilterParams(posfp)
     const negp = fromFilterParams(negfp)
@@ -317,7 +320,7 @@ export const fromFilterParams = (fp: FilterParams) => {
 
   // .5 = b ^ t -> ln(b) = -ln(2)/t -> b ?????????? fuck i really suck at math now
   // b = .5 * 2 ^ ((t-1)/t)
-  let b = .5 * Math.pow(2, (fp.tao-1)/fp.tao)
+  let b = .5 * Math.pow(2, (fp.tao - 1) / fp.tao)
   let a = 1 - b
   a *= fp.gain
   b *= fp.gain
@@ -341,7 +344,7 @@ class GainController {
     public kp = 0.001,
     public kd = 0.005,
   ) {
-    this.filter = new Filter(size, {tao: 138, gain: 1})
+    this.filter = new Filter(size, { tao: 138, gain: 1 })
     this.gain = new Float32Array(size).fill(0)
     for (let i = 0; i < this.size; i++) {
       this.gain[i] = 1
@@ -484,7 +487,7 @@ class FrequencyProcessor {
       ph -= diff[i] //Math.abs(diff[i])
       energy[i] = ph
     }
-    console.log(energy)
+    // console.log(energy)
   }
 
   private applySync() {
@@ -537,9 +540,9 @@ class FrequencyProcessor {
         if (energy[i] <= 2 * Math.PI) return;
       }
       for (let i = 0; i < this.size; i++) {
-        energy[i] -= 2*Math.PI //(energy[i] % 2 * Math.PI)
+        energy[i] -= 2 * Math.PI //(energy[i] % 2 * Math.PI)
       }
-      mean -= 2*Math.PI //(mean % 2 * Math.PI)
+      mean -= 2 * Math.PI //(mean % 2 * Math.PI)
     }
   }
 
@@ -555,7 +558,7 @@ class FrequencyProcessor {
 
     this.scaleFilter.process(sval)
 
-    for (let  i = 0; i < this.size; i++) {
+    for (let i = 0; i < this.size; i++) {
       let vsh = this.scaleFilter.values[i]
       if (vsh < .001) vsh = .001
       const vs = 1 / vsh

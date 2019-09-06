@@ -97,8 +97,6 @@ const fragmenShaderSource = `#version 300 es
   }`
 
 
-const aspect = 13.0 / 7.0
-
 const square = [
   vec2.fromValues(-1, 1),
   vec2.fromValues(-1, -1),
@@ -130,6 +128,7 @@ export class WarpGrid {
     canvas: HTMLCanvasElement,
     readonly rows: number,
     readonly columns: number,
+    readonly aspect: number,
     public onRender: (wg: WarpGrid) => void,
   ) {
     this.warp = new Float32Array(rows)
@@ -185,8 +184,8 @@ export class WarpGrid {
 
     const texsx = 1 / columns
     const texsy = 1 / rows
-    const versx = 1 / columns / aspect
-    const versy = 1 / rows / aspect
+    const versx = 1 / columns / this.aspect
+    const versy = 1 / rows / this.aspect
 
     const vscale = mat4.create()
     mat4.fromScaling(vscale, vec3.fromValues(versx / density, versy / density, 1))

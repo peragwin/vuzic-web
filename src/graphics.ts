@@ -204,6 +204,8 @@ export class Graphics {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, cfg.mode)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.DST_ALPHA);
 
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, cfg.image.width, cfg.image.height, 0,
       gl.RGBA, gl.UNSIGNED_BYTE, cfg.image.data)

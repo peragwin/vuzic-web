@@ -7,6 +7,8 @@ export class RenderParams {
     public valueOffset: number,
     public lightnessScale: number,
     public lightnessOffset: number,
+    public alphaScale: number,
+    public alphaOffset: number,
     public warpScale: number,
     public warpOffset: number,
     public scaleScale: number,
@@ -21,6 +23,8 @@ export enum RenderParamKey {
   valueOffset,
   lightnessScale,
   lightnessOffset,
+  alphaScale,
+  alphaOffset,
   warpScale,
   warpOffset,
   scaleScale,
@@ -36,13 +40,19 @@ export interface RenderParamUpdate {
 }
 
 export const renderParamReducer = (state: RenderParams, action: RenderParamUpdate) => {
-  state = {...state}
+  state = { ...state }
   switch (action.type) {
     case RenderParamKey.valueScale:
       state.valueScale = action.value as number
       break
     case RenderParamKey.valueOffset:
       state.valueOffset = action.value as number
+      break
+    case RenderParamKey.alphaScale:
+      state.alphaScale = action.value as number
+      break
+    case RenderParamKey.alphaOffset:
+      state.alphaOffset = action.value as number
       break
     case RenderParamKey.lightnessScale:
       state.lightnessScale = action.value as number
@@ -121,7 +131,7 @@ export class Renderer {
         s += drivers.scales[j] * (amp[j] - 1)
       }
       s /= this.rows
-      const ss = 1 - (this.columns - i/2)/this.columns
+      const ss = 1 - (this.columns - i / 2) / this.columns
       this.scale[i] = this.params.scaleScale * ss * s + this.params.scaleOffset
     }
   }
@@ -131,18 +141,21 @@ export class Renderer {
     const vo = this.params.valueOffset
     const ss = this.params.lightnessScale
     const so = this.params.lightnessOffset
+    const as = this.params.alphaScale
+    const ao = this.params.alphaOffset
 
-    let hue = (180 * (this.params.colorCycle*phi + ph) / Math.PI) % 360
+    let hue = (180 * (this.params.colorCycle * phi + ph) / Math.PI) % 360
     if (hue < 0) hue += 360
 
     const val = ss * sigmoid(vs * amp + vo) + so
+    const alpha = sigmoid(as * amp + ao)
 
     let [r, g, b] = hsluvToRgb([hue, 100, 100 * val])
     r *= r
     g *= g
     b *= b
 
-    return [r, g, b]
+    return [r, g, b, alpha]
   }
 
   private updateDisplay(drivers: Drivers) {
@@ -157,7 +170,7 @@ export class Renderer {
       for (let j = 0; j < this.rows; j++) {
         const val = drivers.scales[j] * (amp[j] - 1)
         const ph = drivers.energy[j]
-        let [r, g, b] = this.getHSV(val, ph, phi)
+        let [r, g, b, alpha] = this.getHSV(val, ph, phi)
         r *= decay
         g *= decay
         b *= decay
@@ -167,7 +180,7 @@ export class Renderer {
         this.display.data[didx] = 255 * r
         this.display.data[didx + 1] = 255 * g
         this.display.data[didx + 2] = 255 * b
-        this.display.data[didx + 3] = 255
+        this.display.data[didx + 3] = 255 * alpha
       }
     }
   }
