@@ -31,8 +31,8 @@ const useStyles = makeStyles({
   canvas: { width: '100vw', height: '100vh' },
 });
 
-const buckets = 32
-const length = 120
+const buckets = 16
+const length = 60
 
 const m = {
   "renderParams": { "valueScale": 2, "valueOffset": 0, "lightnessScale": 0.88, "lightnessOffset": 0, "warpScale": 16, "warpOffset": 1.35, "scaleScale": 2.26, "scaleOffset": 0.45, "period": 180 },

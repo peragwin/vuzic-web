@@ -487,7 +487,6 @@ class FrequencyProcessor {
       ph -= diff[i] //Math.abs(diff[i])
       energy[i] = ph
     }
-    // console.log(energy)
   }
 
   private applySync() {

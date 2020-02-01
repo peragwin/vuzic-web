@@ -4,15 +4,15 @@ import PixelMap, { RGBA } from "./pixelmap";
 
 // warp controlls the zoom in the center of the display
 // scale controlls the vertical scaling factor
-const vertexShaderSource = `#version 300 es
+const vertexShaderSource = `#version 100
 	uniform float warp[{0}];
 	uniform float scale[{1}];
-	//attribute vec3 vertPos;
-  in vec3 vertPos;
-  //attribute vec2 texPos;
-  in vec2 texPos;
-	// varying vec2 fragTexPos;
-  out vec2 fragTexPos;
+	attribute vec3 vertPos;
+  // in vec3 vertPos;
+  attribute vec2 texPos;
+  // in vec2 texPos;
+	varying vec2 fragTexPos;
+  // out vec2 fragTexPos;
   
 	float x, y, s, wv, sv;
 	void main() {
@@ -43,14 +43,14 @@ const vertexShaderSource = `#version 300 es
 		gl_Position = vec4(x, y, vertPos.z, 1.0);
 	}`
 
-const fragmenShaderSource = `#version 300 es
+const fragmenShaderSource = `#version 100
 	precision highp float;
 
 	vec2 iResolution = vec2(1920.0, 1080.0);
 	uniform sampler2D tex;
-  // varying vec2 fragTexPos;
-  in vec2 fragTexPos;
-	out vec4 fragColor;
+  varying vec2 fragTexPos;
+  // in vec2 fragTexPos;
+	// out vec4 fragColor;
 
 	vec4 blur(sampler2D image, vec2 uv, vec2 resolution) {
 		vec4 color = vec4(0.0);
@@ -63,26 +63,26 @@ const fragmenShaderSource = `#version 300 es
 		vec2 off2 = vec2(3.2941176470588234) * direction;
 		vec2 off3 = vec2(5.176470588235294) * direction;
 
-		color += texture(image, uv) * 0.1964825501511404;
-		color += texture(image, uv + (off1 / resolution)) * 0.2969069646728344;
-		color += texture(image, uv - (off1 / resolution)) * 0.2969069646728344;
-		color += texture(image, uv + (off2 / resolution)) * 0.09447039785044732;
-		color += texture(image, uv - (off2 / resolution)) * 0.09447039785044732;
-		color += texture(image, uv + (off3 / resolution)) * 0.010381362401148057;
-		color += texture(image, uv - (off3 / resolution)) * 0.010381362401148057;
+		color += texture2D(image, uv) * 0.1964825501511404;
+		color += texture2D(image, uv + (off1 / resolution)) * 0.2969069646728344;
+		color += texture2D(image, uv - (off1 / resolution)) * 0.2969069646728344;
+		color += texture2D(image, uv + (off2 / resolution)) * 0.09447039785044732;
+		color += texture2D(image, uv - (off2 / resolution)) * 0.09447039785044732;
+		color += texture2D(image, uv + (off3 / resolution)) * 0.010381362401148057;
+		color += texture2D(image, uv - (off3 / resolution)) * 0.010381362401148057;
 
 		direction = vec2(0,scale);
 		off1 = vec2(1.411764705882353) * direction;
 		off2 = vec2(3.2941176470588234) * direction;
 		off3 = vec2(5.176470588235294) * direction;
 
-		color += texture(image, uv) * 0.1964825501511404;
-		color += texture(image, uv + (off1 / resolution)) * 0.2969069646728344;
-		color += texture(image, uv - (off1 / resolution)) * 0.2969069646728344;
-		color += texture(image, uv + (off2 / resolution)) * 0.09447039785044732;
-		color += texture(image, uv - (off2 / resolution)) * 0.09447039785044732;
-		color += texture(image, uv + (off3 / resolution)) * 0.010381362401148057;
-		color += texture(image, uv - (off3 / resolution)) * 0.010381362401148057;
+		color += texture2D(image, uv) * 0.1964825501511404;
+		color += texture2D(image, uv + (off1 / resolution)) * 0.2969069646728344;
+		color += texture2D(image, uv - (off1 / resolution)) * 0.2969069646728344;
+		color += texture2D(image, uv + (off2 / resolution)) * 0.09447039785044732;
+		color += texture2D(image, uv - (off2 / resolution)) * 0.09447039785044732;
+		color += texture2D(image, uv + (off3 / resolution)) * 0.010381362401148057;
+		color += texture2D(image, uv - (off3 / resolution)) * 0.010381362401148057;
 		}
 
 		return color / 2.0 / (radius-1.0);
@@ -90,9 +90,9 @@ const fragmenShaderSource = `#version 300 es
 
 	void main() {
 		//vec2 uv = fragTexPos.xy / iResolution;
-    fragColor = vec4(blur(tex, fragTexPos.xy, iResolution).rgb, 1);
-		// vec3 v = texture(tex, fragTexPos).rgb;
-    // gl_FragColor = vec4(v, 1);
+    // fragColor = vec4(blur(tex, fragTexPos.xy, iResolution).rgb, 1);
+		vec3 v = texture2D(tex, fragTexPos).rgb;
+    gl_FragColor = vec4(v, 1);
     // fragColor = vec4(v, 1);
   }`
 
@@ -139,7 +139,7 @@ export class WarpGrid {
     this.image.data.forEach((_, i, data) => { if (i % 8 === 0) data[i] = 255 })
     // console.log(this.warp, this.scale, this.image.data)
 
-    const gl = canvas.getContext('webgl2')
+    const gl = canvas.getContext('webgl')
     if (!gl) throw new Error("canvas does not support webgl")
 
     const vertexSrc = vertexShaderSource

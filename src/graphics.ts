@@ -5,7 +5,7 @@ export class TextureObject {
     // readonly texLoc: WebGLUniformLocation,
   ) { }
 
-  public update(gl: WebGL2RenderingContext, image: ImageData) {
+  public update(gl: WebGLRenderingContext, image: ImageData) {
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, this.tex)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
@@ -16,10 +16,10 @@ export class BufferObject {
   constructor(
     readonly buffer: WebGLBuffer,
     public setAttribPointers: () => void,
-    public ondraw: (gl: WebGL2RenderingContext) => boolean,
+    public ondraw: (gl: WebGLRenderingContext) => boolean,
   ) { }
 
-  public bindBuffer(gl: WebGL2RenderingContext) {
+  public bindBuffer(gl: WebGLRenderingContext) {
     this.setAttribPointers()
     this.ondraw(gl)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
@@ -33,7 +33,7 @@ export class BufferConfig {
     public texAttr: string,
     public stride: number,
     public size: number,
-    public ondraw: (gl: WebGL2RenderingContext) => boolean,
+    public ondraw: (gl: WebGLRenderingContext) => boolean,
   ) { }
 }
 
@@ -43,10 +43,10 @@ export class VertexArrayObject {
     readonly offset: number,
     readonly length: number,
     readonly glDrawType: number,
-    readonly onDraw: (gl: WebGL2RenderingContext) => boolean,
+    readonly onDraw: (gl: WebGLRenderingContext) => boolean,
   ) { }
 
-  public draw(gl: WebGL2RenderingContext) {
+  public draw(gl: WebGLRenderingContext) {
     if (this.onDraw(gl)) {
       gl.drawArrays(this.glDrawType, this.offset, this.length)
     }
@@ -83,7 +83,7 @@ export class ShaderConfig {
 }
 
 export class Graphics {
-  public gl: WebGL2RenderingContext;
+  public gl: WebGLRenderingContext;
 
   private program: WebGLProgram;
   private shaders: Array<WebGLShader>;
@@ -97,7 +97,7 @@ export class Graphics {
   public onRender: (gfx: Graphics) => void;
 
   constructor(
-    gl: WebGL2RenderingContext,
+    gl: WebGLRenderingContext,
     shaders: Array<ShaderConfig>,
     onRender: (g: Graphics) => void,
   ) {
