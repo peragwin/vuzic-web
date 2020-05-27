@@ -1,6 +1,8 @@
 import { vec2, vec3, vec4, mat4, mat3 } from "gl-matrix";
-import { Graphics, ShaderConfig, TextureConfig, TextureObject, BufferConfig, VertexArrayObject } from "./graphics";
-import PixelMap, { RGBA } from "./pixelmap";
+import {
+  Graphics, ShaderConfig, TextureConfig, TextureObject, BufferConfig, VertexArrayObject
+} from "../graphics";
+import PixelMap, { RGBA } from "../pixelmap";
 
 // warp controlls the zoom in the center of the display
 // scale controlls the vertical scaling factor

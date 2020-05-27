@@ -17,8 +17,8 @@ import Slider from '@material-ui/core/Slider'
 import Menu from '@material-ui/core/Menu'
 import MenuItem from '@material-ui/core/MenuItem'
 
-import { RenderParams, RenderParamUpdate, RenderParamKey } from './render';
-import { AudioProcessorParams, AudioParamUpdate, AudioParamKey, FilterParams } from './audio';
+import { RenderParams, RenderParamUpdate, RenderParamKey } from '../gfx/warpgrid/render';
+import { AudioProcessorParams, AudioParamUpdate, AudioParamKey, FilterParams } from '../audio/audio';
 
 const useStyles = makeStyles(theme => ({
   root: {

@@ -1,11 +1,11 @@
-import React, { useRef, useEffect, useState, useReducer, Reducer } from 'react';
+import React, { useRef, useEffect, useState, useReducer } from 'react';
 import './App.css';
-import { WarpGrid } from './display';
-import { AudioProcessor, AudioProcessorParams, audioParamReducer, AudioParamKey } from './audio';
-import { Renderer, RenderParams, renderParamReducer } from './render';
+import { WarpGrid } from './gfx/warpgrid/display';
+import { AudioProcessor, AudioProcessorParams, audioParamReducer } from './audio/audio';
+import { Renderer, RenderParams, renderParamReducer } from './gfx/warpgrid/render';
 import { makeStyles } from '@material-ui/core';
 import Button from '@material-ui/core/Button';
-import MenuPanel from './MenuPanel'
+import MenuPanel from './components/MenuPanel'
 
 const useStyles = makeStyles({
   button: {
@@ -33,15 +33,6 @@ const useStyles = makeStyles({
 
 const buckets = 32
 const length = 120
-
-const m = {
-  "renderParams": { "valueScale": 2, "valueOffset": 0, "lightnessScale": 0.88, "lightnessOffset": 0, "warpScale": 16, "warpOffset": 1.35, "scaleScale": 2.26, "scaleOffset": 0.45, "period": 180 },
-  "audioParams": {
-    "preemphasis": 2, "gainFilterParams": { "tao": 2.9240999999999997, "gain": 1 }, "gainFeedbackParams": { "tao": 138, "gain": -1 }, "diffFilterParams": { "tao": 10.497600000000002, "gain": 1 },
-    "diffFeedbackParams": { "tao": 56.6, "gain": -0.05 },
-    "posScaleFilterParams": { "tao": 69, "gain": 1 }, "negScaleFilterParams": { "tao": 693, "gain": 1 }, "diffGain": 1.3, "ampScale": 1.2, "ampOffset": 0, "sync": 0.01
-  }
-}
 
 const renderParamsInit = new RenderParams(
   2, //valueScale,
@@ -97,7 +88,7 @@ const App: React.FC = () => {
 
     renderer.current = new Renderer(length, buckets, renderParams)
 
-    const wg = new WarpGrid(cv, buckets * 2, length * 2, 4 / 3, async (wg: WarpGrid) => {
+    new WarpGrid(cv, buckets * 2, length * 2, 4 / 3, (wg: WarpGrid) => {
       if (!audioProcessor.current) return
       const drivers = audioProcessor.current.getDrivers()
       // console.log(drivers)
@@ -135,7 +126,7 @@ const App: React.FC = () => {
       }
 
     })
-  }, [start])
+  })
 
   useEffect(() => {
     if (renderer.current)

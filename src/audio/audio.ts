@@ -184,7 +184,6 @@ export interface AudioParamUpdate {
 
 export const audioParamReducer = (state: AudioProcessorParams, action: AudioParamUpdate) => {
   state = { ...state }
-  let fp
   switch (action.type) {
     case AudioParamKey.preemphasis:
       state.preemphasis = action.value as number

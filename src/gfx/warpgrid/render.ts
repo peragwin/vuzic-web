@@ -1,5 +1,5 @@
 import { hsluvToRgb } from 'hsluv'
-import { Drivers } from './audio'
+import { Drivers } from '../../audio/audio'
 
 export class RenderParams {
   constructor(
