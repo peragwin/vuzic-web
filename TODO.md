@@ -2,11 +2,17 @@
 * Render vertex density
 * Horizontal overlap param
 * Column update divider
+
+* Fallback to webgl1
+
 * Export/Import profile
 * Save profiles using custom names
 * Reset to default profile
 * DblClk exit fullscreen
 	* Enable menu in fullscreen?
+
+* Import audio from youtube/soundcloud/spotify
+
 * Publish to web
 	* Include links to my github / email / advertize LED versions
 * Different modes
@@ -14,4 +20,3 @@
 	* Columns originate from circle, either going in or out. Include some 3D depth
 * Zoom via scroll
 * Server to save profiles with voting
-
