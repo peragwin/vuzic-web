@@ -42,21 +42,21 @@ export class AudioProcessor {
     const processor = new FrequencyProcessor(this.buckets, this.length, this.params)
     this.fs = processor
 
-    // try {
-    navigator.mediaDevices.getUserMedia({
-      audio: true,
-    }).then(
-      this.handleMediaStream.bind(this),
-      err => {
-        console.log(err)
-      })
-    // } catch (e) {
-    //   navigator.getUserMedia({ audio: true },
-    //     this.handleMediaStream.bind(this),
-    //     err => {
-    //       console.log(err)
-    //     })
-    // }
+    try {
+      navigator.mediaDevices.getUserMedia({
+        audio: true,
+      }).then(
+        this.handleMediaStream.bind(this),
+        err => {
+          console.log(err)
+        })
+    } catch (e) {
+      navigator.getUserMedia({ audio: true },
+        this.handleMediaStream.bind(this),
+        err => {
+          console.log(err)
+        })
+    }
   }
 
   handleMediaStream(stream: MediaStream) {
