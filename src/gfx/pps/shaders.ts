@@ -4,9 +4,10 @@ const drawVertSrc = `#version 300 es
 
 #ifdef GL_ES
 precision mediump float;
+precision mediump usampler2D;
 #endif
 
-uniform sampler2D texPositions;
+uniform usampler2D texPositions;
 uniform sampler2D texColors;
 uniform ivec2 uStateSize;
 // uniform vec2 uPosScale;
@@ -20,8 +21,8 @@ out vec4 color;
 void main() {
     int w = uStateSize.x;
     ivec2 index = ivec2(gl_VertexID % w, gl_VertexID / w);
-    vec2 position = texelFetch(texPositions, index, 0).xy;
-    position = 2. * position - 1.;
+    uvec2 posu = texelFetch(texPositions, index, 0).xy;
+    vec2 position = 2. * (vec2(posu) / 65535.) - 1.;
     gl_Position = mix(vec4(position, 0., 1.), vec4(0.,0.,0.,1.), 0.5);
 
     color = texelFetch(texColors, index, 0);
@@ -78,19 +79,25 @@ const updateFragSrc = `#version 300 es
 #ifdef GL_ES
 precision mediump float;
 precision mediump int;
+precision mediump usampler2D;
 #endif
 
-uniform sampler2D texPositions;
-uniform sampler2D texVelocities;
+uniform usampler2D texPositions;
+uniform usampler2D texVelocities;
 uniform ivec2 uStateSize;
 uniform float uAlpha;
 uniform float uBeta;
 uniform float uRadius;
 
 flat in ivec2 index;
-layout(location = 0) out vec4 position;
-layout(location = 1) out vec4 velocity;
+layout(location = 0) out uvec2 position;
+layout(location = 1) out uvec2 velocity;
 layout(location = 2) out vec4 color;
+
+vec2 fetch(in usampler2D tex, in ivec2 index) {
+  uvec2 val = texelFetch(tex, index, 0).xy;
+  return 2. * (vec2(val) / 65535.) - 1.;
+}
 
 vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos) {
   vec2 count = vec2(0., 0.);
@@ -101,7 +108,7 @@ vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos) {
       ivec2 bIndex = ivec2(i, j);
       if (bIndex == aIndex) continue;
 
-      vec2 bPos = texelFetch(texPositions, bIndex, 0).xy;
+      vec2 bPos = fetch(texPositions, bIndex);
       vec2 r = bPos - aPos;
       if (length(r) <= uRadius) {
         if (r.x <= 0.) {
@@ -134,8 +141,8 @@ vec2 integrate(in vec2 pos, in vec2 vel) {
 }
 
 void main() {
-  vec2 pos = texelFetch(texPositions, index, 0).xy;
-  vec2 vel = texelFetch(texVelocities, index, 0).xy;
+  vec2 pos = fetch(texPositions, index);
+  vec2 vel = fetch(texVelocities, index);
 
   vec2 count = countNeighbors(index, pos);
   float dtheta = deltaTheta(count);
@@ -143,9 +150,10 @@ void main() {
   mat2 rot = rotate2d(dtheta);
   vel = rot * vel;
 
-  position = vec4(integrate(pos, vel), 0., 1.);
-  // position = mix(integrate(pos, vel), vec2(1.,1.), 0.9);
-  velocity = vec4(vel, 0., 1.);
+  // position = vec4(integrate(pos, vel), 0., 1.);
+  position = uvec2(mix(integrate(pos, vel), vec2(0.,0.), 0.9) * 65535.);
+  // velocity = vec4(vel, 0., 1.);
+  velocity = uvec2(vel * 65535.);
   color = vec4(0.5, 0.1, 1., 1.);
 }
 `;

@@ -19,9 +19,6 @@ export class PPS {
 
   private stateSize!: { width: number, height: number };
   private params: { alpha: number, beta: number, radius: number };
-  private pstate!: Float32Array;
-  private vstate!: Float32Array;
-  private cstate!: ImageData;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -63,15 +60,11 @@ export class PPS {
     const uPointSize = gfx.getUniformLocation('uPointSize');
 
     // format is x0, y0, x1, y1, ...
-    this.pstate = new Float32Array(particles * 2);
     this.positions = Array.from(Array(2)).map(_ =>
       gfx.newTextureObject(
-        new TextureConfig('texPositions', gl.NEAREST, gl.RG32F, gl.RG, gl.FLOAT),
+        new TextureConfig('texPositions', gl.NEAREST, gl.RG16UI, gl.RG_INTEGER, gl.UNSIGNED_SHORT),
       ));
 
-    const { width, height } = this.stateSize;
-    const cdata = new Uint8ClampedArray(particles * 4);
-    this.cstate = new ImageData(cdata, width, height);
     this.colors = gfx.newTextureObject(
       new TextureConfig('texColors', gl.NEAREST),
     );
@@ -98,10 +91,9 @@ export class PPS {
     const uBeta = gfx.getUniformLocation('uBeta');
     const uRadius = gfx.getUniformLocation('uRadius');
 
-    this.vstate = new Float32Array(this.particles * 2);
     this.velocities = Array.from(Array(2)).map(_ =>
       gfx.newTextureObject(
-        new TextureConfig('texVelocities', gl.NEAREST, gl.RG32F, gl.RG, gl.FLOAT),
+        new TextureConfig('texVelocities', gl.NEAREST, gl.RG16UI, gl.RG_INTEGER, gl.UNSIGNED_SHORT),
       ));
 
     gfx.addVertexArrayObject(
@@ -121,34 +113,40 @@ export class PPS {
   private initState(gl: WebGL2RenderingContext) {
     const { width, height } = this.stateSize;
 
-    this.pstate.forEach((_, i, data) => {
+    const pstate = new Uint16Array(this.particles * 2);
+    pstate.forEach((_, i, data) => {
       const n = Math.floor(i / 2);
       const xory = (i % 2) === 0;
       if (xory) {
-        data[i] = .1 + .9 * ((8 * n / this.particles) % 1.0);
+        data[i] = (.1 + .9 * ((8 * n / this.particles) % 1.0)) * 65535;
       } else {
-        data[i] = .1 + .9 * Math.floor(8 * n / this.particles) / 8;
+        data[i] = (.1 + .9 * Math.floor(8 * n / this.particles) / 8) * 65535;
       }
-    })
-    this.positions.forEach(p =>
-      p.updateData(gl, width, height, this.pstate));
+    });
+    this.positions.forEach(p => {
+      p.updateData(gl, width, height, pstate);
+    });
 
-    this.vstate.forEach((_, i, data) => {
+    const vstate = new Uint16Array(this.particles * 2);
+    vstate.forEach((_, i, data) => {
       if (i % 2 === 0) {
         const vx = Math.random();
         const vy = Math.random();
         const norm = Math.sqrt(vx * vx + vy * vy);
-        data[i] = vx / norm;
-        data[i + 1] = vy / norm;
+        data[i] = (vx / norm) * 65535;
+        data[i + 1] = (vy / norm) * 65535;
       }
-    })
-    this.velocities.forEach(v =>
-      v.updateData(gl, width, height, this.vstate));
+    });
+    this.velocities.forEach(v => {
+      v.updateData(gl, width, height, vstate);
+    });
 
-    this.cstate.data.forEach((_, i, data) => {
+    const cdata = new Uint8ClampedArray(this.particles * 4);
+    const cstate = new ImageData(cdata, width, height);
+    cstate.data.forEach((_, i, data) => {
       data[i] = (i % 4 >= 2) ? 255 : 0;
     })
-    this.colors.update(gl, this.cstate);
+    this.colors.update(gl, cstate);
   }
 
   private render(g: Graphics) {
@@ -168,39 +166,39 @@ export class PPS {
   }
 
   private loop(gl: WebGL2RenderingContext) {
-    const st = this.frameBuffer.getStatus();
-    if (st === 'complete') {
-      this.updateGfx.render(false);
+    // const st = this.frameBuffer.getStatus();
+    // if (st === 'complete') {
+    this.updateGfx.render(false);
 
 
-      if (count < 10) {
-        const w = this.stateSize.width,
-          h = this.stateSize.height,
-          rgba = new Uint8Array(w * h * 4);
-        gl.readPixels(0, 0, w, h, gl.RG, gl.UNSIGNED_BYTE, rgba);
-        console.log(rgba);
-        count++;
-      }
-      // if (count < 10) {
-      //   const w = this.stateSize.width,
-      //     h = this.stateSize.height,
-      //     rgba = new Float32Array(w * h * 2);
-      //   gl.readPixels(0, 0, w, h, gl.RG, gl.FLOAT, rgba);
-      //   console.log(rgba);
-      //   count++;
-      // }
+    // if (count < 10) {
+    //   const w = this.stateSize.width,
+    //     h = this.stateSize.height,
+    //     rgba = new Uint8Array(w * h * 4);
+    //   gl.readPixels(0, 0, w, h, gl.RG, gl.UNSIGNED_BYTE, rgba);
+    //   console.log(rgba);
+    //   count++;
+    // }
+    // if (count < 10) {
+    //   const w = this.stateSize.width,
+    //     h = this.stateSize.height,
+    //     rgba = new Float32Array(w * h * 2);
+    //   gl.readPixels(0, 0, w, h, gl.RG, gl.FLOAT, rgba);
+    //   console.log(rgba);
+    //   count++;
+    // }
 
-      this.renderGfx.render(false);
+    this.renderGfx.render(false);
 
-      if (count < 10) {
-        const w = this.stateSize.width,
-          h = this.stateSize.height,
-          rgba = new Uint8Array(w * h * 4);
-        gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
-        console.log(rgba);
-        count++;
-      }
-    }
+    // if (count < 10) {
+    //   const w = this.stateSize.width,
+    //     h = this.stateSize.height,
+    //     rgba = new Uint8Array(w * h * 4);
+    //   gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+    //   console.log(rgba);
+    //   count++;
+    // }
+    // }
     requestAnimationFrame(this.loop.bind(this, gl));
   }
 }
