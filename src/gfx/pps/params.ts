@@ -91,7 +91,7 @@ export class PpsRenderParams {
     {
       title: "Number of Particles",
       min: 16,
-      max: 4096,
+      max: 16 * 4096,
       step: 16,
       update: this.updater("particles"),
     },
