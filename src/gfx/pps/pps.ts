@@ -14,6 +14,7 @@ import {
   updateVertShader,
   updateFragShader,
 } from "./shaders";
+import { getPalette } from "./params";
 
 const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 const TEX_WIDTH = 1024;
@@ -25,6 +26,7 @@ export const defaultParams = {
   velocity: 0.0067,
   size: 24,
   particles: 1024,
+  palette: getPalette("default")!,
 };
 
 export type RenderParams = {
@@ -34,6 +36,7 @@ export type RenderParams = {
   velocity: number;
   size: number;
   particles: number;
+  palette: number[];
 };
 
 export class PPS {
@@ -42,6 +45,7 @@ export class PPS {
   private positions!: TextureObject[];
   private velocities!: TextureObject[];
   private colors!: TextureObject;
+  private palette!: TextureObject;
   private renderGfx!: Graphics;
   private updateGfx!: Graphics;
 
@@ -86,18 +90,28 @@ export class PPS {
     // format is x0, y0, x1, y1, ...
     this.positions = Array.from(Array(2)).map((_) =>
       gfx.newTextureObject(
-        new TextureConfig(
-          "texPositions",
-          gl.NEAREST,
-          gl.RG32UI,
-          gl.RG_INTEGER,
-          gl.UNSIGNED_INT
-        )
+        new TextureConfig("texPositions", gl.NEAREST, gl.RG32F, gl.RG, gl.FLOAT)
+      )
+    );
+
+    this.palette = gfx.newTextureObject(
+      new TextureConfig(
+        "texPalette",
+        gl.NEAREST,
+        gl.RGBA,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE
       )
     );
 
     this.colors = gfx.newTextureObject(
-      new TextureConfig("texColors", gl.NEAREST)
+      new TextureConfig(
+        "texColors",
+        gl.NEAREST,
+        gl.R8UI,
+        gl.RED_INTEGER,
+        gl.UNSIGNED_BYTE
+      )
     );
 
     gfx.addVertexArrayObject(
@@ -106,6 +120,7 @@ export class PPS {
         gl.uniform1f(uPointSize, this.params.size);
         this.positions[this.swap].bind(gl, 0);
         this.colors.bind(gl, 1);
+        this.palette.bind(gl, 2);
         return true;
       })
     );
@@ -135,9 +150,9 @@ export class PPS {
         new TextureConfig(
           "texVelocities",
           gl.NEAREST,
-          gl.RG32UI,
-          gl.RG_INTEGER,
-          gl.UNSIGNED_INT
+          gl.RG32F,
+          gl.RG,
+          gl.FLOAT
         )
       )
     );
@@ -171,40 +186,44 @@ export class PPS {
     const { width, height } = this.stateSize;
     const particles = width * height;
 
-    const pstate = new Uint32Array(particles * 2);
+    const pstate = new Float32Array(particles * 2);
     pstate.forEach((_, i, data) => {
       const n = Math.floor(i / 2);
       const xory = i % 2 === 0;
       if (xory) {
-        data[i] = (0.1 + 0.9 * (((8 * n) / particles) % 1.0)) * 65535;
+        data[i] = 0.1 + 0.9 * (((8 * n) / particles) % 1.0);
       } else {
-        data[i] = (0.1 + (0.9 * Math.floor((8 * n) / particles)) / 8) * 65535;
+        data[i] = 0.1 + (0.9 * Math.floor((8 * n) / particles)) / 8;
       }
+      data[i] = 2 * data[i] - 1 + Math.random() * 0.05;
     });
     this.positions.forEach((p) => {
       p.updateData(gl, width, height, pstate);
     });
 
-    const vstate = new Uint32Array(particles * 2);
+    const vstate = new Float32Array(particles * 2);
     vstate.forEach((_, i, data) => {
       if (i % 2 === 0) {
         const vx = Math.random();
         const vy = Math.random();
         const norm = Math.sqrt(vx * vx + vy * vy);
-        data[i] = (vx / norm) * 65535;
-        data[i + 1] = (vy / norm) * 65535;
+        data[i] = vx / norm;
+        data[i + 1] = vy / norm;
       }
     });
     this.velocities.forEach((v) => {
       v.updateData(gl, width, height, vstate);
     });
 
-    const cdata = new Uint8ClampedArray(particles * 4);
-    const cstate = new ImageData(cdata, width, height);
-    cstate.data.forEach((_, i, data) => {
-      data[i] = i % 4 >= 2 ? 255 : 0;
-    });
-    this.colors.update(gl, cstate);
+    const cdata = new Uint8ClampedArray(particles);
+    this.colors.updateData(gl, width, height, cdata);
+
+    const palette = new ImageData(
+      new Uint8ClampedArray(this.params.palette),
+      5,
+      1
+    );
+    this.palette.update(gl, palette);
   }
 
   private render(g: Graphics) {

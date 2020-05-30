@@ -104,3 +104,118 @@ export class PpsRenderParams {
     },
   ];
 }
+
+const palettes = {
+  default: [
+    {
+      name: "Antique Brass",
+      hex: "e09f7d",
+      rgb: [224, 159, 125],
+      cmyk: [0, 29, 44, 12],
+      hsb: [21, 44, 88],
+      hsl: [21, 61, 68],
+      lab: [70, 20, 27],
+    },
+    {
+      name: "Sizzling Red",
+      hex: "ef5d60",
+      rgb: [239, 93, 96],
+      cmyk: [0, 61, 59, 6],
+      hsb: [359, 61, 94],
+      hsl: [359, 82, 65],
+      lab: [58, 56, 28],
+    },
+    {
+      name: "Paradise Pink",
+      hex: "ec4067",
+      rgb: [236, 64, 103],
+      cmyk: [0, 72, 56, 7],
+      hsb: [346, 73, 93],
+      hsl: [346, 82, 59],
+      lab: [54, 67, 18],
+    },
+    {
+      name: "Flirt",
+      hex: "a01a7d",
+      rgb: [160, 26, 125],
+      cmyk: [0, 83, 21, 37],
+      hsb: [316, 84, 63],
+      hsl: [316, 72, 36],
+      lab: [37, 60, -22],
+    },
+    {
+      name: "Russian Violet",
+      hex: "311847",
+      rgb: [49, 24, 71],
+      cmyk: [30, 66, 0, 72],
+      hsb: [272, 66, 28],
+      hsl: [272, 49, 19],
+      lab: [14, 23, -24],
+    },
+  ],
+  cool: [
+    {
+      name: "Medium Turquoise",
+      hex: "75dddd",
+      rgb: [117, 221, 221],
+      cmyk: [47, 0, 0, 13],
+      hsb: [180, 47, 87],
+      hsl: [180, 60, 66],
+      lab: [82, -30, -9],
+    },
+    {
+      name: "Middle Blue",
+      hex: "84c7d0",
+      rgb: [132, 199, 208],
+      cmyk: [36, 4, 0, 18],
+      hsb: [187, 37, 82],
+      hsl: [187, 45, 67],
+      lab: [76, -18, -11],
+    },
+    {
+      name: "Blue Bell",
+      hex: "9297c4",
+      rgb: [146, 151, 196],
+      cmyk: [25, 22, 0, 23],
+      hsb: [234, 26, 77],
+      hsl: [234, 30, 67],
+      lab: [63, 8, -23],
+    },
+    {
+      name: "Amethyst",
+      hex: "9368b7",
+      rgb: [147, 104, 183],
+      cmyk: [19, 43, 0, 28],
+      hsb: [273, 43, 72],
+      hsl: [273, 35, 56],
+      lab: [51, 32, -35],
+    },
+    {
+      name: "Byzantine",
+      hex: "aa3e98",
+      rgb: [170, 62, 152],
+      cmyk: [0, 63, 10, 33],
+      hsb: [310, 64, 67],
+      hsl: [310, 47, 45],
+      lab: [44, 54, -27],
+    },
+  ],
+};
+
+type Color = {
+  rgb: number[];
+};
+
+export const getPalette = (name: string) => {
+  const get = (pal: Color[]) =>
+    pal
+      .reverse()
+      .map((p) => [...p.rgb, 255])
+      .flat();
+  switch (name) {
+    case "default":
+      return get(palettes.default);
+    case "cool":
+      return get(palettes.cool);
+  }
+};

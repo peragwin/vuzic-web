@@ -4,37 +4,32 @@ const drawVertSrc = `#version 300 es
 
 #ifdef GL_ES
 precision mediump float;
-precision highp usampler2D;
+precision mediump usampler2D;
 #endif
 
-// const float MAXINT = float(0xFFFFFFFF);
-
-uniform usampler2D texPositions;
-uniform sampler2D texColors;
+uniform sampler2D texPositions;
+uniform usampler2D texColors;
+uniform sampler2D texPalette;
 uniform ivec2 uStateSize;
-// uniform vec2 uPosScale;
-// uniform vec2 uResolution;
 uniform float uPointSize;
 
-// in uvec2 index;
-// out vec2 position;
 out vec4 color;
 
 void main() {
     int w = uStateSize.x;
     ivec2 index = ivec2(gl_VertexID % w, gl_VertexID / w);
-    uvec2 posu = texelFetch(texPositions, index, 0).xy;
-    vec2 position = 2. * (vec2(posu) / 65535.) - 1.;
+    vec2 position = texelFetch(texPositions, index, 0).xy;
     gl_Position = mix(vec4(position, 0., 1.), vec4(0.,0.,0.,1.), 0.1);
 
-    color = texelFetch(texColors, index, 0);
+    uint cval = texelFetch(texColors, index, 0).r;
+    color = texelFetch(texPalette, ivec2(cval, 0), 0);
 
     gl_PointSize = uPointSize;
 }
 `;
 
 export const drawVertShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(drawVertSrc, gl.VERTEX_SHADER, ['index'], []);
+  new ShaderConfig(drawVertSrc, gl.VERTEX_SHADER, ["index"], []);
 
 const drawFragSrc = `#version 300 es
 
@@ -53,7 +48,7 @@ void main() {
 `;
 
 export const drawFragShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(drawFragSrc, gl.FRAGMENT_SHADER, ['position', 'color'], []);
+  new ShaderConfig(drawFragSrc, gl.FRAGMENT_SHADER, ["position", "color"], []);
 
 const updateVertSrc = `#version 300 es
 #ifdef GL_ES
@@ -92,22 +87,19 @@ void main() {
   // indexf = quad * vec2(uStateSize);
 
   gl_Position = vec4(p, 0., 1.);
-}`
+}`;
 
 export const updateVertShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(quadVertSrc, gl.VERTEX_SHADER, ['quad', 'indexf'], []);
+  new ShaderConfig(quadVertSrc, gl.VERTEX_SHADER, ["quad", "indexf"], []);
 
 const updateFragSrc = `#version 300 es
 #ifdef GL_ES
 precision highp float;
 precision highp int;
-precision highp usampler2D;
 #endif
 
-// const float MAXINT = float(0xFFFFFFFF);
-
-uniform usampler2D texPositions;
-uniform usampler2D texVelocities;
+uniform sampler2D texPositions;
+uniform sampler2D texVelocities;
 uniform ivec2 uStateSize;
 uniform float uAlpha;
 uniform float uBeta;
@@ -115,13 +107,12 @@ uniform float uRadius;
 uniform float uVelocity;
 
 in vec2 indexf;
-layout(location = 0) out vec4 color;
-layout(location = 1) out uvec2 position;
-layout(location = 2) out uvec2 velocity;
+layout(location = 0) out uint color;
+layout(location = 1) out vec2 position;
+layout(location = 2) out vec2 velocity;
 
-vec2 fetch(in usampler2D tex, in ivec2 index) {
-  uvec2 val = texelFetch(tex, index, 0).xy;
-  return 2. * (vec2(val) / 65535.) - 1.;
+vec2 fetch(in sampler2D tex, in ivec2 index) {
+  return texelFetch(tex, index, 0).xy;
 }
 
 vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos, in vec2 aVel) {
@@ -134,7 +125,7 @@ vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos, in vec2 aVel) {
       if (bIndex == aIndex) continue;
 
       vec2 bPos = fetch(texPositions, bIndex);
-      vec2 r = bPos - aPos;
+      vec2 r = aPos - bPos;
       if (length(r) <= uRadius) {
         float ang = aVel.x * r.y - aVel.y * r.x;
         if (ang <= 0.) {
@@ -166,6 +157,14 @@ vec2 integrate(in vec2 pos, in vec2 vel) {
   return mod(apos, 2.0) - 1.0;
 }
 
+uint getColor(in float count) {
+  float one =        step(12.9, count) * (1. - step(15.1, count)); // 13 <= N <= 15
+  float two =   2. * step(15.1, count) * (1. - step(35.1, count)); // 15 < N <= 35
+  float three = 3. * step(35.1, count) * (1. - step(50.1, count)); // 35 < N <= 50
+  float four =  4. * step(50.1, count); // 50 < N
+  return uint(one + two + three + four);
+}
+
 void main() {
   ivec2 index = ivec2(gl_FragCoord.xy);
   vec2 pos = fetch(texPositions, index);
@@ -178,9 +177,9 @@ void main() {
   vel = rot * vel;
   pos = integrate(pos, vel);
 
-  position = uvec2((pos + 1.) / 2. * 65535.);
-  velocity = uvec2(vel * 65535.);
-  color = vec4(.5, 0.1, 1.0, 1.);
+  position = pos;
+  velocity = vel;
+  color = getColor(count.x + count.y);
 }
 `;
 
