@@ -177,7 +177,9 @@ export class CanvasObject extends RenderTarget {
     const gl = this.gl;
     this.resize(gl.canvas);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height)
+    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   }
 }
 
@@ -355,9 +357,6 @@ export class Graphics {
     this.onRender(this)
 
     this.target.use();
-
-    gl.clearColor(0, 0, 0, 1)
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // let currentBuffer: (BufferObject | null) = null
     this.vaos.forEach(v => {

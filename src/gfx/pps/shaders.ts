@@ -4,8 +4,10 @@ const drawVertSrc = `#version 300 es
 
 #ifdef GL_ES
 precision mediump float;
-precision mediump usampler2D;
+precision highp usampler2D;
 #endif
+
+// const float MAXINT = float(0xFFFFFFFF);
 
 uniform usampler2D texPositions;
 uniform sampler2D texColors;
@@ -23,10 +25,9 @@ void main() {
     ivec2 index = ivec2(gl_VertexID % w, gl_VertexID / w);
     uvec2 posu = texelFetch(texPositions, index, 0).xy;
     vec2 position = 2. * (vec2(posu) / 65535.) - 1.;
-    gl_Position = mix(vec4(position, 0., 1.), vec4(0.,0.,0.,1.), 0.5);
+    gl_Position = mix(vec4(position, 0., 1.), vec4(0.,0.,0.,1.), 0.1);
 
     color = texelFetch(texColors, index, 0);
-    color = mix(color, vec4(0., 1., 0., 1.0), 0.5);
 
     gl_PointSize = uPointSize;
 }
@@ -41,7 +42,6 @@ const drawFragSrc = `#version 300 es
 precision mediump float;
 #endif
 
-// in vec2 position;
 in vec4 color;
 out vec4 fragColor;
 
@@ -63,24 +63,48 @@ precision mediump int;
 
 uniform ivec2 uStateSize;
 
-flat out ivec2 index;
+out vec2 indexf;
 
 void main() {
   int w = uStateSize.x;
-  index = ivec2(gl_VertexID % w, gl_VertexID / w);
-  gl_PointSize = 1.0;
+  vec2 v = vec2(gl_VertexID % w, gl_VertexID / w);
+  indexf = v;
+  gl_Position = vec4(2. * v / vec2(uStateSize) - 1., 0., 1.);
+
+  gl_PointSize = 2.;
 }
 `;
 
+const quadVertSrc = `#version 300 es
+#ifdef GL_ES
+precision highp float;
+precision highp int;
+#endif
+
+uniform ivec2 uStateSize;
+
+in vec2 quad;
+// out vec2 indexf;
+
+void main() {
+  vec2 p = 2. * quad + 1.;
+  
+  // indexf = quad * vec2(uStateSize);
+
+  gl_Position = vec4(p, 0., 1.);
+}`
+
 export const updateVertShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(updateVertSrc, gl.VERTEX_SHADER, [], []);
+  new ShaderConfig(quadVertSrc, gl.VERTEX_SHADER, ['quad', 'indexf'], []);
 
 const updateFragSrc = `#version 300 es
 #ifdef GL_ES
-precision mediump float;
-precision mediump int;
-precision mediump usampler2D;
+precision highp float;
+precision highp int;
+precision highp usampler2D;
 #endif
+
+// const float MAXINT = float(0xFFFFFFFF);
 
 uniform usampler2D texPositions;
 uniform usampler2D texVelocities;
@@ -88,18 +112,19 @@ uniform ivec2 uStateSize;
 uniform float uAlpha;
 uniform float uBeta;
 uniform float uRadius;
+uniform float uVelocity;
 
-flat in ivec2 index;
-layout(location = 0) out uvec2 position;
-layout(location = 1) out uvec2 velocity;
-layout(location = 2) out vec4 color;
+in vec2 indexf;
+layout(location = 0) out vec4 color;
+layout(location = 1) out uvec2 position;
+layout(location = 2) out uvec2 velocity;
 
 vec2 fetch(in usampler2D tex, in ivec2 index) {
   uvec2 val = texelFetch(tex, index, 0).xy;
   return 2. * (vec2(val) / 65535.) - 1.;
 }
 
-vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos) {
+vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos, in vec2 aVel) {
   vec2 count = vec2(0., 0.);
 
   for (int i = 0; i < uStateSize.x; i++) {
@@ -111,7 +136,8 @@ vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos) {
       vec2 bPos = fetch(texPositions, bIndex);
       vec2 r = bPos - aPos;
       if (length(r) <= uRadius) {
-        if (r.x <= 0.) {
+        float ang = aVel.x * r.y - aVel.y * r.x;
+        if (ang <= 0.) {
           count.s += 1.;
         } else {
           count.t += 1.;
@@ -135,26 +161,26 @@ mat2 rotate2d(float _angle){
 }
 
 vec2 integrate(in vec2 pos, in vec2 vel) {
-  pos += vel;
+  pos += vel * uVelocity;
   vec2 apos = pos + 1.0;
   return mod(apos, 2.0) - 1.0;
 }
 
 void main() {
+  ivec2 index = ivec2(gl_FragCoord.xy);
   vec2 pos = fetch(texPositions, index);
   vec2 vel = fetch(texVelocities, index);
 
-  vec2 count = countNeighbors(index, pos);
+  vec2 count = countNeighbors(index, pos, vel);
   float dtheta = deltaTheta(count);
 
   mat2 rot = rotate2d(dtheta);
   vel = rot * vel;
+  pos = integrate(pos, vel);
 
-  // position = vec4(integrate(pos, vel), 0., 1.);
-  position = uvec2(mix(integrate(pos, vel), vec2(0.,0.), 0.9) * 65535.);
-  // velocity = vec4(vel, 0., 1.);
+  position = uvec2((pos + 1.) / 2. * 65535.);
   velocity = uvec2(vel * 65535.);
-  color = vec4(0.5, 0.1, 1., 1.);
+  color = vec4(.5, 0.1, 1.0, 1.);
 }
 `;
 

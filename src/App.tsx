@@ -132,7 +132,7 @@ const App: React.FC = () => {
 
       })
     } else if (visual === 'pps') {
-      new PPS(cv, 128);
+      new PPS(cv, 1024);
     }
   })
 

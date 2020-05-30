@@ -18,7 +18,7 @@ export class PPS {
   private frameBuffer!: FramebufferObject;
 
   private stateSize!: { width: number, height: number };
-  private params: { alpha: number, beta: number, radius: number };
+  private params: { alpha: number, beta: number, radius: number, velocity: number };
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -38,7 +38,8 @@ export class PPS {
     this.params = {
       alpha: Math.PI,
       beta: 2 * Math.PI / 17.0,
-      radius: 64,
+      radius: 0.05,
+      velocity: 0.0067,
     }
 
     this.initRender(gl);
@@ -62,7 +63,7 @@ export class PPS {
     // format is x0, y0, x1, y1, ...
     this.positions = Array.from(Array(2)).map(_ =>
       gfx.newTextureObject(
-        new TextureConfig('texPositions', gl.NEAREST, gl.RG16UI, gl.RG_INTEGER, gl.UNSIGNED_SHORT),
+        new TextureConfig('texPositions', gl.NEAREST, gl.RG32UI, gl.RG_INTEGER, gl.UNSIGNED_INT),
       ));
 
     this.colors = gfx.newTextureObject(
@@ -90,18 +91,21 @@ export class PPS {
     const uAlpha = gfx.getUniformLocation('uAlpha');
     const uBeta = gfx.getUniformLocation('uBeta');
     const uRadius = gfx.getUniformLocation('uRadius');
+    const uVelocity = gfx.getUniformLocation('uVelocity');
 
     this.velocities = Array.from(Array(2)).map(_ =>
       gfx.newTextureObject(
-        new TextureConfig('texVelocities', gl.NEAREST, gl.RG16UI, gl.RG_INTEGER, gl.UNSIGNED_SHORT),
+        new TextureConfig('texVelocities', gl.NEAREST, gl.RG32UI, gl.RG_INTEGER, gl.UNSIGNED_INT),
       ));
 
+    const buf = gfx.newBufferObject(new BufferConfig(QUAD2, 'quad', '', 2, 4, () => true));
     gfx.addVertexArrayObject(
-      new VertexArrayObject(null, 0, this.particles, gl.POINTS, gl => {
+      new VertexArrayObject(buf, 0, QUAD2.length / 2, gl.TRIANGLE_STRIP, gl => {
         gl.uniform2i(uStateSize, this.stateSize.width, this.stateSize.height);
         gl.uniform1f(uAlpha, this.params.alpha);
         gl.uniform1f(uBeta, this.params.beta);
         gl.uniform1f(uRadius, this.params.radius);
+        gl.uniform1f(uVelocity, this.params.velocity);
         let s = this.swap;
         this.positions[s].bind(gl, 0);
         this.velocities[s].bind(gl, 1);
@@ -113,7 +117,7 @@ export class PPS {
   private initState(gl: WebGL2RenderingContext) {
     const { width, height } = this.stateSize;
 
-    const pstate = new Uint16Array(this.particles * 2);
+    const pstate = new Uint32Array(this.particles * 2);
     pstate.forEach((_, i, data) => {
       const n = Math.floor(i / 2);
       const xory = (i % 2) === 0;
@@ -127,7 +131,7 @@ export class PPS {
       p.updateData(gl, width, height, pstate);
     });
 
-    const vstate = new Uint16Array(this.particles * 2);
+    const vstate = new Uint32Array(this.particles * 2);
     vstate.forEach((_, i, data) => {
       if (i % 2 === 0) {
         const vx = Math.random();
@@ -159,47 +163,52 @@ export class PPS {
     const gl = g.gl;
     gl.disable(gl.BLEND);
     const s = this.swap;
-    this.frameBuffer.attach(this.positions[s], 0);
-    this.frameBuffer.attach(this.velocities[s], 1);
-    this.frameBuffer.attach(this.colors, 2);
+    this.frameBuffer.attach(this.colors, 0);
+    this.frameBuffer.attach(this.positions[s], 1);
+    this.frameBuffer.attach(this.velocities[s], 2);
     this.swap = 1 - s;
   }
 
   private loop(gl: WebGL2RenderingContext) {
-    // const st = this.frameBuffer.getStatus();
-    // if (st === 'complete') {
-    this.updateGfx.render(false);
+    const st = this.frameBuffer.getStatus();
+    if (st === 'complete') {
+      // console.log("render");
+      this.updateGfx.render(false);
 
 
-    // if (count < 10) {
-    //   const w = this.stateSize.width,
-    //     h = this.stateSize.height,
-    //     rgba = new Uint8Array(w * h * 4);
-    //   gl.readPixels(0, 0, w, h, gl.RG, gl.UNSIGNED_BYTE, rgba);
-    //   console.log(rgba);
-    //   count++;
-    // }
-    // if (count < 10) {
-    //   const w = this.stateSize.width,
-    //     h = this.stateSize.height,
-    //     rgba = new Float32Array(w * h * 2);
-    //   gl.readPixels(0, 0, w, h, gl.RG, gl.FLOAT, rgba);
-    //   console.log(rgba);
-    //   count++;
-    // }
+      // if (count < 10) {
+      //   const w = this.stateSize.width,
+      //     h = this.stateSize.height,
+      //     rgba = new Uint8Array(w * h * 4);
+      //   gl.readPixels(0, 0, w, h, gl.RG, gl.UNSIGNED_BYTE, rgba);
+      //   console.log(rgba);
+      //   count++;
+      // }
+      // if (count < 10) {
+      //   const w = this.stateSize.width,
+      //     h = this.stateSize.height,
+      //     rgba = new Float32Array(w * h * 2);
+      //   gl.readPixels(0, 0, w, h, gl.RG, gl.FLOAT, rgba);
+      //   console.log(rgba);
+      //   count++;
+      // }
 
-    this.renderGfx.render(false);
+      this.renderGfx.render(false);
 
-    // if (count < 10) {
-    //   const w = this.stateSize.width,
-    //     h = this.stateSize.height,
-    //     rgba = new Uint8Array(w * h * 4);
-    //   gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
-    //   console.log(rgba);
-    //   count++;
-    // }
-    // }
+      // if (count < 10) {
+      //   const w = this.stateSize.width,
+      //     h = this.stateSize.height,
+      //     rgba = new Uint8Array(w * h * 4);
+      //   gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+      //   console.log(rgba);
+      //   count++;
+      // }
+    } else {
+      console.log("fb err", st);
+    }
+    // if (count++ < 20) {
     requestAnimationFrame(this.loop.bind(this, gl));
+    // }
   }
 }
 
