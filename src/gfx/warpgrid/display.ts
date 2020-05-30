@@ -1,6 +1,6 @@
 import { vec2, vec3, vec4, mat4, mat3 } from "gl-matrix";
 import {
-  Graphics, ShaderConfig, TextureConfig, TextureObject, BufferConfig, VertexArrayObject
+  Graphics, ShaderConfig, TextureConfig, TextureObject, BufferConfig, VertexArrayObject, CanvasObject
 } from "../graphics";
 import PixelMap, { RGBA } from "../pixelmap";
 
@@ -162,10 +162,11 @@ export class WarpGrid {
         ["tex"],
       ),
     ]
-    const gfx = new Graphics(gl, shaderConfigs, this.render.bind(this))
+    const cv = new CanvasObject(gl);
+    const gfx = new Graphics(gl, cv, shaderConfigs, this.render.bind(this))
     this.gfx = gfx
 
-    this.texture = gfx.newTextureObject(new TextureConfig(this.image, "tex", gl.LINEAR))
+    this.texture = gfx.newTextureObject(new TextureConfig('tex', gl.LINEAR))
     this.createCells(gfx, columns, rows)
 
     this.gfx.start()
