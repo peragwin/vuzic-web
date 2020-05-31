@@ -79,13 +79,10 @@ precision highp int;
 uniform ivec2 uStateSize;
 
 in vec2 quad;
-// out vec2 indexf;
 
 void main() {
   vec2 p = 2. * quad + 1.;
   
-  // indexf = quad * vec2(uStateSize);
-
   gl_Position = vec4(p, 0., 1.);
 }`;
 
@@ -96,47 +93,95 @@ const updateFragSrc = `#version 300 es
 #ifdef GL_ES
 precision highp float;
 precision highp int;
+precision highp isampler2D;
 #endif
 
 uniform sampler2D texPositions;
 uniform sampler2D texVelocities;
+uniform sampler2D texSortedPositions;
+uniform isampler2D texCountedPositions;
 uniform ivec2 uStateSize;
+uniform int uGridSize;
 uniform float uAlpha;
 uniform float uBeta;
 uniform float uRadius;
 uniform float uVelocity;
 
-in vec2 indexf;
 layout(location = 0) out uint color;
 layout(location = 1) out vec2 position;
 layout(location = 2) out vec2 velocity;
+
+struct Bucket {
+  int count;
+  int index;
+};
 
 vec2 fetch(in sampler2D tex, in ivec2 index) {
   return texelFetch(tex, index, 0).xy;
 }
 
+Bucket fetchCount(in isampler2D tex, in ivec2 cell) {
+  ivec2 count = texelFetch(tex, cell, 0).xy;
+  Bucket b;
+  b.count = count.x;
+  b.index = count.y - count.x;
+  return b;
+}
+
+ivec2 cellCoord(in vec2 pos, float gridSize) {
+  vec2 ipos = floor((pos + 1.) / 2. * gridSize);
+  return ivec2(ipos);
+}
+
+ivec2 wrap(in ivec2 coord, int gridSize) {
+  return coord % ivec2(gridSize, gridSize);
+}
+
+int cellIndex(in ivec2 coord, int gridSize) {
+  return coord.x + coord.y * gridSize;
+}
+
+vec2 fetchIndex(in sampler2D tex, in int index) {
+  ivec2 findex = ivec2(index % uStateSize.x, index / uStateSize.x);
+  return fetch(tex, findex); 
+}
+
+// head-twisty logic for (r > 0 && lenght(r) <= radius) && (ang < 0 ? (1, 0) : (0, 1))
+vec2 countNeighbor(in vec2 aPos, in vec2 aVel, in vec2 bPos, float radius) {
+  vec2 r = aPos - bPos;
+  float ang = aVel.x * r.y - aVel.y * r.x;
+  float rl = r.x*r.x + r.y*r.y;
+  float r2 = radius*radius;
+  return step(0., rl) * step(rl, r2) * (vec2(-1., 1.) * sign(ang) + 1.) / 2.;
+}
+
 vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos, in vec2 aVel) {
-  vec2 count = vec2(0., 0.);
+  vec2 count = vec2(0.);
+  float gridSize = float(uGridSize);
+  ivec2 aCell = cellCoord(aPos, gridSize);
+  ivec2 bCell;
+  Bucket bucket;
+  ivec2 bIndex;
+  vec2 bPos;
 
-  for (int i = 0; i < uStateSize.x; i++) {
-    for (int j = 0; j < uStateSize.y; j++) {
+  // gridRadius is how many extra cells we need to scan in addition to our own
+  int gridRadius = int(ceil(uRadius * gridSize / 2.));
 
-      ivec2 bIndex = ivec2(i, j);
-      if (bIndex == aIndex) continue;
+  // apparently this can be a lot better if its using a lut to avoid branching
+  for (int x = -gridRadius; x <= gridRadius; x++) {
+    for (int y = -gridRadius; y <= gridRadius; y++) {
+      bCell = wrap(aCell + ivec2(x, y), uGridSize);
+      bucket = fetchCount(texCountedPositions, bCell);
 
-      vec2 bPos = fetch(texPositions, bIndex);
-      vec2 r = aPos - bPos;
-      if (length(r) <= uRadius) {
-        float ang = aVel.x * r.y - aVel.y * r.x;
-        if (ang <= 0.) {
-          count.s += 1.;
-        } else {
-          count.t += 1.;
-        }
+      for (int i = 0; i < bucket.count; i++) {
+        bPos = fetchIndex(texSortedPositions, bucket.index+i);
+
+        // increment left or right count if B is within uRadius of A
+        count += countNeighbor(aPos, aVel, bPos, uRadius);
       }
     }
   }
-  
+
   return count;
 }
 
@@ -146,9 +191,9 @@ float deltaTheta(vec2 count) {
   return uAlpha + uBeta * sum * sign(diff);
 }
 
-mat2 rotate2d(float _angle){
-  return mat2(cos(_angle), -sin(_angle),
-              sin(_angle),  cos(_angle));
+mat2 rotate2d(float angle){
+  return mat2(cos(angle), -sin(angle),
+              sin(angle),  cos(angle));
 }
 
 vec2 integrate(in vec2 pos, in vec2 vel) {

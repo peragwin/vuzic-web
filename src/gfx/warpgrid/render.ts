@@ -1,6 +1,21 @@
 import { hsluvToRgb } from "hsluv";
 import { Drivers } from "../../audio/audio";
 
+export enum RenderParamKey {
+  valueScale,
+  valueOffset,
+  lightnessScale,
+  lightnessOffset,
+  alphaScale,
+  alphaOffset,
+  warpScale,
+  warpOffset,
+  scaleScale,
+  scaleOffset,
+  period,
+  colorCycle,
+  all,
+}
 export class WarpRenderParams {
   constructor(
     public params: RenderParams,
@@ -130,22 +145,6 @@ export class RenderParams {
     public period: number,
     public colorCycle: number
   ) {}
-}
-
-export enum RenderParamKey {
-  valueScale,
-  valueOffset,
-  lightnessScale,
-  lightnessOffset,
-  alphaScale,
-  alphaOffset,
-  warpScale,
-  warpOffset,
-  scaleScale,
-  scaleOffset,
-  period,
-  colorCycle,
-  all,
 }
 
 export interface RenderParamUpdate {

@@ -2,7 +2,6 @@ import {
   Graphics,
   TextureConfig,
   TextureObject,
-  BufferObject,
   BufferConfig,
   VertexArrayObject,
   CanvasObject,
@@ -15,6 +14,7 @@ import {
   updateFragShader,
 } from "./shaders";
 import { getPalette } from "./params";
+import { countingSort, CountingSorter } from "./countingsort";
 
 const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 const TEX_WIDTH = 1024;
@@ -24,8 +24,8 @@ export const defaultParams = {
   beta: (17.0 * Math.PI) / 180.0,
   radius: 0.05,
   velocity: 0.0067,
-  size: 24,
-  particles: 1024,
+  size: 8,
+  particles: 8192,
   palette: getPalette("default")!,
 };
 
@@ -48,13 +48,17 @@ export class PPS {
   private palette!: TextureObject;
   private renderGfx!: Graphics;
   private updateGfx!: Graphics;
+  private sortedPositions!: TextureObject;
+  private countedPositions!: TextureObject;
 
   private swap: number = 1;
   private frameBuffer!: FramebufferObject;
 
   private stateSize!: { width: number; height: number };
+  private gridSize = 32;
   private loopHandle!: number;
 
+  private countingSort = countingSort(this.gridSize, 4);
   private params: RenderParams;
 
   constructor(canvas: HTMLCanvasElement, private onRender: (pps: PPS) => void) {
@@ -62,7 +66,7 @@ export class PPS {
     if (!gl) throw new Error("webgl2 is required");
     this.gl = gl;
 
-    const ext = gl.getExtension("EXT_color_buffer_float");
+    let ext = gl.getExtension("EXT_color_buffer_float");
     if (!ext) throw new Error("extension EXT_color_buffer_float is required");
 
     this.params = { ...defaultParams };
@@ -140,6 +144,7 @@ export class PPS {
     this.updateGfx = gfx;
 
     const uStateSize = gfx.getUniformLocation("uStateSize");
+    const uGridSize = gfx.getUniformLocation("uGridSize");
     const uAlpha = gfx.getUniformLocation("uAlpha");
     const uBeta = gfx.getUniformLocation("uBeta");
     const uRadius = gfx.getUniformLocation("uRadius");
@@ -157,6 +162,26 @@ export class PPS {
       )
     );
 
+    this.sortedPositions = gfx.newTextureObject(
+      new TextureConfig(
+        "texSortedPositions",
+        gl.NEAREST,
+        gl.RGBA32F,
+        gl.RGBA,
+        gl.FLOAT
+      )
+    );
+
+    this.countedPositions = gfx.newTextureObject(
+      new TextureConfig(
+        "texCountedPositions",
+        gl.NEAREST,
+        gl.RG32I,
+        gl.RG_INTEGER,
+        gl.INT
+      )
+    );
+
     const buf = gfx.newBufferObject(
       new BufferConfig(QUAD2, "quad", "", 2, 4, () => true)
     );
@@ -168,6 +193,7 @@ export class PPS {
         gl.TRIANGLE_STRIP,
         (gl) => {
           gl.uniform2i(uStateSize, this.stateSize.width, this.stateSize.height);
+          gl.uniform1i(uGridSize, this.gridSize);
           gl.uniform1f(uAlpha, this.params.alpha);
           gl.uniform1f(uBeta, this.params.beta);
           gl.uniform1f(uRadius, this.params.radius);
@@ -175,6 +201,8 @@ export class PPS {
           let s = this.swap;
           this.positions[s].bind(gl, 0);
           this.velocities[s].bind(gl, 1);
+          this.sortedPositions.bind(gl, 2);
+          this.countedPositions.bind(gl, 3);
           return true;
         }
       )
@@ -191,9 +219,9 @@ export class PPS {
       const n = Math.floor(i / 2);
       const xory = i % 2 === 0;
       if (xory) {
-        data[i] = 0.1 + 0.9 * (((8 * n) / particles) % 1.0);
+        data[i] = Math.random();
       } else {
-        data[i] = 0.1 + (0.9 * Math.floor((8 * n) / particles)) / 8;
+        data[i] = Math.random();
       }
       data[i] = 2 * data[i] - 1 + Math.random() * 0.05;
     });
@@ -215,6 +243,11 @@ export class PPS {
       v.updateData(gl, width, height, vstate);
     });
 
+    this.writeSortedPositions({
+      count: new Int32Array(this.gridSize * this.gridSize * 2),
+      output: new Float32Array(particles * 4), // needs RBGA fmt for read
+    });
+
     const cdata = new Uint8ClampedArray(particles);
     this.colors.updateData(gl, width, height, cdata);
 
@@ -232,19 +265,42 @@ export class PPS {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
 
+  private writeSortedPositions(sort: {
+    count: Int32Array;
+    output: Float32Array;
+  }) {
+    const { width, height } = this.stateSize;
+    const gridSize = this.gridSize;
+    this.countedPositions.updateData(this.gl, gridSize, gridSize, sort.count);
+    this.sortedPositions.updateData(this.gl, width, height, sort.output);
+  }
+
   private update(g: Graphics) {
     const gl = g.gl;
     gl.disable(gl.BLEND);
-    const s = this.swap;
+
+    const tgt = this.swap;
+    const src = 1 - tgt;
+    const particles = this.stateSize.width * this.stateSize.height;
+
+    // attach the src position texture to the buffer so we can read it
+    this.frameBuffer.attach(this.positions[src], 1);
+    this.frameBuffer.bind();
+    const pdata = new Float32Array(particles * 4);
+    this.frameBuffer.readData(pdata, 1);
+    // console.log(pdata);
+    const sort = this.countingSort(pdata);
+    // console.log(sort);
+    this.writeSortedPositions(sort);
+
     this.frameBuffer.attach(this.colors, 0);
-    this.frameBuffer.attach(this.positions[s], 1);
-    this.frameBuffer.attach(this.velocities[s], 2);
-    this.swap = 1 - s;
+    this.frameBuffer.attach(this.positions[tgt], 1);
+    this.frameBuffer.attach(this.velocities[tgt], 2);
+    this.swap = src;
   }
 
   private loop() {
     const gl = this.gl;
-    // console.log("render");
 
     this.onRender(this);
 
@@ -271,8 +327,6 @@ export class PPS {
       this.stop();
 
       const oldParams = this.params;
-      console.log(oldParams, params);
-
       this.params = params;
 
       if (oldParams.particles !== params.particles) {

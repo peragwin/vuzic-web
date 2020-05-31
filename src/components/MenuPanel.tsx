@@ -248,7 +248,7 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
         onClose={handleCloseMenu}
       >
         {["Default", "Bright", "Dim", "Sensitive", "Other"].map((name) => (
-          <div>
+          <div key={name}>
             <MenuItem key={"save" + name} onClick={() => saveProfile(name)}>
               <ListItemIcon>
                 <CreateIcon />
@@ -320,8 +320,9 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
                 className={classes.menuButton}
                 color="inherit"
                 aria-label="renderMenu"
+                onClick={handleShowRenderSettings}
               >
-                <MenuIcon onClick={handleShowRenderSettings} />
+                <MenuIcon />
               </IconButton>
               <Typography
                 variant="h6"
@@ -335,8 +336,9 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
                 className={classes.menuButton}
                 color="inherit"
                 aria-label="audioMenu"
+                onClick={handleShowAudioSettings}
               >
-                <MenuIcon onClick={handleShowAudioSettings} />
+                <MenuIcon />
               </IconButton>
               <Typography
                 variant="h6"
