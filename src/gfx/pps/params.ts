@@ -8,6 +8,7 @@ export type PpsRenderParamKey =
   | "alpha"
   | "beta"
   | "radius"
+  | "radialDecay"
   | "velocity"
   | "size"
   | "particles";
@@ -28,6 +29,8 @@ export const ppsRenderParamsReducer = (
       return { ...state, beta: toRadians(action.value as number) };
     case "radius":
       return { ...state, radius: action.value as number };
+    case "radialDecay":
+      return { ...state, radialDecay: action.value as number };
     case "particles":
       return { ...state, particles: action.value as number };
     case "size":
@@ -49,6 +52,7 @@ export class PpsRenderParams {
     toDegrees(this.params.alpha),
     toDegrees(this.params.beta),
     this.params.radius,
+    this.params.radialDecay,
     this.params.velocity,
     this.params.particles,
     this.params.size,
@@ -62,16 +66,16 @@ export class PpsRenderParams {
   public config = () => [
     {
       title: "Alpha",
-      min: 0,
-      max: 360,
-      step: 0.2,
+      min: -180,
+      max: 180,
+      step: 0.1,
       update: this.updater("alpha"),
     },
     {
       title: "Beta",
-      min: -180,
-      max: 180,
-      step: 0.2,
+      min: -30,
+      max: 30,
+      step: 0.01,
       update: this.updater("beta"),
     },
     {
@@ -80,6 +84,13 @@ export class PpsRenderParams {
       max: 0.5,
       step: 0.0005,
       update: this.updater("radius"),
+    },
+    {
+      title: "Radial Decay",
+      min: 0,
+      max: 10,
+      step: 0.01,
+      update: this.updater("radialDecay"),
     },
     {
       title: "Particle Velocity",

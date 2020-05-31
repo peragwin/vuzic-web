@@ -95,6 +95,7 @@ uniform float uAlpha;
 uniform float uBeta;
 uniform float uRadius;
 uniform float uVelocity;
+uniform float uRadialDecay;
 
 layout(location = 0) out uint color;
 layout(location = 1) out vec2 position;
@@ -141,7 +142,8 @@ vec2 countNeighbor(in vec2 aPos, in vec2 aVel, in vec2 bPos, float radius) {
   float ang = aVel.x * r.y - aVel.y * r.x;
   float rl = r.x*r.x + r.y*r.y;
   float r2 = radius*radius;
-  return  step(rl, r2) * (vec2(-1., 1.) * sign(ang) + 1.) / 2.;
+  float damp = step(0., 1. - uRadialDecay * rl);
+  return damp * step(rl, r2) * (vec2(-1., 1.) * sign(ang) + 1.) / 2.;
 }
 
 vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos, in vec2 aVel) {

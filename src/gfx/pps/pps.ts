@@ -24,6 +24,7 @@ export const defaultParams = {
   beta: (17.0 * Math.PI) / 180.0,
   radius: 0.05,
   velocity: 0.0067,
+  radialDecay: 0,
   size: 8,
   particles: 4 * 8192,
   palette: getPalette("default")!,
@@ -35,6 +36,7 @@ export type RenderParams = {
   radius: number;
   velocity: number;
   size: number;
+  radialDecay: number;
   particles: number;
   palette: number[];
 };
@@ -155,6 +157,7 @@ export class PPS {
     const uBeta = gfx.getUniformLocation("uBeta");
     const uRadius = gfx.getUniformLocation("uRadius");
     const uVelocity = gfx.getUniformLocation("uVelocity");
+    const uRadialDecay = gfx.getUniformLocation("uRadialDecay");
 
     this.velocities = Array.from(Array(2)).map((_) =>
       gfx.newTextureObject(
@@ -204,6 +207,7 @@ export class PPS {
           gl.uniform1f(uBeta, this.params.beta);
           gl.uniform1f(uRadius, this.params.radius);
           gl.uniform1f(uVelocity, this.params.velocity);
+          gl.uniform1f(uRadialDecay, this.params.radialDecay);
           let s = this.swap;
           this.positions[s].bind(gl, 0);
           this.velocities[s].bind(gl, 1);
