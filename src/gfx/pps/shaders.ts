@@ -96,6 +96,7 @@ uniform float uBeta;
 uniform float uRadius;
 uniform float uVelocity;
 uniform float uRadialDecay;
+uniform float uColorThresholds[4];
 
 layout(location = 0) out uint color;
 layout(location = 1) out vec2 position;
@@ -194,10 +195,11 @@ vec2 integrate(in vec2 pos, in vec2 vel) {
 }
 
 uint getColor(in float count) {
-  float one =        step(12.9, count) * (1. - step(15.1, count)); // 13 <= N <= 15
-  float two =   2. * step(15.1, count) * (1. - step(35.1, count)); // 15 < N <= 35
-  float three = 3. * step(35.1, count) * (1. - step(50.1, count)); // 35 < N <= 50
-  float four =  4. * step(50.1, count); // 50 < N
+  float[] t = uColorThresholds;
+  float one =        step(t[0], count) * (1. - step(t[1], count)); // 13 <= N <= 15
+  float two =   2. * step(t[1], count) * (1. - step(t[2], count)); // 15 < N <= 35
+  float three = 3. * step(t[2], count) * (1. - step(t[3], count)); // 35 < N <= 50
+  float four =  4. * step(t[3], count); // 50 < N
   return uint(one + two + three + four);
 }
 

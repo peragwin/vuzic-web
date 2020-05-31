@@ -14,7 +14,7 @@ import {
   updateFragShader,
 } from "./shaders";
 import { getPalette } from "./params";
-import { countingSort, CountingSorter } from "./countingsort";
+import { countingSort } from "./countingsort";
 
 const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 const TEX_WIDTH = 1024;
@@ -26,8 +26,9 @@ export const defaultParams = {
   velocity: 0.0067,
   radialDecay: 0,
   size: 8,
-  particles: 4 * 8192,
+  particles: 1 * 8192,
   palette: getPalette("default")!,
+  colorThresholds: [10, 15, 30, 50],
 };
 
 export type RenderParams = {
@@ -39,6 +40,7 @@ export type RenderParams = {
   radialDecay: number;
   particles: number;
   palette: number[];
+  colorThresholds: number[];
 };
 
 export class PPS {
@@ -58,8 +60,9 @@ export class PPS {
   private frameBuffer!: FramebufferObject;
 
   private stateSize!: { width: number; height: number };
-  private gridSize = 32;
+  private gridSize = 48;
   private loopHandle!: number;
+  private frameCount = 0;
 
   private countingSort = countingSort(this.gridSize, 4);
   private params: RenderParams;
@@ -158,6 +161,7 @@ export class PPS {
     const uRadius = gfx.getUniformLocation("uRadius");
     const uVelocity = gfx.getUniformLocation("uVelocity");
     const uRadialDecay = gfx.getUniformLocation("uRadialDecay");
+    const uColorThresholds = gfx.getUniformLocation("uColorThresholds");
 
     this.velocities = Array.from(Array(2)).map((_) =>
       gfx.newTextureObject(
@@ -208,6 +212,7 @@ export class PPS {
           gl.uniform1f(uRadius, this.params.radius);
           gl.uniform1f(uVelocity, this.params.velocity);
           gl.uniform1f(uRadialDecay, this.params.radialDecay);
+          gl.uniform1fv(uColorThresholds, this.params.colorThresholds);
           let s = this.swap;
           this.positions[s].bind(gl, 0);
           this.velocities[s].bind(gl, 1);
@@ -300,10 +305,12 @@ export class PPS {
     this.frameBuffer.bind();
     const pdata = new Float32Array(particles * 4);
     this.frameBuffer.readData(pdata, 1);
-    // console.log(pdata);
     const sort = this.countingSort(pdata);
-    // console.log(sort);
     this.writeSortedPositions(sort);
+
+    if (this.frameCount % 64) {
+      this.updateColorThresholds(sort.count);
+    }
 
     this.frameBuffer.attach(this.colors, 0);
     this.frameBuffer.attach(this.positions[tgt], 1);
@@ -320,9 +327,11 @@ export class PPS {
 
     this.renderGfx.render(false);
 
-    // if (count++ < 20) {
+    // if (this.frameCount++ < 20) {
     this.loopHandle = requestAnimationFrame(this.loop.bind(this, gl));
     // }
+
+    this.frameCount = (this.frameCount + 1) % 0xffff;
   }
 
   public stop() {
@@ -349,6 +358,45 @@ export class PPS {
       this.loop();
     }
   }
+
+  async updateColorThresholds(count: Int32Array) {
+    const [mean, std] = getCountStatistics(count);
+    const cellsInRadius = Math.ceil(this.params.radius * this.gridSize);
+    this.params.colorThresholds = getColorThresholds(mean, std, cellsInRadius);
+  }
 }
 
-var count = 0;
+function getCountStatistics(countData: Int32Array) {
+  let sum = 0;
+  for (let i = 0; i < countData.length; i += 2) {
+    const c = countData[i];
+    sum += c;
+  }
+
+  const mean = (sum / countData.length) * 2;
+
+  sum = 0;
+  for (let i = 0; i < countData.length; i += 2) {
+    let dev = countData[i] - mean;
+    sum += dev * dev;
+  }
+
+  const std = Math.sqrt((sum / countData.length) * 2);
+
+  return [mean, std];
+}
+
+function getColorThresholds(mean: number, std: number, cellsInRadius: number) {
+  const c2 = cellsInRadius * cellsInRadius;
+  const particlesInRadius = mean * c2;
+  const dev = std * c2;
+
+  const thresholds = [];
+  for (let i = 0; i < 4; i++) {
+    const d = ((-1.5 + i) * dev) / 2;
+    thresholds.push(d + particlesInRadius);
+  }
+
+  // console.log({ mean, std, particlesInRadius, thresholds });
+  return thresholds;
+}
