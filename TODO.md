@@ -10,7 +10,8 @@
 - Export/Import profile
 - Save profiles using custom names
 - Reset to default profile
-- DblClk exit fullscreen \* Enable menu in fullscreen?
+- DblClk exit fullscreen
+- Enable menu in fullscreen?
 
 - Import audio from youtube/soundcloud/spotify
 
@@ -40,3 +41,5 @@
 - pause / frame rate control (+ super sampling)
 
 - add randomness / entropy
+
+- save configs into URL / tokens

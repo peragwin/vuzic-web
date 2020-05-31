@@ -1,11 +1,8 @@
 import { ShaderConfig } from "../graphics";
 
 const drawVertSrc = `#version 300 es
-
-#ifdef GL_ES
 precision mediump float;
 precision mediump usampler2D;
-#endif
 
 uniform sampler2D texPositions;
 uniform usampler2D texColors;
@@ -32,10 +29,7 @@ export const drawVertShader = (gl: WebGL2RenderingContext) =>
   new ShaderConfig(drawVertSrc, gl.VERTEX_SHADER, ["index"], []);
 
 const drawFragSrc = `#version 300 es
-
-#ifdef GL_ES
 precision mediump float;
-#endif
 
 in vec4 color;
 out vec4 fragColor;
@@ -51,10 +45,8 @@ export const drawFragShader = (gl: WebGL2RenderingContext) =>
   new ShaderConfig(drawFragSrc, gl.FRAGMENT_SHADER, ["position", "color"], []);
 
 const updateVertSrc = `#version 300 es
-#ifdef GL_ES
 precision mediump float;
 precision mediump int;
-#endif
 
 uniform ivec2 uStateSize;
 
@@ -71,10 +63,8 @@ void main() {
 `;
 
 const quadVertSrc = `#version 300 es
-#ifdef GL_ES
 precision highp float;
 precision highp int;
-#endif
 
 uniform ivec2 uStateSize;
 
@@ -90,11 +80,10 @@ export const updateVertShader = (gl: WebGL2RenderingContext) =>
   new ShaderConfig(quadVertSrc, gl.VERTEX_SHADER, ["quad", "indexf"], []);
 
 const updateFragSrc = `#version 300 es
-#ifdef GL_ES
 precision highp float;
 precision highp int;
 precision highp isampler2D;
-#endif
+precision highp sampler2D;
 
 uniform sampler2D texPositions;
 uniform sampler2D texVelocities;
@@ -152,7 +141,7 @@ vec2 countNeighbor(in vec2 aPos, in vec2 aVel, in vec2 bPos, float radius) {
   float ang = aVel.x * r.y - aVel.y * r.x;
   float rl = r.x*r.x + r.y*r.y;
   float r2 = radius*radius;
-  return step(0., rl) * step(rl, r2) * (vec2(-1., 1.) * sign(ang) + 1.) / 2.;
+  return  step(rl, r2) * (vec2(-1., 1.) * sign(ang) + 1.) / 2.;
 }
 
 vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos, in vec2 aVel) {

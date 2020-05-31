@@ -25,7 +25,7 @@ export const defaultParams = {
   radius: 0.05,
   velocity: 0.0067,
   size: 8,
-  particles: 8192,
+  particles: 4 * 8192,
   palette: getPalette("default")!,
 };
 
@@ -42,6 +42,7 @@ export type RenderParams = {
 export class PPS {
   private gl: WebGL2RenderingContext;
 
+  private particleVAO!: VertexArrayObject;
   private positions!: TextureObject[];
   private velocities!: TextureObject[];
   private colors!: TextureObject;
@@ -118,16 +119,21 @@ export class PPS {
       )
     );
 
-    gfx.addVertexArrayObject(
-      new VertexArrayObject(null, 0, particles, gl.POINTS, (gl) => {
+    this.particleVAO = new VertexArrayObject(
+      null,
+      0,
+      particles,
+      gl.POINTS,
+      (gl) => {
         gl.uniform2i(uStateSize, this.stateSize.width, this.stateSize.height);
         gl.uniform1f(uPointSize, this.params.size);
         this.positions[this.swap].bind(gl, 0);
         this.colors.bind(gl, 1);
         this.palette.bind(gl, 2);
         return true;
-      })
+      }
     );
+    gfx.addVertexArrayObject(this.particleVAO);
   }
 
   private initUpdate() {
@@ -213,6 +219,8 @@ export class PPS {
     const gl = this.gl;
     const { width, height } = this.stateSize;
     const particles = width * height;
+
+    this.particleVAO.length = particles;
 
     const pstate = new Float32Array(particles * 2);
     pstate.forEach((_, i, data) => {

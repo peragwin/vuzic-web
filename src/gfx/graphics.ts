@@ -92,11 +92,11 @@ export class BufferConfig {
 
 export class VertexArrayObject {
   constructor(
-    readonly buffer: BufferObject | null,
-    readonly offset: number,
-    readonly length: number,
-    readonly glDrawType: number,
-    readonly onDraw: (gl: WebGL2RenderingContext) => boolean
+    public buffer: BufferObject | null,
+    public offset: number,
+    public length: number,
+    public glDrawType: number,
+    public onDraw: (gl: WebGL2RenderingContext) => boolean
   ) {}
 
   public draw(gl: WebGL2RenderingContext) {
