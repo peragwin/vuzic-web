@@ -18,6 +18,8 @@ import { RenderController } from "./gfx/renderconfig";
 
 import "./App.css";
 import { makeStyles } from "@material-ui/core";
+import Paper from "@material-ui/core/Paper";
+import Typography from "@material-ui/core/Typography";
 import Button from "@material-ui/core/Button";
 import MenuPanel from "./components/MenuPanel";
 
@@ -41,6 +43,14 @@ const useStyles = makeStyles({
     justifyContent: "center",
     fontSize: "calc(10px + 2vmin)",
     color: "white",
+  },
+  errorDisplay: {
+    background: "linear-gradient(-180deg, #CFC5B4 0%,#ab7a4752 267%)",
+    padding: "2em",
+  },
+  errorMessage: {
+    lineHeight: 1.5,
+    letterSpacing: "0.00938em",
   },
   canvas: { width: "100vw", height: "100vh" },
 });
@@ -128,6 +138,7 @@ const App: React.FC = () => {
 
   const renderController = useRef(renderControllerInit);
   const audioProcessor = useRef<AudioProcessor | null>(null);
+  const [errorState, setErrorState] = useState<Error | null>(null);
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -145,58 +156,62 @@ const App: React.FC = () => {
 
     renderController.current = renderControllerInit;
 
-    switch (visual) {
-      case "warp":
-        new WarpGrid(cv, buckets * 2, length * 2, 4 / 3, (wg: WarpGrid) => {
-          if (!(renderController.current instanceof WarpRenderer)) return;
-          const params = renderController.current.params;
-          const renderer = new WarpRenderer(length, buckets, params);
+    try {
+      switch (visual) {
+        case "warp":
+          new WarpGrid(cv, buckets * 2, length * 2, 4 / 3, (wg: WarpGrid) => {
+            if (!(renderController.current instanceof WarpRenderer)) return;
+            const params = renderController.current.params;
+            const renderer = new WarpRenderer(length, buckets, params);
 
-          if (!audioProcessor.current) return;
-          const drivers = audioProcessor.current.getDrivers();
+            if (!audioProcessor.current) return;
+            const drivers = audioProcessor.current.getDrivers();
 
-          const [display, warp, scale] = renderer.render(drivers);
+            const [display, warp, scale] = renderer.render(drivers);
 
-          const mwarp = new Float32Array(warp.length * 2);
-          const wo = warp.length;
-          for (let i = 0; i < wo; i++) {
-            mwarp[wo + i] = warp[i];
-            mwarp[wo - 1 - i] = warp[i];
-          }
-          wg.setWarp(mwarp);
-
-          const mscale = new Float32Array(scale.length * 2);
-          const so = scale.length;
-          for (let i = 0; i < so; i++) {
-            mscale[so + i] = scale[i];
-            mscale[so - 1 - i] = scale[i];
-          }
-          wg.setScale(mscale);
-
-          const xo = display.width;
-          const yo = display.height;
-          for (let x = 0; x < display.width; x++) {
-            for (let y = 0; y < display.height; y++) {
-              const idx = 4 * (x + display.width * y);
-              const c = display.data.slice(idx, idx + 4);
-              wg.setPixelSlice(xo + x, yo + y, c);
-              wg.setPixelSlice(xo - 1 - x, yo + y, c);
-              wg.setPixelSlice(xo + x, yo - 1 - y, c);
-              wg.setPixelSlice(xo - 1 - x, yo - 1 - y, c);
+            const mwarp = new Float32Array(warp.length * 2);
+            const wo = warp.length;
+            for (let i = 0; i < wo; i++) {
+              mwarp[wo + i] = warp[i];
+              mwarp[wo - 1 - i] = warp[i];
             }
-          }
-        });
+            wg.setWarp(mwarp);
 
-        break;
+            const mscale = new Float32Array(scale.length * 2);
+            const so = scale.length;
+            for (let i = 0; i < so; i++) {
+              mscale[so + i] = scale[i];
+              mscale[so - 1 - i] = scale[i];
+            }
+            wg.setScale(mscale);
 
-      case "pps":
-        new PPS(cv, (p: PPS) => {
-          if (!(renderController.current instanceof PpsRenderParams)) return;
-          const params = renderController.current;
-          p.setParams(params.params);
-        });
+            const xo = display.width;
+            const yo = display.height;
+            for (let x = 0; x < display.width; x++) {
+              for (let y = 0; y < display.height; y++) {
+                const idx = 4 * (x + display.width * y);
+                const c = display.data.slice(idx, idx + 4);
+                wg.setPixelSlice(xo + x, yo + y, c);
+                wg.setPixelSlice(xo - 1 - x, yo + y, c);
+                wg.setPixelSlice(xo + x, yo - 1 - y, c);
+                wg.setPixelSlice(xo - 1 - x, yo - 1 - y, c);
+              }
+            }
+          });
 
-        break;
+          break;
+
+        case "pps":
+          new PPS(cv, (p: PPS) => {
+            if (!(renderController.current instanceof PpsRenderParams)) return;
+            const params = renderController.current;
+            p.setParams(params.params);
+          });
+
+          break;
+      }
+    } catch (e) {
+      setErrorState(e);
     }
   }, [start, visual]);
 
@@ -272,20 +287,31 @@ const App: React.FC = () => {
   return (
     <div className={classes.app}>
       {start ? (
-        <div>
-          <MenuPanel
-            visual={visual}
-            renderController={renderControllerInit}
-            audioParams={audioParams}
-            updateAudioParam={updateAudioParam}
-            canvas={canvasRef}
-          />
-          <canvas
-            ref={canvasRef}
-            className={classes.canvas}
-            onDoubleClick={handleFullscreen}
-          />
-        </div>
+        errorState ? (
+          <div>
+            <Paper className={classes.errorDisplay} elevation={3}>
+              <Typography variant="h2">
+                💩... Vuzic was unable to load
+              </Typography>
+              <pre className={classes.errorMessage}>{errorState.message}</pre>
+            </Paper>
+          </div>
+        ) : (
+          <div>
+            <MenuPanel
+              visual={visual}
+              renderController={renderControllerInit}
+              audioParams={audioParams}
+              updateAudioParam={updateAudioParam}
+              canvas={canvasRef}
+            />
+            <canvas
+              ref={canvasRef}
+              className={classes.canvas}
+              onDoubleClick={handleFullscreen}
+            />
+          </div>
+        )
       ) : (
         <div>
           <Button className={classes.button} onClick={() => setStart(true)}>
