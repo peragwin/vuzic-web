@@ -120,51 +120,98 @@ export class PpsRenderParams {
 const palettes = {
   default: [
     {
-      name: "Antique Brass",
-      hex: "e09f7d",
-      rgb: [224, 159, 125],
-      cmyk: [0, 29, 44, 12],
-      hsb: [21, 44, 88],
-      hsl: [21, 61, 68],
-      lab: [70, 20, 27],
-    },
-    {
-      name: "Sizzling Red",
-      hex: "ef5d60",
-      rgb: [239, 93, 96],
-      cmyk: [0, 61, 59, 6],
-      hsb: [359, 61, 94],
-      hsl: [359, 82, 65],
-      lab: [58, 56, 28],
-    },
-    {
-      name: "Paradise Pink",
-      hex: "ec4067",
-      rgb: [236, 64, 103],
-      cmyk: [0, 72, 56, 7],
-      hsb: [346, 73, 93],
-      hsl: [346, 82, 59],
-      lab: [54, 67, 18],
-    },
-    {
-      name: "Flirt",
-      hex: "a01a7d",
-      rgb: [160, 26, 125],
-      cmyk: [0, 83, 21, 37],
-      hsb: [316, 84, 63],
-      hsl: [316, 72, 36],
-      lab: [37, 60, -22],
-    },
-    {
       name: "Russian Violet",
-      hex: "311847",
-      rgb: [49, 24, 71],
-      cmyk: [30, 66, 0, 72],
-      hsb: [272, 66, 28],
-      hsl: [272, 49, 19],
-      lab: [14, 23, -24],
+      hex: "0b0033",
+      rgb: [11, 0, 51],
+      cmyk: [78, 100, 0, 80],
+      hsb: [253, 100, 20],
+      hsl: [253, 100, 10],
+      lab: [2, 18, -29],
+    },
+    {
+      name: "Dark Purple",
+      hex: "370031",
+      rgb: [55, 0, 49],
+      cmyk: [0, 100, 10, 78],
+      hsb: [307, 100, 22],
+      hsl: [307, 100, 11],
+      lab: [9, 32, -16],
+    },
+    {
+      name: "Antique Ruby",
+      hex: "832232",
+      rgb: [131, 34, 50],
+      cmyk: [0, 74, 61, 48],
+      hsb: [350, 74, 51],
+      hsl: [350, 59, 32],
+      lab: [29, 42, 14],
+    },
+    {
+      name: "Copper Crayola",
+      hex: "ce8964",
+      rgb: [206, 137, 100],
+      cmyk: [0, 33, 51, 19],
+      hsb: [21, 51, 81],
+      hsl: [21, 52, 60],
+      lab: [63, 22, 30],
+    },
+    {
+      name: "Key Lime",
+      hex: "eaf27c",
+      rgb: [234, 242, 124],
+      cmyk: [3, 0, 48, 5],
+      hsb: [64, 49, 95],
+      hsl: [64, 82, 72],
+      lab: [92, -18, 55],
     },
   ],
+  // [
+  //   {
+  //     name: "Antique Brass",
+  //     hex: "e09f7d",
+  //     rgb: [224, 159, 125],
+  //     cmyk: [0, 29, 44, 12],
+  //     hsb: [21, 44, 88],
+  //     hsl: [21, 61, 68],
+  //     lab: [70, 20, 27],
+  //   },
+  //   {
+  //     name: "Sizzling Red",
+  //     hex: "ef5d60",
+  //     rgb: [239, 93, 96],
+  //     cmyk: [0, 61, 59, 6],
+  //     hsb: [359, 61, 94],
+  //     hsl: [359, 82, 65],
+  //     lab: [58, 56, 28],
+  //   },
+  //   {
+  //     name: "Paradise Pink",
+  //     hex: "ec4067",
+  //     rgb: [236, 64, 103],
+  //     cmyk: [0, 72, 56, 7],
+  //     hsb: [346, 73, 93],
+  //     hsl: [346, 82, 59],
+  //     lab: [54, 67, 18],
+  //   },
+  //   {
+  //     name: "Flirt",
+  //     hex: "a01a7d",
+  //     rgb: [160, 26, 125],
+  //     cmyk: [0, 83, 21, 37],
+  //     hsb: [316, 84, 63],
+  //     hsl: [316, 72, 36],
+  //     lab: [37, 60, -22],
+  //   },
+  //   {
+  //     name: "Russian Violet",
+  //     hex: "311847",
+  //     rgb: [49, 24, 71],
+  //     cmyk: [30, 66, 0, 72],
+  //     hsb: [272, 66, 28],
+  //     hsl: [272, 49, 19],
+  //     lab: [14, 23, -24],
+  //   },
+  // ],
   cool: [
     {
       name: "Medium Turquoise",
@@ -221,8 +268,8 @@ type Color = {
 export const getPalette = (name: string) => {
   const get = (pal: Color[]) =>
     pal
-      .reverse()
-      .map((p) => [...p.rgb.map((c) => c * 1.2), 255])
+      // .reverse()
+      .map((p) => [...p.rgb.map((c) => c * 1.5), 255])
       .flat();
   switch (name) {
     case "default":
