@@ -25,8 +25,8 @@ export const defaultParams = {
   radius: 0.05,
   velocity: 0.0067,
   radialDecay: 0,
-  size: 8,
-  particles: 1 * 8192,
+  size: 4,
+  particles: 4 * 8192,
   palette: getPalette("default")!,
   colorThresholds: [10, 15, 30, 50],
 };
@@ -325,8 +325,12 @@ export class PPS {
     this.swap = src;
   }
 
+  private lastTime: number = 0;
+
   private loop() {
-    const gl = this.gl;
+    // if (this.frameCount++ < 20) {
+    this.loopHandle = requestAnimationFrame(this.loop.bind(this));
+    // }
 
     this.onRender(this);
 
@@ -335,14 +339,14 @@ export class PPS {
     this.renderGfx.render(false);
 
     if (this.frameCount % 256 === 0) {
+      const now = Date.now();
+      const elapsed = now - this.lastTime;
+      this.lastTime = now;
+      console.log(`FPS: ${(256 / elapsed) * 1000}`);
       this.canvas.capture = this.canvas.toDataURL();
     }
 
     this.frameCount = (this.frameCount + 1) % 0xffff;
-
-    // if (this.frameCount++ < 20) {
-    this.loopHandle = requestAnimationFrame(this.loop.bind(this, gl));
-    // }
   }
 
   public stop() {

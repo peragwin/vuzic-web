@@ -39,7 +39,11 @@ export const ppsRenderParamsReducer = (
       return { ...state, velocity: action.value as number };
     case "all":
       console.log(action.value);
-      return { ...state, ...(action.value as RenderParams) };
+      return {
+        ...state,
+        ...(action.value as RenderParams),
+        particles: state.particles, // FIXME
+      };
   }
 };
 

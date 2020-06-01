@@ -200,6 +200,16 @@ const App: React.FC = () => {
 
   const classes = useStyles();
 
+  const [fullscreen, setFullscreen] = useState(false);
+  const handleFullscreen = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (fullscreen) {
+      document.exitFullscreen();
+    } else {
+      e.currentTarget.requestFullscreen();
+    }
+    setFullscreen(!fullscreen);
+  };
+
   return (
     <div className={classes.app}>
       {start ? (
@@ -214,7 +224,7 @@ const App: React.FC = () => {
           <canvas
             ref={canvasRef}
             className={classes.canvas}
-            onDoubleClick={(e) => e.currentTarget.requestFullscreen()}
+            onDoubleClick={handleFullscreen}
           />
         </div>
       ) : (
