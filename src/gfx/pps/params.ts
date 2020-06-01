@@ -42,7 +42,6 @@ export const ppsRenderParamsReducer = (
       return {
         ...state,
         ...(action.value as RenderParams),
-        particles: state.particles, // FIXME
       };
   }
 };

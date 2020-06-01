@@ -367,6 +367,8 @@ export class PPS {
 
       if (oldParams.particles !== params.particles) {
         this.stateSize = this.getStateSize();
+        this.initRender();
+        this.initUpdate();
         this.initState();
       }
 

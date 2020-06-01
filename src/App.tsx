@@ -206,9 +206,21 @@ const App: React.FC = () => {
       try {
         document.exitFullscreen();
       } catch (e) {
-        console.log("oops");
+        console.log("oops", e);
       }
     } else {
+      try {
+        (navigator as any).wakeLock.request("display").then(
+          function successFunction() {
+            console.log("no sleep for the wicked");
+          },
+          function errorFunction() {
+            // error
+          }
+        );
+      } catch (e) {
+        console.log("oops", e);
+      }
       e.currentTarget.requestFullscreen();
     }
     setFullscreen(!fullscreen);
