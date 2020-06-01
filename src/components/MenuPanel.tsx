@@ -16,7 +16,7 @@ import ClickAwayListener from "@material-ui/core/ClickAwayListener";
 import Slider from "@material-ui/core/Slider";
 import Menu from "@material-ui/core/Menu";
 import MenuItem from "@material-ui/core/MenuItem";
-import Popover from "@material-ui/core/Popover";
+import Tooltip from "@material-ui/core/Tooltip";
 
 import { RenderController } from "../gfx/renderconfig";
 import {
@@ -209,57 +209,59 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
   }
 
   const [thumb, setThumb] = React.useState("");
-
-  const [anchorThumb, setAnchorThumb] = React.useState<null | HTMLElement>(
-    null
-  );
-  const showThumb = Boolean(anchorThumb);
+  const [showThumb, setShowThumb] = React.useState("");
 
   const handleShowThumb = (name: string) => (
     event: React.MouseEvent<HTMLElement>
   ) => {
+    setShowThumb("");
     const profile = window.localStorage.getItem(`profile.${name}`);
     if (profile !== null) {
       const prof = JSON.parse(profile);
       if (prof.thumb) {
         setThumb(prof.thumb);
-        setAnchorThumb(event.currentTarget);
+        setShowThumb(name);
       }
     }
-  };
-
-  const handleHideThumb = () => {
-    // setAnchorThumb(null);
   };
 
   const { visual, renderController, audioParams, canvas } = props;
 
   const saveProfile = (name: string) => {
-    let thumb = "";
+    let thumb: string | undefined;
+
+    const save = () => {
+      const data = {
+        [visual]: { params: renderController.params },
+        audioParams,
+        thumb,
+      };
+      window.localStorage.setItem(`profile.${name}`, JSON.stringify(data));
+      handleCloseMenu();
+    };
+
     if (canvas.current && canvas.current.capture) {
       const resizedCanvas = document.createElement("canvas");
       const ctx = resizedCanvas.getContext("2d");
       resizedCanvas.height = 128;
       resizedCanvas.width = 128;
       if (ctx) {
+        thumb = ""; // assign thumb so we know that save will be defered to the img onload
         const img = new Image();
         img.onload = () => {
           ctx.drawImage(img, 0, 0, 128, 128);
           thumb = resizedCanvas.toDataURL();
           console.log(thumb);
           resizedCanvas.remove();
+          save();
         };
         img.src = canvas.current.capture;
       }
     }
-    const save = {
-      [visual]: { params: renderController.params },
-      audioParams,
-      thumb,
-    };
-    // console.log(save);
-    window.localStorage.setItem(`profile.${name}`, JSON.stringify(save));
-    handleCloseMenu();
+
+    if (thumb === undefined) {
+      save();
+    }
   };
 
   const [didLoad, setDidLoad] = React.useState(false);
@@ -267,7 +269,6 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
   const loadProfile = (name: string) => {
     const profile = window.localStorage.getItem(`profile.${name}`);
     if (profile === null) return;
-    // console.log(profile);
 
     setDidLoad(true);
 
@@ -327,50 +328,24 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
               </ListItemIcon>
               <Typography variant="inherit">{`Save Profile: ${name}`}</Typography>
             </MenuItem>
-            <MenuItem
-              key={"load" + name}
-              onClick={() => loadProfile(name)}
-              onMouseEnter={handleShowThumb(name)}
-              onMouseLeave={handleHideThumb}
+            <Tooltip
+              placement="right"
+              title={showThumb ? <img src={thumb} /> : "No Preview"}
             >
-              <ListItemIcon>
-                <FolderOpenIcon />
-              </ListItemIcon>
-              <Typography variant="inherit">{`Load Profile: ${name}`}</Typography>
-            </MenuItem>
+              <MenuItem
+                key={"load" + name}
+                onClick={() => loadProfile(name)}
+                onMouseEnter={handleShowThumb(name)}
+              >
+                <ListItemIcon>
+                  <FolderOpenIcon />
+                </ListItemIcon>
+                <Typography variant="inherit">{`Load Profile: ${name}`}</Typography>
+              </MenuItem>
+            </Tooltip>
           </div>
         ))}
       </Menu>
-      <Popover
-        id="profile-thumb"
-        className={classes.thumbPopover}
-        open={showThumb}
-        anchorEl={anchorThumb}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        onClose={handleHideThumb}
-        disableRestoreFocus
-      >
-        <div
-          style={{
-            // zIndex: 10000,
-            // left: 400,
-            // top: 400,
-            // background: "white",
-            border: 5,
-            borderColor: "red",
-          }}
-        >
-          Show SOMETHING
-          <img src={thumb} onLoad={() => console.log("image loaded")} />
-        </div>
-      </Popover>
     </div>
   );
 };
@@ -415,7 +390,6 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
     <div>
       <div
         className={classes.menuTriggerArea}
-        onClick={() => console.log("foo")}
         onMouseOver={handleShowMenu}
         onMouseOut={() => setShowMenu(false)}
       >
