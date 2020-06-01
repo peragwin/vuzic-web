@@ -315,7 +315,7 @@ export class PPS {
     const sort = this.countingSort(pdata);
     this.writeSortedPositions(sort);
 
-    if (this.frameCount % 1 === 0) {
+    if (this.frameCount % 16 === 0) {
       this.updateColorThresholds(sort.count);
     }
 
