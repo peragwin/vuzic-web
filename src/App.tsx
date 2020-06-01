@@ -203,7 +203,11 @@ const App: React.FC = () => {
   const [fullscreen, setFullscreen] = useState(false);
   const handleFullscreen = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (fullscreen) {
-      document.exitFullscreen();
+      try {
+        document.exitFullscreen();
+      } catch (e) {
+        console.log("oops");
+      }
     } else {
       e.currentTarget.requestFullscreen();
     }

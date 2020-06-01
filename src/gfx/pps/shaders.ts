@@ -16,7 +16,7 @@ void main() {
     int w = uStateSize.x;
     ivec2 index = ivec2(gl_VertexID % w, gl_VertexID / w);
     vec2 position = texelFetch(texPositions, index, 0).xy;
-    gl_Position = mix(vec4(position, 0., 1.), vec4(0.,0.,0.,1.), 0.1);
+    gl_Position = vec4(position, 0., 1.); //mix(vec4(position, 0., 1.), vec4(0.,0.,0.,1.), 0.1);
 
     uint cval = texelFetch(texColors, index, 0).r;
     color = texelFetch(texPalette, ivec2(cval, 0), 0);
@@ -72,7 +72,7 @@ in vec2 quad;
 
 void main() {
   vec2 p = 2. * quad + 1.;
-  
+
   gl_Position = vec4(p, 0., 1.);
 }`;
 
@@ -134,16 +134,24 @@ int cellIndex(in ivec2 coord, int gridSize) {
 
 vec2 fetchIndex(in sampler2D tex, in int index) {
   ivec2 findex = ivec2(index % uStateSize.x, index / uStateSize.x);
-  return fetch(tex, findex); 
+  return fetch(tex, findex);
+}
+
+vec2 wrapDistance(vec2 r) {
+  vec2 a = abs(r);
+  a = step(vec2(1.), a) * (2. - a) + step(a, vec2(1.)) * a;
+  return sign(r) * a;
 }
 
 // head-twisty logic for (r > 0 && lenght(r) <= radius) && (ang < 0 ? (1, 0) : (0, 1))
 vec2 countNeighbor(in vec2 aPos, in vec2 aVel, in vec2 bPos, float radius) {
   vec2 r = aPos - bPos;
+  // r = wrapDistance(r);
   float ang = aVel.x * r.y - aVel.y * r.x;
   float rl = r.x*r.x + r.y*r.y;
   float r2 = radius*radius;
-  float damp = step(0., 1. - uRadialDecay * rl);
+  float damp = 1. - uRadialDecay * rl;
+  damp = damp * step(0., damp);
   return damp * step(rl, r2) * (vec2(-1., 1.) * sign(ang) + 1.) / 2.;
 }
 

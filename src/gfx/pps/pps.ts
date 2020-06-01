@@ -26,7 +26,7 @@ export const defaultParams = {
   velocity: 0.0067,
   radialDecay: 0,
   size: 4,
-  particles: 4 * 8192,
+  particles: 8 * 8192,
   palette: getPalette("default")!,
   colorThresholds: [10, 15, 30, 50],
 };
@@ -315,7 +315,7 @@ export class PPS {
     const sort = this.countingSort(pdata);
     this.writeSortedPositions(sort);
 
-    if (this.frameCount % 32 === 0) {
+    if (this.frameCount % 1 === 0) {
       this.updateColorThresholds(sort.count);
     }
 
