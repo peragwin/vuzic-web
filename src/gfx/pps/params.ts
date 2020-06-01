@@ -38,7 +38,8 @@ export const ppsRenderParamsReducer = (
     case "velocity":
       return { ...state, velocity: action.value as number };
     case "all":
-      return action.value as RenderParams;
+      console.log(action.value);
+      return { ...state, ...(action.value as RenderParams) };
   }
 };
 
@@ -221,7 +222,7 @@ export const getPalette = (name: string) => {
   const get = (pal: Color[]) =>
     pal
       .reverse()
-      .map((p) => [...p.rgb, 255])
+      .map((p) => [...p.rgb.map((c) => c * 1.2), 255])
       .flat();
   switch (name) {
     case "default":

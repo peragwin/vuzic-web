@@ -43,6 +43,10 @@ export type RenderParams = {
   colorThresholds: number[];
 };
 
+interface Capture {
+  capture: string;
+}
+
 export class PPS {
   private gl: WebGL2RenderingContext;
 
@@ -67,8 +71,11 @@ export class PPS {
   private countingSort = countingSort(this.gridSize, 4);
   private params: RenderParams;
 
-  constructor(canvas: HTMLCanvasElement, private onRender: (pps: PPS) => void) {
-    const gl = canvas.getContext("webgl2");
+  constructor(
+    private canvas: HTMLCanvasElement & Capture,
+    private onRender: (pps: PPS) => void
+  ) {
+    const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
     if (!gl) throw new Error("webgl2 is required");
     this.gl = gl;
 
@@ -308,7 +315,7 @@ export class PPS {
     const sort = this.countingSort(pdata);
     this.writeSortedPositions(sort);
 
-    if (this.frameCount % 64) {
+    if (this.frameCount % 32 === 0) {
       this.updateColorThresholds(sort.count);
     }
 
@@ -327,11 +334,15 @@ export class PPS {
 
     this.renderGfx.render(false);
 
+    if (this.frameCount % 256 === 0) {
+      this.canvas.capture = this.canvas.toDataURL();
+    }
+
+    this.frameCount = (this.frameCount + 1) % 0xffff;
+
     // if (this.frameCount++ < 20) {
     this.loopHandle = requestAnimationFrame(this.loop.bind(this, gl));
     // }
-
-    this.frameCount = (this.frameCount + 1) % 0xffff;
   }
 
   public stop() {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { makeStyles } from "@material-ui/core";
 
 import AppBar from "@material-ui/core/AppBar";
@@ -16,8 +16,8 @@ import ClickAwayListener from "@material-ui/core/ClickAwayListener";
 import Slider from "@material-ui/core/Slider";
 import Menu from "@material-ui/core/Menu";
 import MenuItem from "@material-ui/core/MenuItem";
+import Popover from "@material-ui/core/Popover";
 
-import { RenderParamKey } from "../gfx/warpgrid/render";
 import { RenderController } from "../gfx/renderconfig";
 import {
   AudioProcessorParams,
@@ -84,6 +84,9 @@ const useStyles = makeStyles((theme) => ({
   filterParamSlider: {
     borderTop: "1px",
     borderBottom: "1px",
+  },
+  thumbPopover: {
+    zIndex: 1000,
   },
 }));
 
@@ -180,12 +183,17 @@ const FilterParamSlider: React.FC<FilterParamSliderProps> = (
   );
 };
 
+interface Capture {
+  capture: string | undefined;
+}
+
 interface MenuPanelProps {
+  visual: string;
   renderController: RenderController;
   audioParams: AudioProcessorParams;
   updateAudioParam: (action: AudioParamUpdate) => void;
+  canvas: React.RefObject<HTMLCanvasElement & Capture>;
   children?: React.ReactNode;
-  canvas?: React.RefObject<HTMLCanvasElement>;
 }
 
 const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
@@ -200,24 +208,88 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
     setAnchorMenu(null);
   }
 
-  const { renderController, audioParams } = props;
+  const [thumb, setThumb] = React.useState("");
+
+  const [anchorThumb, setAnchorThumb] = React.useState<null | HTMLElement>(
+    null
+  );
+  const showThumb = Boolean(anchorThumb);
+
+  const handleShowThumb = (name: string) => (
+    event: React.MouseEvent<HTMLElement>
+  ) => {
+    const profile = window.localStorage.getItem(`profile.${name}`);
+    if (profile !== null) {
+      const prof = JSON.parse(profile);
+      if (prof.thumb) {
+        setThumb(prof.thumb);
+        setAnchorThumb(event.currentTarget);
+      }
+    }
+  };
+
+  const handleHideThumb = () => {
+    // setAnchorThumb(null);
+  };
+
+  const { visual, renderController, audioParams, canvas } = props;
+
   const saveProfile = (name: string) => {
-    window.localStorage.setItem(
-      `profile.${name}`,
-      JSON.stringify({ renderParams: renderController.params, audioParams })
-    );
+    let thumb = "";
+    if (canvas.current && canvas.current.capture) {
+      const resizedCanvas = document.createElement("canvas");
+      const ctx = resizedCanvas.getContext("2d");
+      resizedCanvas.height = 128;
+      resizedCanvas.width = 128;
+      if (ctx) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, 128, 128);
+          thumb = resizedCanvas.toDataURL();
+          console.log(thumb);
+          resizedCanvas.remove();
+        };
+        img.src = canvas.current.capture;
+      }
+    }
+    const save = {
+      [visual]: { params: renderController.params },
+      audioParams,
+      thumb,
+    };
+    // console.log(save);
+    window.localStorage.setItem(`profile.${name}`, JSON.stringify(save));
     handleCloseMenu();
   };
+
+  const [didLoad, setDidLoad] = React.useState(false);
 
   const loadProfile = (name: string) => {
     const profile = window.localStorage.getItem(`profile.${name}`);
     if (profile === null) return;
-    console.log(profile);
-    const { renderParams, audioParams } = JSON.parse(profile);
-    renderController.update({ type: "all", value: renderParams });
+    // console.log(profile);
+
+    setDidLoad(true);
+
+    const prof = JSON.parse(profile);
+    const renderParams = prof[visual];
+    const audioParams = prof.audioParams;
+
+    if (renderParams) {
+      renderController.update({ type: "all", value: renderParams.params });
+    }
     props.updateAudioParam({ type: AudioParamKey.all, value: audioParams });
     handleCloseMenu();
   };
+
+  useEffect(() => loadProfile("current"), []);
+  useEffect(() => {
+    if (didLoad) {
+      setDidLoad(false);
+      return;
+    }
+    saveProfile("current");
+  }, [renderController.params, audioParams]);
 
   const classes = useStyles();
 
@@ -255,7 +327,12 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
               </ListItemIcon>
               <Typography variant="inherit">{`Save Profile: ${name}`}</Typography>
             </MenuItem>
-            <MenuItem key={"load" + name} onClick={() => loadProfile(name)}>
+            <MenuItem
+              key={"load" + name}
+              onClick={() => loadProfile(name)}
+              onMouseEnter={handleShowThumb(name)}
+              onMouseLeave={handleHideThumb}
+            >
               <ListItemIcon>
                 <FolderOpenIcon />
               </ListItemIcon>
@@ -264,6 +341,36 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
           </div>
         ))}
       </Menu>
+      <Popover
+        id="profile-thumb"
+        className={classes.thumbPopover}
+        open={showThumb}
+        anchorEl={anchorThumb}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "left",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+        onClose={handleHideThumb}
+        disableRestoreFocus
+      >
+        <div
+          style={{
+            // zIndex: 10000,
+            // left: 400,
+            // top: 400,
+            // background: "white",
+            border: 5,
+            borderColor: "red",
+          }}
+        >
+          Show SOMETHING
+          <img src={thumb} onLoad={() => console.log("image loaded")} />
+        </div>
+      </Popover>
     </div>
   );
 };

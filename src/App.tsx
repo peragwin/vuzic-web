@@ -80,8 +80,10 @@ const audioParamsInit = new AudioProcessorParams(
 
 type VisualOptions = "warp" | "pps";
 
+type CanvasCapture = HTMLCanvasElement & { capture: string };
+
 const App: React.FC = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<CanvasCapture>(null);
 
   const [warpRenderParams, updateWarpRenderParam] = useReducer(
     warpRenderParamReducer,
@@ -203,6 +205,7 @@ const App: React.FC = () => {
       {start ? (
         <div>
           <MenuPanel
+            visual={visual}
             renderController={renderControllerInit}
             audioParams={audioParams}
             updateAudioParam={updateAudioParam}
