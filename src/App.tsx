@@ -24,6 +24,15 @@ import Button from "@material-ui/core/Button";
 import MenuPanel from "./components/MenuPanel";
 
 const useStyles = makeStyles({
+  buttonContainer: {
+    width: "100vw",
+    textAlign: "center",
+  },
+  buttonsJustified: {
+    display: "inline-grid",
+    width: "100vw",
+    maxWidth: "400px",
+  },
   button: {
     background: "linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)",
     border: 0,
@@ -32,6 +41,8 @@ const useStyles = makeStyles({
     color: "white",
     height: 48,
     padding: "0 30px",
+    margin: "1.5em",
+    maxWidth: "400px",
   },
   app: {
     background: "linear-gradient(135deg, #45484d 0%,#000000 100%)",
@@ -114,10 +125,18 @@ const App: React.FC = () => {
     warpRenderParamReducer,
     warpRenderParamsInit
   );
+  const warpController = new WarpRenderParams(
+    warpRenderParams,
+    updateWarpRenderParam
+  );
 
   const [ppsRenderParams, updatePpsRenderParam] = useReducer(
     ppsRenderParamsReducer,
     ppsDefaultParams
+  );
+  const ppsController = new PpsRenderParams(
+    ppsRenderParams,
+    updatePpsRenderParam
   );
 
   const [audioParams, updateAudioParam] = useReducer(
@@ -125,18 +144,10 @@ const App: React.FC = () => {
     audioParamsInit
   );
 
-  const [start, setStart] = useState<boolean>(true);
+  const [start, setStart] = useState(false);
   const [visual, setVisual] = useState<VisualOptions>("pps");
-  const renderControllerInit = ((): RenderController => {
-    switch (visual) {
-      case "warp":
-        return new WarpRenderParams(warpRenderParams, updateWarpRenderParam);
-      case "pps":
-        return new PpsRenderParams(ppsRenderParams, updatePpsRenderParam);
-    }
-  })();
 
-  const renderController = useRef(renderControllerInit);
+  const renderController = useRef<RenderController>(ppsController);
   const audioProcessor = useRef<AudioProcessor | null>(null);
   const [errorState, setErrorState] = useState<Error | null>(null);
   const [frameRate, setFrameRate] = useState(0);
@@ -147,21 +158,21 @@ const App: React.FC = () => {
 
     if (!start) return;
 
-    audioProcessor.current = new AudioProcessor(
-      1024,
-      512,
-      buckets,
-      length,
-      audioParams
-    );
-
-    renderController.current = renderControllerInit;
-
     try {
       switch (visual) {
         case "warp":
+          audioProcessor.current = new AudioProcessor(
+            1024,
+            512,
+            buckets,
+            length,
+            audioParams
+          );
+
+          renderController.current = warpController;
+
           new WarpGrid(cv, buckets * 2, length * 2, 4 / 3, (wg: WarpGrid) => {
-            if (!(renderController.current instanceof WarpRenderer)) return;
+            if (!(renderController.current instanceof WarpRenderParams)) return;
             const params = renderController.current.params;
             const renderer = new WarpRenderer(length, buckets, params);
 
@@ -203,6 +214,8 @@ const App: React.FC = () => {
           break;
 
         case "pps":
+          renderController.current = ppsController;
+
           const pps = new PPS(cv, (p: PPS) => {
             if (!(renderController.current instanceof PpsRenderParams)) return;
             const params = renderController.current;
@@ -213,16 +226,24 @@ const App: React.FC = () => {
           break;
       }
     } catch (e) {
+      console.error(e);
       setErrorState(e);
     }
   }, [start, visual]);
 
   useEffect(() => {
-    const rc = (renderController.current = renderControllerInit);
+    const rc = (renderController.current = (() => {
+      switch (visual) {
+        case "pps":
+          return ppsController;
+        case "warp":
+          return warpController;
+      }
+    })());
     if (rc instanceof WarpRenderer) {
       rc.setRenderParams(warpRenderParams);
     }
-  }, [warpRenderParams, ppsRenderParams]);
+  }, [warpRenderParams, ppsRenderParams, visual]);
 
   useEffect(() => {
     if (audioProcessor.current) {
@@ -302,7 +323,7 @@ const App: React.FC = () => {
           <div>
             <MenuPanel
               visual={visual}
-              renderController={renderControllerInit}
+              renderController={renderController.current}
               audioParams={audioParams}
               updateAudioParam={updateAudioParam}
               canvas={canvasRef}
@@ -316,10 +337,29 @@ const App: React.FC = () => {
           </div>
         )
       ) : (
-        <div>
-          <Button className={classes.button} onClick={() => setStart(true)}>
-            Start
-          </Button>
+        <div className={classes.buttonContainer}>
+          <div className={classes.buttonsJustified}>
+            <Button
+              className={classes.button}
+              size="large"
+              onClick={() => {
+                setVisual("pps");
+                setStart(true);
+              }}
+            >
+              Particle System Simulator
+            </Button>
+            <Button
+              size="large"
+              className={classes.button}
+              onClick={() => {
+                setVisual("warp");
+                setStart(true);
+              }}
+            >
+              Music Visualizer
+            </Button>
+          </div>
         </div>
       )}
     </div>

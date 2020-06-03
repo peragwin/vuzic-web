@@ -1,66 +1,86 @@
-export class TextureConfig {
-  constructor(
-    public uniform: string,
-    public mode: number,
-    public internalFormat?: number,
-    public format?: number,
-    public type?: number
-  ) {}
+export interface TextureConfig {
+  mode: number;
+  internalFormat: number;
+  format: number;
+  type: number;
 }
 export class TextureObject {
-  constructor(
-    readonly tex: WebGLTexture,
-    readonly internalFormat: number, // TODO: specify type enums
-    readonly format: number,
-    readonly type: number,
-    readonly uloc?: WebGLUniformLocation,
-    readonly program?: WebGLProgram
-  ) {}
+  readonly tex: WebGLTexture;
 
-  public bind(gl: WebGL2RenderingContext, unit: number = 0) {
-    if (this.uloc) {
-      if (this.program) gl.useProgram(this.program);
-      gl.uniform1i(this.uloc, unit);
-    }
+  constructor(
+    readonly gl: WebGL2RenderingContext,
+    readonly cfg: TextureConfig
+  ) {
+    const tex = gl.createTexture();
+    if (!tex) throw new Error("failed to create new texture");
+    this.tex = tex;
+
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, cfg.mode);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, cfg.mode);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
+
+  public bind(unit: number) {
+    const gl = this.gl;
     gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
   }
 
-  public update(
-    gl: WebGL2RenderingContext,
-    image: ImageData,
-    unit: number = 0
-  ) {
-    this.bind(gl, unit);
+  public update(image: ImageData, unit: number = 0) {
+    const { gl, cfg } = this;
+    this.bind(unit);
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      this.internalFormat,
-      this.format,
-      this.type,
+      cfg.internalFormat,
+      cfg.format,
+      cfg.type,
       image
     );
   }
 
   public updateData(
-    gl: WebGL2RenderingContext,
     width: number,
     height: number,
     data: ArrayBufferView,
     unit: number = 0
   ) {
-    this.bind(gl, unit);
+    const { gl, cfg } = this;
+    this.bind(unit);
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      this.internalFormat,
+      cfg.internalFormat,
       width,
       height,
       0,
-      this.format,
-      this.type,
+      cfg.format,
+      cfg.type,
       data
     );
+  }
+}
+
+type UniformAssignable = TextureObject | string;
+
+class Uniform {
+  private uloc: WebGLUniformLocation;
+
+  constructor(
+    gl: WebGL2RenderingContext,
+    readonly program: WebGLProgram,
+    readonly uname: string,
+    readonly onBind: (loc: WebGLUniformLocation, value: any) => void
+  ) {
+    const loc = gl.getUniformLocation(program, uname);
+    if (!loc) throw new Error(`uniform location not found for ${uname}`);
+    this.uloc = loc;
+  }
+
+  public bind(value: any) {
+    this.onBind(this.uloc, value);
   }
 }
 
@@ -81,10 +101,7 @@ export class BufferObject {
 export class BufferConfig {
   constructor(
     public vertices: ArrayBufferView,
-    public vertAttr: string,
-    public texAttr: string,
-    public stride: number,
-    public size: number,
+    public attributes: { name: string; offset: number; size: number }[],
     public ondraw: (gl: WebGL2RenderingContext) => boolean,
     public type?: number
   ) {}
@@ -96,12 +113,12 @@ export class VertexArrayObject {
     public offset: number,
     public length: number,
     public glDrawType: number,
-    public onDraw: (gl: WebGL2RenderingContext) => boolean
+    public onDraw?: (gfx: Graphics) => boolean
   ) {}
 
-  public draw(gl: WebGL2RenderingContext) {
-    if (this.onDraw(gl)) {
-      gl.drawArrays(this.glDrawType, this.offset, this.length);
+  public draw(gfx: Graphics) {
+    if (this.onDraw ? this.onDraw(gfx) : true) {
+      gfx.gl.drawArrays(this.glDrawType, this.offset, this.length);
     }
   }
 }
@@ -112,7 +129,7 @@ abstract class RenderTarget {
 
 export class FramebufferObject extends RenderTarget {
   private frameBuffer: WebGLFramebuffer;
-  private textures: Array<{ id: number; tex: WebGLTexture }>;
+  private textures: Array<{ id: number; tex: WebGLTexture }> = [];
 
   constructor(
     private gl: WebGL2RenderingContext,
@@ -122,7 +139,6 @@ export class FramebufferObject extends RenderTarget {
     const fb = gl.createFramebuffer();
     if (!fb) throw new Error("failed to create frameBuffer");
     this.frameBuffer = fb;
-    this.textures = new Array();
   }
 
   public attach(tex: TextureObject, id: number) {
@@ -153,7 +169,7 @@ export class FramebufferObject extends RenderTarget {
     gl.viewport(0, 0, this.dims.width, this.dims.height);
     this.bind();
     gl.drawBuffers(this.textures.map(({ id }) => gl.COLOR_ATTACHMENT0 + id));
-    this.textures = new Array();
+    this.textures = [];
   }
 
   public readData(data: ArrayBufferView, id: number) {
@@ -169,7 +185,7 @@ export class FramebufferObject extends RenderTarget {
       data
     );
     // hacky cleanup.. should find a better way to manage this
-    this.textures = new Array();
+    this.textures = [];
   }
 
   public getStatus(): string | number {
@@ -236,23 +252,17 @@ export class ShaderConfig {
 export class Graphics {
   private program: WebGLProgram;
   private shaders: Array<WebGLShader>;
-  private uniforms: Map<string, WebGLUniformLocation>;
   private attributes: Map<string, number>;
 
   private bos: Array<WebGLBuffer> = [];
   private vaos: Array<VertexArrayObject> = [];
-  private textures: Array<TextureObject> = [];
-
-  public onRender: (gfx: Graphics) => void;
 
   constructor(
-    public gl: WebGL2RenderingContext,
+    readonly gl: WebGL2RenderingContext,
     private target: RenderTarget,
     shaders: Array<ShaderConfig>,
-    onRender: (g: Graphics) => void
+    public onRender: (g: Graphics) => void
   ) {
-    this.onRender = onRender;
-    this.uniforms = new Map<string, WebGLUniformLocation>();
     this.attributes = new Map<string, number>();
 
     const program = gl.createProgram();
@@ -275,21 +285,6 @@ export class Graphics {
       gl.deleteProgram(program);
       throw new Error("failed to link program");
     }
-
-    shaders.forEach((s) => {
-      s.uniformNames.forEach((uname) => {
-        const loc = gl.getUniformLocation(program, uname);
-        if (loc === null)
-          throw new Error(`uniform location not found for ${uname}`);
-        this.uniforms.set(uname, loc);
-      });
-      s.attributeNames.forEach((aname) => {
-        const loc = gl.getAttribLocation(program, aname);
-        if (loc === null)
-          throw new Error(`attribute location not found for ${aname}`);
-        this.attributes.set(aname, loc);
-      });
-    });
   }
 
   private compileShader(s: ShaderConfig) {
@@ -314,40 +309,42 @@ export class Graphics {
     if (cfg.type === gl.UNSIGNED_SHORT) dsize = 2;
     if (cfg.type === gl.UNSIGNED_BYTE) dsize = 1;
 
-    const stride = dsize * cfg.stride;
+    const stride = dsize * cfg.attributes.reduce((p, v) => p + v.size, 0);
 
     const buffer = gl.createBuffer();
     if (buffer === null) throw new Error("failed to create gl buffer");
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, cfg.vertices, gl.STATIC_DRAW);
 
-    let vattr = -1;
-    if (cfg.vertAttr) {
-      const v = this.attributes.get(cfg.vertAttr);
-      if (v === undefined)
-        throw new Error(`unknown vertex attribute ${cfg.vertAttr}`);
-      vattr = v;
-    }
-    let tattr = -1;
-    if (cfg.texAttr) {
-      const t = this.attributes.get(cfg.texAttr);
-      if (t === undefined)
-        throw new Error(`unknown texture attribute ${cfg.texAttr}`);
-      tattr = t;
+    const attrs: Array<{ attr: number; size: number; offset: number }> = [];
+    for (let attr of cfg.attributes) {
+      const a = gl.getAttribLocation(this.program, attr.name);
+      if (a === null)
+        throw new Error(`attribute location not found for ${attr.name}`);
+      attrs.push({ ...attr, attr: a });
     }
 
     const setAttribPointers = () => {
-      if (vattr !== -1) {
-        gl.enableVertexAttribArray(vattr);
+      for (let a of attrs) {
+        gl.enableVertexAttribArray(a.attr);
         if (cfg.type === gl.UNSIGNED_SHORT) {
-          gl.vertexAttribIPointer(vattr, cfg.size, type, stride, 0);
+          gl.vertexAttribIPointer(
+            a.attr,
+            a.size,
+            type,
+            stride,
+            a.offset * dsize
+          );
         } else {
-          gl.vertexAttribPointer(vattr, cfg.size, type, false, stride, 0);
+          gl.vertexAttribPointer(
+            a.attr,
+            a.size,
+            type,
+            false,
+            stride,
+            a.offset * dsize
+          );
         }
-      }
-      if (tattr !== -1) {
-        gl.enableVertexAttribArray(tattr);
-        gl.vertexAttribPointer(tattr, 2, type, false, stride, cfg.size * 4);
       }
     };
 
@@ -356,38 +353,40 @@ export class Graphics {
     return bo;
   }
 
+  private uniforms = new Map<UniformAssignable, Uniform>();
+
   public addVertexArrayObject(vao: VertexArrayObject) {
     this.vaos.push(vao);
   }
 
-  public newTextureObject(cfg: TextureConfig) {
-    const gl = this.gl;
-
-    const tex = gl.createTexture();
-    if (!tex) throw new Error("failed to create new texture");
-
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, cfg.mode);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, cfg.mode);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-    let uloc;
-    if (cfg.uniform !== "") {
-      uloc = this.getUniformLocation(cfg.uniform);
-    }
-
-    const to = new TextureObject(
+  // associates the texture with the uniform of the given name
+  public attachTexture(tex: TextureObject, uname: string) {
+    this.uniforms.set(
       tex,
-      cfg.internalFormat === undefined ? gl.RGBA : cfg.internalFormat,
-      cfg.format === undefined ? gl.RGBA : cfg.format,
-      cfg.type === undefined ? gl.UNSIGNED_BYTE : cfg.type,
-      uloc,
-      this.program
+      new Uniform(this.gl, this.program, uname, (l, v: number) => {
+        tex.bind(v);
+        this.gl.uniform1i(l, v);
+      })
     );
-    this.textures.push(to);
+  }
 
-    return to;
+  public bindTexture(tex: TextureObject, unit: number) {
+    const u = this.uniforms.get(tex);
+    if (!u) throw new Error(`texture ${tex} is not attached to any uniform`);
+    u.bind(unit);
+  }
+
+  public attachUniform(
+    uname: string,
+    onBind: (loc: WebGLUniformLocation, value: any) => void
+  ) {
+    this.uniforms.set(uname, new Uniform(this.gl, this.program, uname, onBind));
+  }
+
+  public bindUniform(uname: string, value: any) {
+    const u = this.uniforms.get(uname);
+    if (!u) throw new Error(`uniform ${uname} is not attached`);
+    u.bind(value);
   }
 
   public start() {
@@ -405,14 +404,13 @@ export class Graphics {
 
     this.target.use();
 
-    // let currentBuffer: (BufferObject | null) = null
+    let lastBuf: BufferObject | null = null;
     this.vaos.forEach((v) => {
-      if (v.buffer) {
-        //} && currentBuffer !== v.buffer) {
+      if (v.buffer && v.buffer !== lastBuf) {
         v.buffer.bindBuffer(gl);
-        // currentBuffer = v.buffer
+        lastBuf = v.buffer;
       }
-      v.draw(gl);
+      v.draw(this);
     });
 
     gl.flush();
@@ -420,17 +418,5 @@ export class Graphics {
     if (loop) {
       requestAnimationFrame(this.render.bind(this, loop));
     }
-  }
-
-  public getUniformLocation(uname: string) {
-    let uloc = this.uniforms.get(uname);
-    if (!uloc) {
-      this.gl.useProgram(this.program);
-      const loc = this.gl.getUniformLocation(this.program, uname);
-      if (!loc) throw new Error(`uniform location not found for ${uname}`);
-      uloc = loc;
-      this.uniforms.set(uname, uloc);
-    }
-    return uloc;
   }
 }

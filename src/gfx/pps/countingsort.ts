@@ -21,8 +21,6 @@ export const countingSort = (size: number, stride: number = 2) => {
   return (positions: Float32Array) => {
     const count = new Int32Array(2 * k);
 
-    const oldl = positions.length;
-
     for (let i = 0; i < positions.length; i += stride) {
       const p = positions.slice(i, i + 2);
       count[2 * index(p[0], p[1])] += 1;
@@ -43,11 +41,6 @@ export const countingSort = (size: number, stride: number = 2) => {
       const x = count[j];
       output.set(p, stride * x);
       count[j] = x + 1;
-    }
-
-    if (positions.length !== output.length) {
-      console.log("INPUT POSITIONS", positions.length);
-      console.log("OUTPUT LE", output.length);
     }
 
     return { count, output };

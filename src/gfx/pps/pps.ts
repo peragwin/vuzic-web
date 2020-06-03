@@ -1,6 +1,5 @@
 import {
   Graphics,
-  TextureConfig,
   TextureObject,
   BufferConfig,
   VertexArrayObject,
@@ -28,7 +27,10 @@ export const defaultParams = {
   size: 4,
   particles: 8 * 8192,
   palette: "default",
+  version: "v0.1" as ParamsVersion,
 };
+
+type ParamsVersion = "v0.1" | undefined;
 
 export type RenderParams = {
   alpha: number;
@@ -39,24 +41,86 @@ export type RenderParams = {
   radialDecay: number;
   particles: number;
   palette: string;
+  version: ParamsVersion;
 };
 
 interface Capture {
   capture: string;
 }
 
+interface ColorParams {
+  palette: number[];
+  thresholds: number[];
+}
+
+class Textures {
+  positions: TextureObject[];
+  velocities: TextureObject[];
+  sortedPositions: TextureObject;
+  countedPositions: TextureObject;
+
+  palette: TextureObject;
+  colors: TextureObject;
+
+  constructor(gl: WebGL2RenderingContext) {
+    // format is x0, y0, x1, y1, ...
+    this.positions = Array.from(Array(2)).map(
+      (_) =>
+        new TextureObject(gl, {
+          mode: gl.NEAREST,
+          internalFormat: gl.RG32F,
+          format: gl.RG,
+          type: gl.FLOAT,
+        })
+    );
+
+    this.velocities = Array.from(Array(2)).map(
+      (_) =>
+        new TextureObject(gl, {
+          mode: gl.NEAREST,
+          internalFormat: gl.RG32F,
+          format: gl.RG,
+          type: gl.FLOAT,
+        })
+    );
+
+    this.sortedPositions = new TextureObject(gl, {
+      mode: gl.NEAREST,
+      internalFormat: gl.RGBA32F,
+      format: gl.RGBA,
+      type: gl.FLOAT,
+    });
+
+    this.countedPositions = new TextureObject(gl, {
+      mode: gl.NEAREST,
+      internalFormat: gl.RG32I,
+      format: gl.RG_INTEGER,
+      type: gl.INT,
+    });
+
+    this.palette = new TextureObject(gl, {
+      mode: gl.NEAREST,
+      internalFormat: gl.RGBA,
+      format: gl.RGBA,
+      type: gl.UNSIGNED_BYTE,
+    });
+
+    this.colors = new TextureObject(gl, {
+      mode: gl.NEAREST,
+      internalFormat: gl.R8UI,
+      format: gl.RED_INTEGER,
+      type: gl.UNSIGNED_BYTE,
+    });
+  }
+}
+
 export class PPS {
   private gl: WebGL2RenderingContext;
 
   private particleVAO!: VertexArrayObject;
-  private positions!: TextureObject[];
-  private velocities!: TextureObject[];
-  private colors!: TextureObject;
-  private palette!: TextureObject;
+  private textures!: Textures;
   private renderGfx!: Graphics;
   private updateGfx!: Graphics;
-  private sortedPositions!: TextureObject;
-  private countedPositions!: TextureObject;
 
   private swap: number = 1;
   private frameBuffer!: FramebufferObject;
@@ -66,9 +130,11 @@ export class PPS {
   private loopHandle!: number;
   private frameCount = 0;
   private frameRate = 0;
+  public paused = false;
 
   private countingSort = countingSort(this.gridSize, 4);
   private params: RenderParams;
+  private colors!: ColorParams;
 
   constructor(
     private canvas: HTMLCanvasElement & Capture,
@@ -84,6 +150,7 @@ export class PPS {
     this.params = { ...defaultParams };
     this.stateSize = this.getStateSize();
 
+    this.textures = new Textures(gl);
     this.initRender();
     this.initUpdate();
     this.initState();
@@ -100,47 +167,33 @@ export class PPS {
     const gfx = new Graphics(gl, canvas, shaderConfigs, this.render.bind(this));
     this.renderGfx = gfx;
 
-    const uStateSize = gfx.getUniformLocation("uStateSize");
-    const uPointSize = gfx.getUniformLocation("uPointSize");
+    this.textures.positions.map((p) => gfx.attachTexture(p, "texPositions"));
 
-    // format is x0, y0, x1, y1, ...
-    this.positions = Array.from(Array(2)).map((_) =>
-      gfx.newTextureObject(
-        new TextureConfig("texPositions", gl.NEAREST, gl.RG32F, gl.RG, gl.FLOAT)
-      )
+    gfx.attachUniform(
+      "uStateSize",
+      (loc, value: { width: number; height: number }) => {
+        gl.uniform2i(loc, value.width, value.height);
+      }
     );
+    gfx.attachUniform("uPointSize", (l, v) => gl.uniform1f(l, v));
 
-    this.palette = gfx.newTextureObject(
-      new TextureConfig(
-        "texPalette",
-        gl.NEAREST,
-        gl.RGBA,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE
-      )
+    this.textures.positions.forEach((p) =>
+      gfx.attachTexture(p, "texPositions")
     );
-
-    this.colors = gfx.newTextureObject(
-      new TextureConfig(
-        "texColors",
-        gl.NEAREST,
-        gl.R8UI,
-        gl.RED_INTEGER,
-        gl.UNSIGNED_BYTE
-      )
-    );
+    gfx.attachTexture(this.textures.colors, "texColors");
+    gfx.attachTexture(this.textures.palette, "texPalette");
 
     this.particleVAO = new VertexArrayObject(
       null,
       0,
       particles,
       gl.POINTS,
-      (gl) => {
-        gl.uniform2i(uStateSize, this.stateSize.width, this.stateSize.height);
-        gl.uniform1f(uPointSize, this.params.size);
-        this.positions[this.swap].bind(gl, 0);
-        this.colors.bind(gl, 1);
-        this.palette.bind(gl, 2);
+      (gfx: Graphics) => {
+        gfx.bindUniform("uStateSize", this.stateSize);
+        gfx.bindUniform("uPointSize", this.params.size);
+        gfx.bindTexture(this.textures.positions[this.swap], 0);
+        gfx.bindTexture(this.textures.colors, 1);
+        gfx.bindTexture(this.textures.palette, 2);
         return true;
       }
     );
@@ -160,49 +213,34 @@ export class PPS {
     );
     this.updateGfx = gfx;
 
-    const uStateSize = gfx.getUniformLocation("uStateSize");
-    const uGridSize = gfx.getUniformLocation("uGridSize");
-    const uAlpha = gfx.getUniformLocation("uAlpha");
-    const uBeta = gfx.getUniformLocation("uBeta");
-    const uRadius = gfx.getUniformLocation("uRadius");
-    const uVelocity = gfx.getUniformLocation("uVelocity");
-    const uRadialDecay = gfx.getUniformLocation("uRadialDecay");
-    const uColorThresholds = gfx.getUniformLocation("uColorThresholds");
-
-    this.velocities = Array.from(Array(2)).map((_) =>
-      gfx.newTextureObject(
-        new TextureConfig(
-          "texVelocities",
-          gl.NEAREST,
-          gl.RG32F,
-          gl.RG,
-          gl.FLOAT
-        )
-      )
+    gfx.attachUniform(
+      "uStateSize",
+      (loc, value: { width: number; height: number }) =>
+        gl.uniform2i(loc, value.width, value.height)
     );
+    gfx.attachUniform("uGridSize", (l, v) => gl.uniform1i(l, v));
+    gfx.attachUniform("uAlpha", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniform("uBeta", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniform("uRadius", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniform("uVelocity", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniform("uRadialDecay", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniform("uColorThresholds", (l, v) => gl.uniform1fv(l, v));
 
-    this.sortedPositions = gfx.newTextureObject(
-      new TextureConfig(
-        "texSortedPositions",
-        gl.NEAREST,
-        gl.RGBA32F,
-        gl.RGBA,
-        gl.FLOAT
-      )
+    this.textures.positions.forEach((p) =>
+      gfx.attachTexture(p, "texPositions")
     );
-
-    this.countedPositions = gfx.newTextureObject(
-      new TextureConfig(
-        "texCountedPositions",
-        gl.NEAREST,
-        gl.RG32I,
-        gl.RG_INTEGER,
-        gl.INT
-      )
+    this.textures.velocities.forEach((p) =>
+      gfx.attachTexture(p, "texVelocities")
     );
+    gfx.attachTexture(this.textures.sortedPositions, "texSortedPositions");
+    gfx.attachTexture(this.textures.countedPositions, "texCountedPositions");
 
     const buf = gfx.newBufferObject(
-      new BufferConfig(QUAD2, "quad", "", 2, 4, () => true)
+      new BufferConfig(
+        QUAD2,
+        [{ name: "quad", size: 2, offset: 0 }],
+        () => true
+      )
     );
     gfx.addVertexArrayObject(
       new VertexArrayObject(
@@ -210,20 +248,20 @@ export class PPS {
         0,
         QUAD2.length / 2,
         gl.TRIANGLE_STRIP,
-        (gl) => {
-          gl.uniform2i(uStateSize, this.stateSize.width, this.stateSize.height);
-          gl.uniform1i(uGridSize, this.gridSize);
-          gl.uniform1f(uAlpha, this.params.alpha);
-          gl.uniform1f(uBeta, this.params.beta);
-          gl.uniform1f(uRadius, this.params.radius);
-          gl.uniform1f(uVelocity, this.params.velocity);
-          gl.uniform1f(uRadialDecay, this.params.radialDecay);
-          gl.uniform1fv(uColorThresholds, this.params.colorThresholds);
+        (gfx) => {
+          gfx.bindUniform("uStateSize", this.stateSize);
+          gfx.bindUniform("uGridSize", this.gridSize);
+          gfx.bindUniform("uAlpha", this.params.alpha);
+          gfx.bindUniform("uBeta", this.params.beta);
+          gfx.bindUniform("uRadius", this.params.radius);
+          gfx.bindUniform("uVelocity", this.params.velocity);
+          gfx.bindUniform("uRadialDecay", this.params.radialDecay);
+          gfx.bindUniform("uColorThresholds", this.colors.thresholds);
           let s = this.swap;
-          this.positions[s].bind(gl, 0);
-          this.velocities[s].bind(gl, 1);
-          this.sortedPositions.bind(gl, 2);
-          this.countedPositions.bind(gl, 3);
+          gfx.bindTexture(this.textures.positions[s], 0);
+          gfx.bindTexture(this.textures.velocities[s], 1);
+          gfx.bindTexture(this.textures.sortedPositions, 2);
+          gfx.bindTexture(this.textures.countedPositions, 3);
           return true;
         }
       )
@@ -231,7 +269,6 @@ export class PPS {
   }
 
   private initState() {
-    const gl = this.gl;
     const { width, height } = this.stateSize;
     const particles = width * height;
 
@@ -239,7 +276,6 @@ export class PPS {
 
     const pstate = new Float32Array(particles * 2);
     pstate.forEach((_, i, data) => {
-      const n = Math.floor(i / 2);
       const xory = i % 2 === 0;
       if (xory) {
         data[i] = Math.random();
@@ -248,8 +284,8 @@ export class PPS {
       }
       data[i] = 2 * data[i] - 1 + Math.random() * 0.05;
     });
-    this.positions.forEach((p) => {
-      p.updateData(gl, width, height, pstate);
+    this.textures.positions.forEach((p) => {
+      p.updateData(width, height, pstate);
     });
 
     const vstate = new Float32Array(particles * 2);
@@ -262,8 +298,8 @@ export class PPS {
         data[i + 1] = vy / norm;
       }
     });
-    this.velocities.forEach((v) => {
-      v.updateData(gl, width, height, vstate);
+    this.textures.velocities.forEach((v) => {
+      v.updateData(width, height, vstate);
     });
 
     this.writeSortedPositions({
@@ -271,15 +307,28 @@ export class PPS {
       output: new Float32Array(particles * 4), // needs RBGA fmt for read
     });
 
-    const cdata = new Uint8ClampedArray(particles);
-    this.colors.updateData(gl, width, height, cdata);
+    let palette = (this.params.palette as any) as number[];
+    if (typeof palette === "string") {
+      const p = getPalette(this.params.palette);
+      if (!p) {
+        throw new Error(
+          `invalid palette in config: ${JSON.stringify(this.params)}`
+        );
+      }
+      palette = p;
+    }
+    this.colors = {
+      palette,
+      thresholds: [10, 15, 30, 50],
+    };
 
-    const palette = new ImageData(
-      new Uint8ClampedArray(this.params.palette),
-      5,
-      1
-    );
-    this.palette.update(gl, palette);
+    const cdata = new Uint8ClampedArray(particles);
+    cdata.forEach((_, i, data) => (data[i] = 2));
+    this.textures.colors.updateData(width, height, cdata);
+
+    const paldata = new ImageData(new Uint8ClampedArray(palette), 5, 1);
+    this.textures.palette.update(paldata);
+    console.log(paldata);
   }
 
   private render(g: Graphics) {
@@ -294,8 +343,8 @@ export class PPS {
   }) {
     const { width, height } = this.stateSize;
     const gridSize = this.gridSize;
-    this.countedPositions.updateData(this.gl, gridSize, gridSize, sort.count);
-    this.sortedPositions.updateData(this.gl, width, height, sort.output);
+    this.textures.countedPositions.updateData(gridSize, gridSize, sort.count);
+    this.textures.sortedPositions.updateData(width, height, sort.output);
   }
 
   private update(g: Graphics) {
@@ -307,7 +356,7 @@ export class PPS {
     const particles = this.stateSize.width * this.stateSize.height;
 
     // attach the src position texture to the buffer so we can read it
-    this.frameBuffer.attach(this.positions[src], 1);
+    this.frameBuffer.attach(this.textures.positions[src], 1);
     this.frameBuffer.bind();
     const pdata = new Float32Array(particles * 4);
     this.frameBuffer.readData(pdata, 1);
@@ -318,16 +367,16 @@ export class PPS {
       this.updateColorThresholds(sort.count);
     }
 
-    this.frameBuffer.attach(this.colors, 0);
-    this.frameBuffer.attach(this.positions[tgt], 1);
-    this.frameBuffer.attach(this.velocities[tgt], 2);
+    this.frameBuffer.attach(this.textures.colors, 0);
+    this.frameBuffer.attach(this.textures.positions[tgt], 1);
+    this.frameBuffer.attach(this.textures.velocities[tgt], 2);
     this.swap = src;
   }
 
   private lastTime: number = 0;
 
   private loop() {
-    // if (this.frameCount++ < 20) {
+    // if (this.frameCount++ < 2000) {
     this.loopHandle = requestAnimationFrame(this.loop.bind(this));
     // }
 
@@ -365,6 +414,7 @@ export class PPS {
 
       if (oldParams.particles !== params.particles) {
         this.stateSize = this.getStateSize();
+        this.textures = new Textures(this.gl);
         this.initRender();
         this.initUpdate();
         this.initState();
@@ -377,7 +427,7 @@ export class PPS {
   async updateColorThresholds(count: Int32Array) {
     const [mean, std] = getCountStatistics(count);
     const cellsInRadius = Math.ceil(this.params.radius * this.gridSize);
-    this.params.colorThresholds = getColorThresholds(mean, std, cellsInRadius);
+    this.colors.thresholds = getColorThresholds(mean, std, cellsInRadius);
   }
 
   public onFrameRate: ((f: number) => void) | undefined;
@@ -424,6 +474,5 @@ function getColorThresholds(mean: number, std: number, cellsInRadius: number) {
     thresholds.push(d + particlesInRadius);
   }
 
-  // console.log({ mean, std, particlesInRadius, thresholds });
   return thresholds;
 }

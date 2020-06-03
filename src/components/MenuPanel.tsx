@@ -378,7 +378,7 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
   const handleHideAudioSettings = () => setShowAudioSettings(false);
 
   const rc = props.renderController;
-  const renderParamConfig = useMemo(() => rc.config(), []);
+  const renderParamConfig = useMemo(() => rc.config(), [rc]);
   const renderParamValues = rc.values();
 
   const audioParams = props.audioParams;
