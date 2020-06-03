@@ -193,6 +193,7 @@ interface MenuPanelProps {
   audioParams: AudioProcessorParams;
   updateAudioParam: (action: AudioParamUpdate) => void;
   canvas: React.RefObject<HTMLCanvasElement & Capture>;
+  frameRate: number;
   children?: React.ReactNode;
 }
 
@@ -455,6 +456,9 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
                     onChange={c.update}
                   />
                 ))}
+                <Typography variant="overline">
+                  FPS: {props.frameRate}
+                </Typography>
               </div>
             </Paper>
           </ClickAwayListener>

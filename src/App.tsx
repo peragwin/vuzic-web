@@ -125,7 +125,7 @@ const App: React.FC = () => {
     audioParamsInit
   );
 
-  const [start, setStart] = useState<boolean>();
+  const [start, setStart] = useState<boolean>(true);
   const [visual, setVisual] = useState<VisualOptions>("pps");
   const renderControllerInit = ((): RenderController => {
     switch (visual) {
@@ -139,6 +139,7 @@ const App: React.FC = () => {
   const renderController = useRef(renderControllerInit);
   const audioProcessor = useRef<AudioProcessor | null>(null);
   const [errorState, setErrorState] = useState<Error | null>(null);
+  const [frameRate, setFrameRate] = useState(0);
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -202,11 +203,12 @@ const App: React.FC = () => {
           break;
 
         case "pps":
-          new PPS(cv, (p: PPS) => {
+          const pps = new PPS(cv, (p: PPS) => {
             if (!(renderController.current instanceof PpsRenderParams)) return;
             const params = renderController.current;
             p.setParams(params.params);
           });
+          pps.onFrameRate = (f: number) => setFrameRate(f);
 
           break;
       }
@@ -304,6 +306,7 @@ const App: React.FC = () => {
               audioParams={audioParams}
               updateAudioParam={updateAudioParam}
               canvas={canvasRef}
+              frameRate={frameRate}
             />
             <canvas
               ref={canvasRef}

@@ -27,8 +27,7 @@ export const defaultParams = {
   radialDecay: 0,
   size: 4,
   particles: 8 * 8192,
-  palette: getPalette("default")!,
-  colorThresholds: [10, 15, 30, 50],
+  palette: "default",
 };
 
 export type RenderParams = {
@@ -39,8 +38,7 @@ export type RenderParams = {
   size: number;
   radialDecay: number;
   particles: number;
-  palette: number[];
-  colorThresholds: number[];
+  palette: string;
 };
 
 interface Capture {
@@ -67,6 +65,7 @@ export class PPS {
   private gridSize = 48;
   private loopHandle!: number;
   private frameCount = 0;
+  private frameRate = 0;
 
   private countingSort = countingSort(this.gridSize, 4);
   private params: RenderParams;
@@ -339,11 +338,10 @@ export class PPS {
     this.renderGfx.render(false);
 
     if (this.frameCount % 256 === 0) {
-      const now = Date.now();
-      const elapsed = now - this.lastTime;
-      this.lastTime = now;
-      console.log(`FPS: ${(256 / elapsed) * 1000}`);
-      this.canvas.capture = this.canvas.toDataURL();
+      this.captureFrameRate();
+      (async () => {
+        this.canvas.capture = this.canvas.toDataURL();
+      })();
     }
 
     this.frameCount = (this.frameCount + 1) % 0xffff;
@@ -380,6 +378,18 @@ export class PPS {
     const [mean, std] = getCountStatistics(count);
     const cellsInRadius = Math.ceil(this.params.radius * this.gridSize);
     this.params.colorThresholds = getColorThresholds(mean, std, cellsInRadius);
+  }
+
+  public onFrameRate: ((f: number) => void) | undefined;
+
+  captureFrameRate() {
+    const now = Date.now();
+    const elapsed = now - this.lastTime;
+    this.lastTime = now;
+    this.frameRate = (256 / elapsed) * 1000;
+    if (this.onFrameRate) {
+      this.onFrameRate(this.frameRate);
+    }
   }
 }
 
