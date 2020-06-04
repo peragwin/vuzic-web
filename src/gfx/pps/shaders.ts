@@ -83,9 +83,9 @@ uniform float uVelocity;
 uniform float uRadialDecay;
 uniform float uColorThresholds[4];
 
-layout(location = 0) out int color;
-layout(location = 1) out ivec2 position;
-layout(location = 2) out ivec2 velocity;
+layout(location = 0) out ivec2 position;
+layout(location = 1) out ivec2 velocity;
+layout(location = 2) out int color;
 
 struct Bucket {
   int count;

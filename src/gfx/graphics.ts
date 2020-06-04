@@ -157,10 +157,6 @@ export class FramebufferObject extends RenderTarget {
         tex,
         0
       );
-      const st = this.getStatus();
-      if (st !== "complete") {
-        throw new Error(`framebuffer status error: ${st}`);
-      }
     });
   }
 
@@ -183,6 +179,13 @@ export class FramebufferObject extends RenderTarget {
     gl.readPixels(0, 0, this.dims.width, this.dims.height, format, type, data);
     // hacky cleanup.. should find a better way to manage this
     this.textures = [];
+  }
+
+  public checkStatus() {
+    const st = this.getStatus();
+    if (st !== "complete") {
+      throw new Error(`framebuffer status error: ${st}`);
+    }
   }
 
   public getStatus(): string | number {
@@ -249,7 +252,6 @@ export class ShaderConfig {
 export class Graphics {
   private program: WebGLProgram;
   private shaders: Array<WebGLShader>;
-  private attributes: Map<string, number>;
 
   private bos: Array<WebGLBuffer> = [];
   private vaos: Array<VertexArrayObject> = [];
@@ -260,8 +262,6 @@ export class Graphics {
     shaders: Array<ShaderConfig>,
     public onRender: (g: Graphics) => void
   ) {
-    this.attributes = new Map<string, number>();
-
     const program = gl.createProgram();
     if (program === null) throw new Error("could not create gl program");
     this.program = program;
@@ -415,5 +415,9 @@ export class Graphics {
     if (loop) {
       requestAnimationFrame(this.render.bind(this, loop));
     }
+  }
+
+  public swapTarget(target: RenderTarget) {
+    this.target = target;
   }
 }
