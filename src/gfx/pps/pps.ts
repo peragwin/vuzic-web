@@ -62,9 +62,9 @@ class Textures {
       (_) =>
         new TextureObject(gl, {
           mode: gl.NEAREST,
-          internalFormat: gl.RG32F,
-          format: gl.RG,
-          type: gl.FLOAT,
+          internalFormat: gl.RG32I,
+          format: gl.RG_INTEGER,
+          type: gl.INT,
         })
     );
 
@@ -72,17 +72,17 @@ class Textures {
       (_) =>
         new TextureObject(gl, {
           mode: gl.NEAREST,
-          internalFormat: gl.RG32F,
-          format: gl.RG,
-          type: gl.FLOAT,
+          internalFormat: gl.RG32I,
+          format: gl.RG_INTEGER,
+          type: gl.INT,
         })
     );
 
     this.sortedPositions = new TextureObject(gl, {
       mode: gl.NEAREST,
-      internalFormat: gl.RGBA32F,
-      format: gl.RGBA,
-      type: gl.FLOAT,
+      internalFormat: gl.RGBA32I,
+      format: gl.RGBA_INTEGER,
+      type: gl.INT,
     });
 
     this.countedPositions = new TextureObject(gl, {
@@ -134,9 +134,6 @@ export class PPS {
     const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
     if (!gl) throw new Error("webgl2 is required");
     this.gl = gl;
-
-    let ext = gl.getExtension("EXT_color_buffer_float");
-    if (!ext) throw new Error("extension EXT_color_buffer_float is required");
 
     this.params = { ...defaultParams };
     this.stateSize = this.getStateSize();
@@ -265,7 +262,8 @@ export class PPS {
 
     this.particleVAO.length = particles;
 
-    const pstate = new Float32Array(particles * 2);
+    const pbuf = new ArrayBuffer(particles * 2 * 4);
+    const pstate = new Float32Array(pbuf);
     pstate.forEach((_, i, data) => {
       const xory = i % 2 === 0;
       if (xory) {
@@ -276,10 +274,11 @@ export class PPS {
       data[i] = 2 * data[i] - 1 + Math.random() * 0.05;
     });
     this.textures.positions.forEach((p) => {
-      p.updateData(width, height, pstate);
+      p.updateData(width, height, new Int32Array(pbuf));
     });
 
-    const vstate = new Float32Array(particles * 2);
+    const vbuf = new ArrayBuffer(particles * 2 * 4);
+    const vstate = new Float32Array(vbuf);
     vstate.forEach((_, i, data) => {
       if (i % 2 === 0) {
         const vx = Math.random();
@@ -290,12 +289,12 @@ export class PPS {
       }
     });
     this.textures.velocities.forEach((v) => {
-      v.updateData(width, height, vstate);
+      v.updateData(width, height, new Int32Array(vbuf));
     });
 
     this.writeSortedPositions({
       count: new Int32Array(this.gridSize * this.gridSize * 2),
-      output: new Float32Array(particles * 4), // needs RBGA fmt for read
+      output: new Int32Array(particles * 4 * 4), // needs RBGA fmt for read
     });
 
     let palette = (this.params.palette as any) as number[];
@@ -330,7 +329,7 @@ export class PPS {
 
   private writeSortedPositions(sort: {
     count: Int32Array;
-    output: Float32Array;
+    output: Int32Array;
   }) {
     const { width, height } = this.stateSize;
     const gridSize = this.gridSize;
@@ -347,12 +346,17 @@ export class PPS {
     const particles = this.stateSize.width * this.stateSize.height;
 
     // attach the src position texture to the buffer so we can read it
+    // also chrome for mac requires that 0 be bound before 1
+    this.frameBuffer.attach(this.textures.colors, 0);
     this.frameBuffer.attach(this.textures.positions[src], 1);
     this.frameBuffer.bind();
-    const pdata = new Float32Array(particles * 4);
-    this.frameBuffer.readData(pdata, 1);
+
+    const pbuf = new ArrayBuffer(particles * 4 * 4);
+    const pdata = new Float32Array(pbuf);
+    this.frameBuffer.readData(new Int32Array(pbuf), 1, gl.RGBA_INTEGER, gl.INT);
     const sort = this.countingSort(pdata);
-    this.writeSortedPositions(sort);
+    const output = new Int32Array(sort.output.buffer);
+    this.writeSortedPositions({ ...sort, output });
 
     if (this.frameCount % 16 === 0) {
       this.updateColorThresholds(sort.count);
@@ -367,7 +371,7 @@ export class PPS {
   private lastTime: number = 0;
 
   private loop() {
-    // if (this.frameCount++ < 2000) {
+    // if (this.frameCount++ < 20) {
     this.loopHandle = requestAnimationFrame(this.loop.bind(this));
     // }
 

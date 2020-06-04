@@ -3,8 +3,9 @@ import { ShaderConfig } from "../graphics";
 const drawVertSrc = `#version 300 es
 precision mediump float;
 precision mediump usampler2D;
+precision mediump isampler2D;
 
-uniform sampler2D texPositions;
+uniform isampler2D texPositions;
 uniform usampler2D texColors;
 uniform sampler2D texPalette;
 uniform ivec2 uStateSize;
@@ -13,20 +14,21 @@ uniform float uPointSize;
 out vec4 color;
 
 void main() {
-    int w = uStateSize.x;
-    ivec2 index = ivec2(gl_VertexID % w, gl_VertexID / w);
-    vec2 position = texelFetch(texPositions, index, 0).xy;
-    gl_Position = vec4(position, 0., 1.); //mix(vec4(position, 0., 1.), vec4(0.,0.,0.,1.), 0.1);
+  int w = uStateSize.x;
+  ivec2 index = ivec2(gl_VertexID % w, gl_VertexID / w);
+  ivec2 ipos = texelFetch(texPositions, index, 0).xy;
+  vec2 position = vec2(intBitsToFloat(ipos.x), intBitsToFloat(ipos.y));
+  gl_Position = vec4(position, 0., 1.);
 
-    uint cval = texelFetch(texColors, index, 0).r;
-    color = texelFetch(texPalette, ivec2(cval, 0), 0);
+  uint cval = texelFetch(texColors, index, 0).r;
+  color = texelFetch(texPalette, ivec2(cval, 0), 0); // todo: be a regular texture with a gradient and a continuous color value
 
-    gl_PointSize = uPointSize;
+  gl_PointSize = uPointSize;
 }
 `;
 
 export const drawVertShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(drawVertSrc, gl.VERTEX_SHADER, ["index"], []);
+  new ShaderConfig(drawVertSrc, gl.VERTEX_SHADER, [], []);
 
 const drawFragSrc = `#version 300 es
 precision mediump float;
@@ -35,32 +37,14 @@ in vec4 color;
 out vec4 fragColor;
 
 void main() {
-    vec2 p =  2. * gl_PointCoord.xy - 1.;
-    float a = 1. - smoothstep(0.8, 1.0, length(p));
-    fragColor = a * color;
+  vec2 p =  2. * gl_PointCoord.xy - 1.;
+  float a = 1. - smoothstep(0.8, 1.0, length(p));
+  fragColor = a * color;
 }
 `;
 
 export const drawFragShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(drawFragSrc, gl.FRAGMENT_SHADER, ["position", "color"], []);
-
-const updateVertSrc = `#version 300 es
-precision mediump float;
-precision mediump int;
-
-uniform ivec2 uStateSize;
-
-out vec2 indexf;
-
-void main() {
-  int w = uStateSize.x;
-  vec2 v = vec2(gl_VertexID % w, gl_VertexID / w);
-  indexf = v;
-  gl_Position = vec4(2. * v / vec2(uStateSize) - 1., 0., 1.);
-
-  gl_PointSize = 2.;
-}
-`;
+  new ShaderConfig(drawFragSrc, gl.FRAGMENT_SHADER, [], []);
 
 const quadVertSrc = `#version 300 es
 precision highp float;
@@ -72,12 +56,11 @@ in vec2 quad;
 
 void main() {
   vec2 p = 2. * quad + 1.;
-
   gl_Position = vec4(p, 0., 1.);
 }`;
 
 export const updateVertShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(quadVertSrc, gl.VERTEX_SHADER, ["quad", "indexf"], []);
+  new ShaderConfig(quadVertSrc, gl.VERTEX_SHADER, [], []);
 
 const updateFragSrc = `#version 300 es
 precision highp float;
@@ -85,9 +68,9 @@ precision highp int;
 precision highp isampler2D;
 precision highp sampler2D;
 
-uniform sampler2D texPositions;
-uniform sampler2D texVelocities;
-uniform sampler2D texSortedPositions;
+uniform isampler2D texPositions;
+uniform isampler2D texVelocities;
+uniform isampler2D texSortedPositions;
 uniform isampler2D texCountedPositions;
 uniform ivec2 uStateSize;
 uniform int uGridSize;
@@ -99,16 +82,17 @@ uniform float uRadialDecay;
 uniform float uColorThresholds[4];
 
 layout(location = 0) out uint color;
-layout(location = 1) out vec2 position;
-layout(location = 2) out vec2 velocity;
+layout(location = 1) out ivec2 position;
+layout(location = 2) out ivec2 velocity;
 
 struct Bucket {
   int count;
   int index;
 };
 
-vec2 fetch(in sampler2D tex, in ivec2 index) {
-  return texelFetch(tex, index, 0).xy;
+vec2 fetch(in isampler2D tex, in ivec2 index) {
+  ivec2 ipos = texelFetch(tex, index, 0).xy;
+  return vec2(intBitsToFloat(ipos.x), intBitsToFloat(ipos.y));
 }
 
 Bucket fetchCount(in isampler2D tex, in ivec2 cell) {
@@ -132,7 +116,7 @@ int cellIndex(in ivec2 coord, int gridSize) {
   return coord.x + coord.y * gridSize;
 }
 
-vec2 fetchIndex(in sampler2D tex, in int index) {
+vec2 fetchIndex(in isampler2D tex, in int index) {
   ivec2 findex = ivec2(index % uStateSize.x, index / uStateSize.x);
   return fetch(tex, findex);
 }
@@ -211,6 +195,10 @@ uint getColor(in float count) {
   return uint(one + two + three + four);
 }
 
+ivec2 toIEEE(in vec2 v) {
+  return ivec2(floatBitsToInt(v.x), floatBitsToInt(v.y));
+}
+
 void main() {
   ivec2 index = ivec2(gl_FragCoord.xy);
   vec2 pos = fetch(texPositions, index);
@@ -223,8 +211,8 @@ void main() {
   vel = rot * vel;
   pos = integrate(pos, vel);
 
-  position = pos;
-  velocity = vel;
+  position = toIEEE(pos);
+  velocity = toIEEE(vel);
   color = getColor(count.x + count.y);
 }
 `;

@@ -172,18 +172,15 @@ export class FramebufferObject extends RenderTarget {
     this.textures = [];
   }
 
-  public readData(data: ArrayBufferView, id: number) {
+  public readData(
+    data: ArrayBufferView,
+    id: number,
+    format: number,
+    type: number
+  ) {
     const gl = this.gl;
     gl.readBuffer(gl.COLOR_ATTACHMENT0 + id);
-    gl.readPixels(
-      0,
-      0,
-      this.dims.width,
-      this.dims.height,
-      gl.RGBA,
-      gl.FLOAT,
-      data
-    );
+    gl.readPixels(0, 0, this.dims.width, this.dims.height, format, type, data);
     // hacky cleanup.. should find a better way to manage this
     this.textures = [];
   }
