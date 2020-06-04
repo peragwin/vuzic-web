@@ -648,7 +648,7 @@ const Share: React.FC<ShareProps> = (props) => {
   const [imported, setImported] = useState("");
   const [settings, setSettings] = useState<ExportSettings | null>(null);
   const exported = base64url.encode(JSON.stringify(props.currentSettings));
-  const exportURL = `https://${process.env.PUBLIC_URL}/#${exported}`;
+  const exportURL = `${process.env.REACT_APP_HOSTNAME}/#${exported}`;
   return (
     <Paper className={classes.settings} style={{ width: "unset" }}>
       <div className={classes.settingsOptions}>

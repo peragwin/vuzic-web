@@ -25,7 +25,7 @@ export const defaultParams = {
   velocity: 0.0067,
   radialDecay: 0,
   size: 4,
-  particles: 8 * 8192,
+  particles: +(process.env.REACT_APP_INIT_PARTICLES || "8192"),
   palette: "default",
   version: "v0.1" as ParamsVersion,
 };
