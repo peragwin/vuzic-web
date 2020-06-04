@@ -42,10 +42,6 @@ export type RenderParams = {
   version: ParamsVersion;
 };
 
-interface Capture {
-  capture: string;
-}
-
 interface ColorParams {
   palette: number[];
   thresholds: number[];
@@ -134,10 +130,7 @@ export class PPS {
   private params: RenderParams;
   private colors!: ColorParams;
 
-  constructor(
-    private canvas: HTMLCanvasElement & Capture,
-    private onRender: (pps: PPS) => void
-  ) {
+  constructor(canvas: HTMLCanvasElement, private onRender: (pps: PPS) => void) {
     const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
     if (!gl) throw new Error("webgl2 is required");
     this.gl = gl;
@@ -386,9 +379,6 @@ export class PPS {
 
     if (this.frameCount % 256 === 0) {
       this.captureFrameRate();
-      (async () => {
-        this.canvas.capture = this.canvas.toDataURL();
-      })();
     }
 
     this.frameCount = (this.frameCount + 1) % 0xffff;

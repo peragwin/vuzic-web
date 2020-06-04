@@ -101,8 +101,6 @@ const audioParamsInit = new AudioProcessorParams(
   0.35 // decay
 );
 
-type CanvasCapture = HTMLCanvasElement & { capture: string };
-
 interface WakeLock {
   release(): void;
 }
@@ -119,7 +117,9 @@ const supportsWakelock = (nav: Navigator): nav is Navigator & WakeLocker => {
 };
 
 const App: React.FC = () => {
-  const canvasRef = useRef<CanvasCapture>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const captureCanvas = () =>
+    canvasRef.current && canvasRef.current.toDataURL();
 
   const [warpRenderParams, updateWarpRenderParam] = useReducer(
     warpRenderParamReducer,
@@ -351,7 +351,7 @@ const App: React.FC = () => {
               settingsManager={settingsManager}
               audioParams={audioParams}
               updateAudioParam={updateAudioParam}
-              canvas={canvasRef}
+              captureCanvas={captureCanvas}
               frameRate={frameRate}
             />
             <canvas

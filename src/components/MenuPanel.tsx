@@ -219,7 +219,7 @@ interface MenuPanelProps {
   settingsManager: Manager;
   audioParams: AudioProcessorParams;
   updateAudioParam: (action: AudioParamUpdate) => void;
-  canvas: React.RefObject<HTMLCanvasElement & Capture>;
+  captureCanvas: () => string | null;
   frameRate: number;
   children?: React.ReactNode;
 }
@@ -255,7 +255,7 @@ const SaveMenu: React.FC<SaveMenuProps> = (props: SaveMenuProps) => {
     }
   };
 
-  const { visual, settingsManager, audioParams, canvas } = props;
+  const { visual, settingsManager, audioParams } = props;
   const renderController = settingsManager.controller(visual);
 
   const saveProfile = (name: string) => {
@@ -276,21 +276,22 @@ const SaveMenu: React.FC<SaveMenuProps> = (props: SaveMenuProps) => {
       handleCloseMenu();
     };
 
-    if (canvas.current && canvas.current.capture) {
+    const capture = props.captureCanvas();
+    if (capture) {
       const resizedCanvas = document.createElement("canvas");
       const ctx = resizedCanvas.getContext("2d");
-      resizedCanvas.height = 128;
-      resizedCanvas.width = 128;
+      resizedCanvas.height = 256;
+      resizedCanvas.width = 256;
       if (ctx) {
         thumb = ""; // assign thumb so we know that save will be defered to the img onload
         const img = new Image();
         img.onload = () => {
-          ctx.drawImage(img, 0, 0, 128, 128);
+          ctx.drawImage(img, 0, 0, 256, 256);
           thumb = resizedCanvas.toDataURL();
           resizedCanvas.remove();
           save();
         };
-        img.src = canvas.current.capture;
+        img.src = capture;
       }
     }
 
