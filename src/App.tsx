@@ -14,7 +14,8 @@ import {
 } from "./gfx/warpgrid/render";
 import { PPS, defaultParams as ppsDefaultParams } from "./gfx/pps/pps";
 import { PpsRenderParams, ppsRenderParamsReducer } from "./gfx/pps/params";
-import { RenderController } from "./gfx/renderconfig";
+import { RenderController, Manager, ExportSettings } from "./gfx/renderconfig";
+import { VisualOptions } from "./gfx/renderconfig";
 
 import "./App.css";
 import { makeStyles } from "@material-ui/core";
@@ -22,6 +23,7 @@ import Paper from "@material-ui/core/Paper";
 import Typography from "@material-ui/core/Typography";
 import Button from "@material-ui/core/Button";
 import MenuPanel from "./components/MenuPanel";
+import base64url from "base64url";
 
 const useStyles = makeStyles({
   buttonContainer: {
@@ -99,8 +101,6 @@ const audioParamsInit = new AudioProcessorParams(
   0.35 // decay
 );
 
-type VisualOptions = "warp" | "pps";
-
 type CanvasCapture = HTMLCanvasElement & { capture: string };
 
 interface WakeLock {
@@ -144,11 +144,19 @@ const App: React.FC = () => {
     audioParamsInit
   );
 
+  const audioProcessor = useRef(
+    new AudioProcessor(1024, 512, buckets, length, audioParams)
+  );
+
+  const settingsManager = new Manager(audioProcessor.current, [
+    { visual: "warp", rc: warpController },
+    { visual: "pps", rc: ppsController },
+  ]);
+
   const [start, setStart] = useState(false);
   const [visual, setVisual] = useState<VisualOptions>("pps");
 
   const renderController = useRef<RenderController>(ppsController);
-  const audioProcessor = useRef<AudioProcessor | null>(null);
   const [errorState, setErrorState] = useState<Error | null>(null);
   const [frameRate, setFrameRate] = useState(0);
 
@@ -161,15 +169,14 @@ const App: React.FC = () => {
     try {
       switch (visual) {
         case "warp":
-          audioProcessor.current = new AudioProcessor(
-            1024,
-            512,
-            buckets,
-            length,
-            audioParams
-          );
-
           renderController.current = warpController;
+          audioProcessor.current.start(
+            (ready) =>
+              !ready &&
+              setErrorState(
+                new Error("Vuzic requires access to your microphone! 🎤🎶👩🏽‍🎤")
+              )
+          );
 
           new WarpGrid(cv, buckets * 2, length * 2, 4 / 3, (wg: WarpGrid) => {
             if (!(renderController.current instanceof WarpRenderParams)) return;
@@ -246,6 +253,24 @@ const App: React.FC = () => {
   }, [warpRenderParams, ppsRenderParams, visual]);
 
   useEffect(() => {
+    const parser = document.createElement("a");
+    parser.href = document.URL;
+    if (parser.hash) {
+      try {
+        const dec = base64url.decode(parser.hash);
+        const settings: ExportSettings = JSON.parse(dec);
+        if (settings.visual) {
+          setVisual(settings.visual);
+          settingsManager.update(settings);
+          setStart(true);
+        }
+      } catch (e) {
+        console.error("invalid settings from url", e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     if (audioProcessor.current) {
       audioProcessor.current.setAudioParams(audioParams);
     }
@@ -253,7 +278,7 @@ const App: React.FC = () => {
 
   const classes = useStyles();
 
-  const [wakelockEnabled, setWakelockEnabled] = useState(true); // TODO: use setWakelockEnabled
+  const [wakelockEnabled] = useState(true); // TODO: use setWakelockEnabled
   const wakelockListenters = useRef<{ fullscreen: any; visibility: any }>({
     fullscreen: null,
     visibility: null,
@@ -314,7 +339,7 @@ const App: React.FC = () => {
           <div>
             <Paper className={classes.errorDisplay} elevation={3}>
               <Typography variant="h2">
-                💩... Vuzic was unable to load
+                <span>💩</span>... Vuzic was unable to load
               </Typography>
               <pre className={classes.errorMessage}>{errorState.message}</pre>
             </Paper>
@@ -323,7 +348,7 @@ const App: React.FC = () => {
           <div>
             <MenuPanel
               visual={visual}
-              renderController={renderController.current}
+              settingsManager={settingsManager}
               audioParams={audioParams}
               updateAudioParam={updateAudioParam}
               canvas={canvasRef}

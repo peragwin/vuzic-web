@@ -12,7 +12,7 @@ import {
   updateVertShader,
   updateFragShader,
 } from "./shaders";
-import { getPalette } from "./params";
+import { getPalette, ParamsVersion } from "./params";
 import { countingSort } from "./countingsort";
 
 const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
@@ -29,8 +29,6 @@ export const defaultParams = {
   palette: "default",
   version: "v0.1" as ParamsVersion,
 };
-
-type ParamsVersion = "v0.1" | undefined;
 
 export type RenderParams = {
   alpha: number;

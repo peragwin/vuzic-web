@@ -11,11 +11,15 @@ export type PpsRenderParamKey =
   | "radialDecay"
   | "velocity"
   | "size"
-  | "particles";
+  | "particles"
+  | "load";
+
+export type ParamsVersion = "v0.1" | undefined;
 
 export interface PpsRenderParamUpdate {
   type: PpsRenderParamKey;
-  value: number | RenderParams;
+  value: number | RenderParams | number[];
+  version?: ParamsVersion;
 }
 
 export const ppsRenderParamsReducer = (
@@ -38,11 +42,28 @@ export const ppsRenderParamsReducer = (
     case "velocity":
       return { ...state, velocity: action.value as number };
     case "all":
-      console.log(action.value);
       return {
         ...state,
         ...(action.value as RenderParams),
       };
+    case "load":
+      let v = action.value as number[];
+      const version = (v[0] as unknown) as string;
+      if (version === "v0.1") {
+        v = v.slice(1);
+        return {
+          ...state,
+          alpha: toRadians(v[0]),
+          beta: toRadians(v[1]),
+          radius: v[2],
+          radialDecay: v[3],
+          velocity: v[4],
+          particles: v[5],
+          size: v[6],
+        };
+      } else {
+        return state;
+      }
   }
 };
 
@@ -61,6 +82,10 @@ export class PpsRenderParams {
     this.params.particles,
     this.params.size,
   ];
+
+  public version = "v0.1";
+
+  public export = () => [this.version as any].concat(this.values());
 
   private updater = (type: PpsRenderParamKey) => (
     e: React.ChangeEvent<{}>,

@@ -128,6 +128,10 @@ export class WarpRenderParams {
     this.params.period,
     this.params.colorCycle,
   ];
+
+  public version = "v0.1";
+
+  public export = () => [this.version as any].concat(this.values());
 }
 
 export class RenderParams {
@@ -148,7 +152,7 @@ export class RenderParams {
 }
 
 export interface RenderParamUpdate {
-  type: RenderParamKey | "all";
+  type: RenderParamKey | "all" | "load";
   value: number | RenderParams;
 }
 

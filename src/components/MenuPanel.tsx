@@ -1,24 +1,32 @@
 import React, { useState, useMemo, useEffect } from "react";
+
+import base64url from "base64url";
+import copy from "copy-to-clipboard";
+
 import { makeStyles } from "@material-ui/core";
-
 import AppBar from "@material-ui/core/AppBar";
-import Toolbar from "@material-ui/core/Toolbar";
-import Typography from "@material-ui/core/Typography";
-import IconButton from "@material-ui/core/IconButton";
-import SaveIcon from "@material-ui/icons/Save";
-import MenuIcon from "@material-ui/icons/Menu";
-import CreateIcon from "@material-ui/icons/Create";
-import ListItemIcon from "@material-ui/core/ListItemIcon";
-import FolderOpenIcon from "@material-ui/icons/FolderOpen";
-import Slide from "@material-ui/core/Slide";
-import Paper from "@material-ui/core/Paper";
+import Button from "@material-ui/core/Button";
 import ClickAwayListener from "@material-ui/core/ClickAwayListener";
-import Slider from "@material-ui/core/Slider";
+import CreateIcon from "@material-ui/icons/Create";
+import FileCopyIcon from "@material-ui/icons/FileCopy";
+import FolderOpenIcon from "@material-ui/icons/FolderOpen";
+import IconButton from "@material-ui/core/IconButton";
+import InputAdornment from "@material-ui/core/InputAdornment";
+import ListItemIcon from "@material-ui/core/ListItemIcon";
 import Menu from "@material-ui/core/Menu";
+import MenuIcon from "@material-ui/icons/Menu";
 import MenuItem from "@material-ui/core/MenuItem";
+import Paper from "@material-ui/core/Paper";
+import SaveIcon from "@material-ui/icons/Save";
+import ShareIcon from "@material-ui/icons/Share";
+import Slide from "@material-ui/core/Slide";
+import Slider from "@material-ui/core/Slider";
+import TextField from "@material-ui/core/TextField";
+import Toolbar from "@material-ui/core/Toolbar";
 import Tooltip from "@material-ui/core/Tooltip";
+import Typography from "@material-ui/core/Typography";
 
-import { RenderController } from "../gfx/renderconfig";
+import { ExportSettings, Manager, VisualOptions } from "../gfx/renderconfig";
 import {
   AudioProcessorParams,
   AudioParamUpdate,
@@ -87,6 +95,25 @@ const useStyles = makeStyles((theme) => ({
   },
   thumbPopover: {
     zIndex: 1000,
+  },
+  importTextArea: {
+    backgroundColor: "#FFFFFFC0",
+    marginTop: theme.spacing(2),
+    marginBottom: theme.spacing(2),
+    width: "25ch",
+    borderRadius: "15px",
+    display: "flex",
+  },
+  button: {
+    background: "linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)",
+    border: 0,
+    borderRadius: 3,
+    boxShadow: "0 3px 5px 2px rgba(255, 105, 135, .3)",
+    color: "white",
+    height: 48,
+    padding: "0 30px",
+    // marginTop: theme.spacing(2), ???
+    marginBottom: theme.spacing(2),
   },
 }));
 
@@ -188,8 +215,8 @@ interface Capture {
 }
 
 interface MenuPanelProps {
-  visual: string;
-  renderController: RenderController;
+  visual: VisualOptions;
+  settingsManager: Manager;
   audioParams: AudioProcessorParams;
   updateAudioParam: (action: AudioParamUpdate) => void;
   canvas: React.RefObject<HTMLCanvasElement & Capture>;
@@ -197,7 +224,11 @@ interface MenuPanelProps {
   children?: React.ReactNode;
 }
 
-const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
+interface SaveMenuProps extends MenuPanelProps {
+  setShowImportExport: (show: boolean) => void;
+}
+
+const SaveMenu: React.FC<SaveMenuProps> = (props: SaveMenuProps) => {
   const [anchorMenu, setAnchorMenu] = React.useState<null | HTMLElement>(null);
   const open = Boolean(anchorMenu);
 
@@ -212,9 +243,7 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
   const [thumb, setThumb] = React.useState("");
   const [showThumb, setShowThumb] = React.useState("");
 
-  const handleShowThumb = (name: string) => (
-    event: React.MouseEvent<HTMLElement>
-  ) => {
+  const handleShowThumb = (name: string) => () => {
     setShowThumb("");
     const profile = window.localStorage.getItem(`profile.${name}`);
     if (profile !== null) {
@@ -226,7 +255,8 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
     }
   };
 
-  const { visual, renderController, audioParams, canvas } = props;
+  const { visual, settingsManager, audioParams, canvas } = props;
+  const renderController = settingsManager.controller(visual);
 
   const saveProfile = (name: string) => {
     let thumb: string | undefined;
@@ -237,6 +267,11 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
         audioParams,
         thumb,
       };
+      console.log(
+        base64url.encode(
+          JSON.stringify({ visual, params: renderController.params })
+        )
+      );
       window.localStorage.setItem(`profile.${name}`, JSON.stringify(data));
       handleCloseMenu();
     };
@@ -252,7 +287,6 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
         img.onload = () => {
           ctx.drawImage(img, 0, 0, 128, 128);
           thumb = resizedCanvas.toDataURL();
-          console.log(thumb);
           resizedCanvas.remove();
           save();
         };
@@ -321,6 +355,17 @@ const SaveMenu: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
         open={open}
         onClose={handleCloseMenu}
       >
+        <MenuItem
+          onClick={() => {
+            handleCloseMenu();
+            props.setShowImportExport(true);
+          }}
+        >
+          <ListItemIcon>
+            <ShareIcon />
+          </ListItemIcon>
+          <Typography variant="inherit">Share</Typography>
+        </MenuItem>
         {["Default", "Bright", "Dim", "Sensitive", "Other"].map((name) => (
           <div key={name}>
             <MenuItem key={"save" + name} onClick={() => saveProfile(name)}>
@@ -377,13 +422,15 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
 
   const handleHideAudioSettings = () => setShowAudioSettings(false);
 
-  const rc = props.renderController;
+  const [showImportExport, setShowImportExport] = useState(false);
+
+  const rc = props.settingsManager.controller(props.visual);
   const renderParamConfig = useMemo(() => rc.config(), [rc]);
   const renderParamValues = rc.values();
 
   const audioParams = props.audioParams;
   const setAudioParam = (type: AudioParamKey) => (
-    e: React.ChangeEvent<{}>,
+    _: React.ChangeEvent<{}>,
     value: number | FilterParams
   ) => props.updateAudioParam({ type, value });
 
@@ -429,14 +476,14 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
               >
                 Audio
               </Typography>
-              <SaveMenu {...props} />
+              <SaveMenu {...props} setShowImportExport={setShowImportExport} />
             </Toolbar>
           </AppBar>
         </Slide>
       </div>
       <div
         className={
-          showRenderSettings || showAudioSettings
+          showRenderSettings || showAudioSettings || showImportExport
             ? classes.settingsContainer
             : undefined
         }
@@ -567,8 +614,121 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
             </Paper>
           </ClickAwayListener>
         ) : null}
+        {showImportExport && (
+          <ClickAwayListener onClickAway={(_) => setShowImportExport(false)}>
+            <ShareContainer
+              importSettings={(settings) =>
+                props.settingsManager.update(settings)
+              }
+              currentSettings={{
+                visual: props.visual,
+                params: rc.export(),
+              }}
+            />
+          </ClickAwayListener>
+        )}
       </div>
     </div>
+  );
+};
+
+interface ShareProps {
+  importSettings: (settings: ExportSettings) => void;
+  currentSettings: ExportSettings;
+}
+
+class ShareContainer extends React.PureComponent<ShareProps> {
+  render() {
+    return <Share {...this.props} />;
+  }
+}
+
+const Share: React.FC<ShareProps> = (props) => {
+  const classes = useStyles();
+  const [imported, setImported] = useState("");
+  const [settings, setSettings] = useState<ExportSettings | null>(null);
+  const exported = base64url.encode(JSON.stringify(props.currentSettings));
+  const exportURL = `https://${process.env.PUBLIC_URL}/#${exported}`;
+  return (
+    <Paper className={classes.settings} style={{ width: "unset" }}>
+      <div className={classes.settingsOptions}>
+        <Typography variant="h4">Import</Typography>
+        <TextField
+          fullWidth
+          multiline
+          variant="outlined"
+          placeholder="Import Token or JSON"
+          className={classes.importTextArea}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            try {
+              let params;
+              try {
+                params = JSON.parse(value);
+              } catch (e) {
+                const dec = base64url.decode(value);
+                params = JSON.parse(dec);
+              }
+              setSettings(params);
+              setImported(JSON.stringify(params, undefined, 3));
+            } catch (e) {
+              setSettings(null);
+              setImported(`failed to decode settings: ${e}`);
+            }
+          }}
+        />
+        {imported && (
+          <React.Fragment>
+            <TextField
+              multiline
+              variant="outlined"
+              className={classes.importTextArea}
+              value={imported}
+              onChange={(event) => {
+                setImported(event.currentTarget.value);
+                try {
+                  setSettings(JSON.parse(event.currentTarget.value));
+                } catch (e) {
+                  setSettings(null);
+                }
+              }}
+            />
+            <Button
+              className={classes.button}
+              disabled={settings === null}
+              onClick={() => settings && props.importSettings(settings)}
+            >
+              Import Settings
+            </Button>
+          </React.Fragment>
+        )}
+        <Typography variant="h4">Export</Typography>
+        <TextField
+          title="Token"
+          fullWidth
+          multiline
+          variant="outlined"
+          className={classes.importTextArea}
+          value={exported}
+        />
+        <TextField
+          title="Shareable URL"
+          fullWidth
+          variant="outlined"
+          className={classes.importTextArea}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton onClick={() => copy(exportURL)}>
+                  <FileCopyIcon />
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+          value={exportURL}
+        />
+      </div>
+    </Paper>
   );
 };
 
