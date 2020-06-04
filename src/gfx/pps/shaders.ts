@@ -6,7 +6,7 @@ precision mediump usampler2D;
 precision mediump isampler2D;
 
 uniform isampler2D texPositions;
-uniform usampler2D texColors;
+uniform isampler2D texColors;
 uniform sampler2D texPalette;
 uniform ivec2 uStateSize;
 uniform float uPointSize;
@@ -20,8 +20,10 @@ void main() {
   vec2 position = vec2(intBitsToFloat(ipos.x), intBitsToFloat(ipos.y));
   gl_Position = vec4(position, 0., 1.);
 
-  uint cval = texelFetch(texColors, index, 0).r;
-  color = texelFetch(texPalette, ivec2(cval, 0), 0); // todo: be a regular texture with a gradient and a continuous color value
+  float cval = intBitsToFloat(texelFetch(texColors, index, 0).r);
+  // cval = .00000000000000001 * cval + 0.0001;
+  color = texture(texPalette, vec2(cval, 0.0));
+  // + vec4(1.0, 0.0, 0.0, 1.0);
 
   gl_PointSize = uPointSize;
 }
@@ -81,7 +83,7 @@ uniform float uVelocity;
 uniform float uRadialDecay;
 uniform float uColorThresholds[4];
 
-layout(location = 0) out uint color;
+layout(location = 0) out int color;
 layout(location = 1) out ivec2 position;
 layout(location = 2) out ivec2 velocity;
 
@@ -186,13 +188,50 @@ vec2 integrate(in vec2 pos, in vec2 vel) {
   return mod(apos, 2.0) - 1.0;
 }
 
-uint getColor(in float count) {
+uint getColorUint(in float count) {
   float[] t = uColorThresholds;
-  float one =        step(t[0], count) * (1. - step(t[1], count)); // 13 <= N <= 15
-  float two =   2. * step(t[1], count) * (1. - step(t[2], count)); // 15 < N <= 35
-  float three = 3. * step(t[2], count) * (1. - step(t[3], count)); // 35 < N <= 50
-  float four =  4. * step(t[3], count); // 50 < N
+  float one =        step(t[0], count) * (1. - step(t[1], count));
+  float two =   2. * step(t[1], count) * (1. - step(t[2], count));
+  float three = 3. * step(t[2], count) * (1. - step(t[3], count));
+  float four =  4. * step(t[3], count);
   return uint(one + two + three + four);
+}
+
+float getColor(in float count) {
+  float[] t = uColorThresholds;
+
+  /*
+    using 5th order polynomial interpolation.
+    this is suuuper cool but sometimes numerically unstable,
+    i'm mixing it with simple lerp between points and this seems alright
+  */
+
+  // y0 here is just 0.0
+  // float l0 = (count - t[0]) * (count - t[1]) * (count - t[2]) * (count - t[3])
+  //          / (t[0] * t[1] * t[2] * t[3]);
+
+  float l1 = count * (count - t[1]) * (count - t[2]) * (count - t[3]) //* (count - 1.)
+           / (t[0] * (t[0] - t[1]) * (t[0] - t[2]) * (t[0] - t[3]) ); // * (t[0] - 1.));
+  float l2 = count * (count - t[0]) * (count - t[2]) * (count - t[3]) //* (count - 1.)
+           / (t[1] * (t[1] - t[0]) * (t[1] - t[2]) * (t[1] - t[3]) ); // * (t[1] - 1.));
+  float l3 = count * (count - t[0]) * (count - t[1]) * (count - t[3]) //* (count - 1.)
+           / (t[2] * (t[2] - t[0]) * (t[2] - t[1]) * (t[2] - t[3]) ); // * (t[2] - 1.));
+  float l4 = count * (count - t[0]) * (count - t[1]) * (count - t[2]) //* (count - 1.)
+           / (t[3] * (t[3] - t[0]) * (t[3] - t[1]) * (t[3] - t[2]) ); // * (t[3] - 1.));
+
+  // float l5 = count * (count - t[0]) * (count - t[1]) * (count - t[2]) * (count - t[3])
+  //          / (1. * (1. - t[0]) * (1. - t[1]) * (1. - t[2]) * (1. - t[3]));
+
+  return mix(
+    clamp((0.2 * l1) + (0.4 * l2) + (0.6 * l3) + (0.8 * l4) * sign(l4), 0.0, 1.0),
+    clamp(0.0, 1.0,
+      clamp(0., 0.2, count / t[0]) +
+      clamp(0., 0.2, (count - t[0])  / (t[1] - t[0])) +
+      clamp(0., 0.2, (count - t[1]) / (t[2] - t[1])) +
+      clamp(0., 0.2, (count - t[2]) / (t[3] - t[2])) +
+      clamp(0., 0.2, (count - t[3]) / (1. - t[3]))
+    ),
+    0.0);
 }
 
 ivec2 toIEEE(in vec2 v) {
@@ -213,7 +252,7 @@ void main() {
 
   position = toIEEE(pos);
   velocity = toIEEE(vel);
-  color = getColor(count.x + count.y);
+  color = floatBitsToInt(getColor(count.x + count.y));
 }
 `;
 

@@ -93,7 +93,7 @@ class Textures {
     });
 
     this.palette = new TextureObject(gl, {
-      mode: gl.NEAREST,
+      mode: gl.LINEAR,
       internalFormat: gl.RGBA,
       format: gl.RGBA,
       type: gl.UNSIGNED_BYTE,
@@ -101,9 +101,9 @@ class Textures {
 
     this.colors = new TextureObject(gl, {
       mode: gl.NEAREST,
-      internalFormat: gl.R8UI,
+      internalFormat: gl.R32I,
       format: gl.RED_INTEGER,
-      type: gl.UNSIGNED_BYTE,
+      type: gl.INT,
     });
   }
 }
@@ -312,9 +312,10 @@ export class PPS {
       thresholds: [10, 15, 30, 50],
     };
 
-    const cdata = new Uint8ClampedArray(particles);
-    cdata.forEach((_, i, data) => (data[i] = 2));
-    this.textures.colors.updateData(width, height, cdata);
+    const cbuf = new ArrayBuffer(particles * 4);
+    const cdata = new Float32Array(cbuf);
+    cdata.forEach((_, i, data) => (data[i] = 0.5));
+    this.textures.colors.updateData(width, height, new Int32Array(cbuf));
 
     const paldata = new ImageData(new Uint8ClampedArray(palette), 5, 1);
     this.textures.palette.update(paldata);
@@ -358,7 +359,7 @@ export class PPS {
     const output = new Int32Array(sort.output.buffer);
     this.writeSortedPositions({ ...sort, output });
 
-    if (this.frameCount % 16 === 0) {
+    if (this.frameCount % 2 === 0) {
       this.updateColorThresholds(sort.count);
     }
 
