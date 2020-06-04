@@ -302,31 +302,41 @@ const SaveMenu: React.FC<SaveMenuProps> = (props: SaveMenuProps) => {
 
   const [didLoad, setDidLoad] = React.useState(false);
 
-  const loadProfile = (name: string) => {
+  const loadProfile = (name: string, audioOnly?: boolean) => {
     const profile = window.localStorage.getItem(`profile.${name}`);
     if (profile === null) return;
+    const prof = JSON.parse(profile);
 
     setDidLoad(true);
 
-    const prof = JSON.parse(profile);
     const renderParams = prof[visual];
     const audioParams = prof.audioParams;
 
-    if (renderParams) {
+    if (renderParams && !audioOnly) {
       renderController.update({ type: "all", value: renderParams.params });
     }
     props.updateAudioParam({ type: AudioParamKey.all, value: audioParams });
     handleCloseMenu();
   };
 
-  useEffect(() => loadProfile("current"), []);
+  // FIXME: figure out a better way to load audio params
+  useEffect(() => {
+    loadProfile("current", true);
+  }, []);
+
+  useEffect(() => {
+    const params = renderController.export();
+    const enc = base64url.encode(JSON.stringify({ visual, params }));
+    window.location.hash = enc;
+  }, [renderController.params]);
+
   useEffect(() => {
     if (didLoad) {
       setDidLoad(false);
       return;
     }
     saveProfile("current");
-  }, [renderController.params, audioParams]);
+  }, [audioParams]);
 
   const classes = useStyles();
 
