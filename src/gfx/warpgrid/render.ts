@@ -1,4 +1,3 @@
-import { hsluvToRgb } from "hsluv";
 import { Drivers } from "../../audio/audio";
 
 export enum RenderParamKey {
@@ -16,7 +15,7 @@ export enum RenderParamKey {
   colorCycle,
   all,
 }
-export class WarpRenderParams {
+export class WarpController {
   constructor(
     public params: RenderParams,
     public update: (action: RenderParamUpdate) => void
@@ -107,9 +106,9 @@ export class WarpRenderParams {
     },
     {
       title: "Color Cycle Rate",
-      min: 0.0001,
-      max: 0.01,
-      step: 0.0005,
+      min: 0.001,
+      max: 1.0,
+      step: 0.001,
       update: this.updater(RenderParamKey.colorCycle),
     },
   ];
@@ -134,21 +133,22 @@ export class WarpRenderParams {
   public export = () => [this.version as any].concat(this.values());
 }
 
-export class RenderParams {
-  constructor(
-    public valueScale: number,
-    public valueOffset: number,
-    public lightnessScale: number,
-    public lightnessOffset: number,
-    public alphaScale: number,
-    public alphaOffset: number,
-    public warpScale: number,
-    public warpOffset: number,
-    public scaleScale: number,
-    public scaleOffset: number,
-    public period: number,
-    public colorCycle: number
-  ) {}
+export interface RenderParams {
+  rows: number;
+  columns: number;
+  aspect: number;
+  valueScale: number;
+  valueOffset: number;
+  lightnessScale: number;
+  lightnessOffset: number;
+  alphaScale: number;
+  alphaOffset: number;
+  warpScale: number;
+  warpOffset: number;
+  scaleScale: number;
+  scaleOffset: number;
+  period: number;
+  colorCycle: number;
 }
 
 export interface RenderParamUpdate {
@@ -164,154 +164,57 @@ export const renderParamReducer = (
   switch (action.type) {
     case RenderParamKey.valueScale:
       state.valueScale = action.value as number;
-      break;
+      return state;
     case RenderParamKey.valueOffset:
       state.valueOffset = action.value as number;
-      break;
+      return state;
     case RenderParamKey.alphaScale:
       state.alphaScale = action.value as number;
-      break;
+      return state;
     case RenderParamKey.alphaOffset:
       state.alphaOffset = action.value as number;
-      break;
+      return state;
     case RenderParamKey.lightnessScale:
       state.lightnessScale = action.value as number;
-      break;
+      return state;
     case RenderParamKey.lightnessOffset:
       state.lightnessOffset = action.value as number;
-      break;
+      return state;
     case RenderParamKey.warpScale:
       state.warpScale = action.value as number;
-      break;
+      return state;
     case RenderParamKey.warpOffset:
       state.warpOffset = action.value as number;
-      break;
+      return state;
     case RenderParamKey.scaleScale:
       state.scaleScale = action.value as number;
-      break;
+      return state;
     case RenderParamKey.scaleOffset:
       state.scaleOffset = action.value as number;
-      break;
+      return state;
     case RenderParamKey.period:
       state.period = action.value as number;
-      break;
+      return state;
     case RenderParamKey.colorCycle:
       state.colorCycle = action.value as number;
-      break;
+      return state;
     case RenderParamKey.all:
     case "all":
-      state = action.value as RenderParams;
-      break;
+      return action.value as RenderParams;
+    case "load":
+      const v = (action.value as unknown) as number[];
+      state.valueScale = v[1];
+      state.valueOffset = v[2];
+      state.lightnessScale = v[3];
+      state.lightnessOffset = v[4];
+      state.alphaScale = v[5];
+      state.alphaOffset = v[6];
+      state.warpScale = v[7];
+      state.warpOffset = v[8];
+      state.scaleScale = v[9];
+      state.scaleOffset = v[10];
+      state.period = v[11];
+      state.colorCycle = v[12];
+      return state;
   }
-  return state;
 };
-
-export class WarpRenderer {
-  private display: ImageData;
-  private warp: Float32Array;
-  private scale: Float32Array;
-
-  constructor(
-    readonly columns: number,
-    readonly rows: number,
-    public params: RenderParams
-  ) {
-    this.warp = new Float32Array(rows);
-    this.scale = new Float32Array(columns);
-    this.display = new ImageData(columns, rows);
-  }
-
-  public render(drivers: Drivers): [ImageData, Float32Array, Float32Array] {
-    const display = this.display;
-
-    this.calculateWarp(drivers);
-    this.calculateScale(drivers);
-
-    this.updateDisplay(drivers);
-
-    return [display, this.warp, this.scale];
-  }
-
-  private calculateWarp(drivers: Drivers) {
-    for (let i = 0; i < this.rows; i++) {
-      this.warp[i] =
-        this.params.warpScale * drivers.diff[i] + this.params.warpOffset;
-    }
-    for (let i = 1; i < this.rows - 1; i++) {
-      const wl = this.warp[i - 1];
-      const wr = this.warp[i + 1];
-      const w = this.warp[i];
-      this.warp[i] = (wl + w + wr) / 3;
-    }
-  }
-
-  private calculateScale(drivers: Drivers) {
-    for (let i = 0; i < this.columns; i++) {
-      let s = 0;
-      const amp = drivers.getColumn(i);
-      for (let j = 0; j < this.rows; j++) {
-        s += drivers.scales[j] * (amp[j] - 1);
-      }
-      s /= this.rows;
-      const ss = 1 - (this.columns - i / 2) / this.columns;
-      this.scale[i] = this.params.scaleScale * ss * s + this.params.scaleOffset;
-    }
-  }
-
-  private getHSV(amp: number, ph: number, phi: number) {
-    const vs = this.params.valueScale;
-    const vo = this.params.valueOffset;
-    const ss = this.params.lightnessScale;
-    const so = this.params.lightnessOffset;
-    const as = this.params.alphaScale;
-    const ao = this.params.alphaOffset;
-
-    let hue = ((180 * (this.params.colorCycle * phi + ph)) / Math.PI) % 360;
-    if (hue < 0) hue += 360;
-
-    const val = ss * sigmoid(vs * amp + vo) + so;
-    const alpha = sigmoid(as * amp + ao);
-
-    let [r, g, b] = hsluvToRgb([hue, 100, 100 * val]);
-    r *= r;
-    g *= g;
-    b *= b;
-
-    return [r, g, b, alpha];
-  }
-
-  private updateDisplay(drivers: Drivers) {
-    const ws = (2 * Math.PI) / this.params.period;
-
-    for (let i = 0; i < this.columns; i++) {
-      const amp = drivers.getColumn(i);
-      const phi = ws * i;
-      let decay = i / this.columns;
-      decay = 1 - decay * decay;
-
-      for (let j = 0; j < this.rows; j++) {
-        const val = drivers.scales[j] * (amp[j] - 1);
-        const ph = drivers.energy[j];
-        let [r, g, b, alpha] = this.getHSV(val, ph, phi);
-        r *= decay;
-        g *= decay;
-        b *= decay;
-
-        let didx = i + this.columns * j;
-        didx *= 4;
-        this.display.data[didx] = 255 * r;
-        this.display.data[didx + 1] = 255 * g;
-        this.display.data[didx + 2] = 255 * b;
-        this.display.data[didx + 3] = 255 * alpha;
-      }
-    }
-  }
-
-  public setRenderParams(params: RenderParams) {
-    this.params = params;
-  }
-}
-
-function sigmoid(x: number) {
-  return (1.0 + x / (1.0 + Math.abs(x))) / 2.0;
-}

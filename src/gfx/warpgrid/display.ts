@@ -1,4 +1,5 @@
 import { vec2, vec3, vec4, mat4, mat3 } from "gl-matrix";
+import { hsluvToRgb } from "hsluv";
 import {
   Graphics,
   ShaderConfig,
@@ -6,67 +7,16 @@ import {
   BufferConfig,
   VertexArrayObject,
   CanvasObject,
+  FramebufferObject,
 } from "../graphics";
-import PixelMap, { RGBA } from "../pixelmap";
-
-// warp controlls the zoom in the center of the display
-// scale controlls the vertical scaling factor
-const vertexShaderSource = `#version 300 es
-	uniform float warp[{0}];
-	uniform float scale[{1}];
-  in vec3 vertPos;
-  in vec2 texPos;
-  in vec2 uvPos;
-  out vec2 fragTexPos;
-  out vec3 vUvw;
-  
-	float x, y, s, wv, sv;
-	void main() {
-
-    x = vertPos.x;
-    y = vertPos.y;
-
-    sv = scale[int((x+1.)*float({1})/2.)];
-    wv = warp[int((y+1.)*float({0})/2.)];
-    float elev = wv + sv;
-
-		if (x <= 0.0) {
-			x = pow(x + 1.1, wv) - 1.0;
-		} else {
-			x = 1.0 - pow(abs(x - 1.1), wv);
-		}
-
-    if (y <= 0.0) {
-      // s = (1.0 - y) / 2.0 *sv;
-      s = (1. + y/2.) * sv;
-			y = pow(y + 1.0, s) - 1.0;
-		} else {
-      // s = (1.0 + y) / 2.0 *sv;
-      s = (1. - y/2.) * sv;
-			y = 1.0 - pow(abs(y - 1.0), s);
-    }
-    
-    float z = max(-elev * vertPos.z, 0.);
-
-    vUvw = vec3(uvPos, elev);
-		fragTexPos = texPos;
-		gl_Position = vec4(elev * x, elev * y, z, 1.0);
-	}`;
-
-const fragmenShaderSource = `#version 300 es
-	precision highp float;
-
-	uniform sampler2D tex;
-  in vec2 fragTexPos;
-  in vec3 vUvw;
-	out vec4 fragColor;
-
-	void main() {
-    vec4 color = texture(tex, fragTexPos.xy);
-    float r = length(vUvw.xy);
-    float a = vUvw.z * smoothstep(0.0, 1.0, 1. - r*r);
-    fragColor = color * a;
- }`;
+import {
+  updateVertShader,
+  updateFragShader,
+  vertexShaderSource,
+  fragmenShaderSource,
+} from "./shaders";
+import { RenderParams } from "./render";
+import { Drivers } from "../../audio/audio";
 
 const square = [
   // add degenerate triangle
@@ -85,44 +35,133 @@ const square = [
 ];
 
 const uvCord = [
-  vec2.fromValues(0, 0),
+  vec2.fromValues(-1, -1),
 
-  vec2.fromValues(0, 0),
-  vec2.fromValues(0, 1),
+  vec2.fromValues(-1, -1),
+  vec2.fromValues(-1, 1),
   vec2.fromValues(1, 1),
 
-  vec2.fromValues(0, 0),
-  vec2.fromValues(1, 0),
+  vec2.fromValues(-1, -1),
+  vec2.fromValues(1, -1),
   vec2.fromValues(1, 1),
 
   vec2.fromValues(1, 1),
 ];
 
+interface GridSize {
+  columns: number;
+  rows: number;
+}
+
+const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+
+class Textures {
+  readonly image: TextureObject;
+  readonly drivers: TextureObject;
+  readonly amplitudes: TextureObject;
+  readonly hsluv: TextureObject;
+
+  constructor(gl: WebGL2RenderingContext, gridSize: GridSize) {
+    const { columns, rows } = gridSize;
+
+    this.image = new TextureObject(gl, {
+      mode: gl.LINEAR,
+      internalFormat: gl.RGBA,
+      format: gl.RGBA,
+      type: gl.UNSIGNED_BYTE,
+    });
+    const ibuf = new Uint8ClampedArray(columns * rows * 4);
+    ibuf.forEach((_, i, data) => {
+      if ((i & 0xf) < 8) data[i] = 255;
+    });
+    this.image.update(new ImageData(ibuf, columns, rows));
+
+    this.drivers = new TextureObject(gl, {
+      mode: gl.NEAREST,
+      internalFormat: gl.RG32F,
+      format: gl.RG,
+      type: gl.FLOAT,
+    });
+    const dbuf = new Float32Array(rows * 2);
+    this.drivers.updateData(rows, 1, dbuf);
+
+    this.amplitudes = new TextureObject(gl, {
+      mode: gl.NEAREST,
+      internalFormat: gl.R32F,
+      format: gl.RED,
+      type: gl.FLOAT,
+    });
+    const abuf = new Float32Array(rows * columns);
+    this.amplitudes.updateData(columns, rows, abuf);
+
+    this.hsluv = new TextureObject(gl, {
+      mode: gl.LINEAR,
+      internalFormat: gl.RGBA,
+      format: gl.RGBA,
+      type: gl.UNSIGNED_BYTE,
+      wrap: { s: gl.REPEAT, t: gl.CLAMP_TO_EDGE },
+    });
+    const hbuf = new Uint8ClampedArray(36000 * 4);
+    for (let i = 0; i < 36000; i++) {
+      const hue = i % 360;
+      const val = Math.floor(i / 360);
+      const [r, g, b] = hsluvToRgb([hue, 100, val]);
+      hbuf.set([r * 255, g * 255, b * 255, 255], i * 4);
+    }
+    this.hsluv.update(new ImageData(hbuf, 360, 100));
+  }
+
+  public update(drivers: Drivers) {
+    const { columns, rows } = drivers;
+
+    const adata = new Float32Array(columns * rows);
+    for (let i = 0; i < columns; i++) {
+      adata.set(drivers.amp[i], rows * i);
+    }
+    // NOTE: this is transposed now
+    this.amplitudes.updateData(rows, columns, adata);
+
+    const ddata = new Float32Array(rows * 2);
+    for (let i = 0; i < rows; i++) {
+      ddata[2 * i] = drivers.scales[i];
+      ddata[2 * i + 1] = drivers.energy[i];
+    }
+    this.drivers.updateData(rows, 1, ddata);
+  }
+}
+
 export class WarpGrid {
+  gl: WebGL2RenderingContext;
+
   private warp: Float32Array;
   private scale: Float32Array;
-  private image: ImageData;
-  private gfx: Graphics;
-  private texture: TextureObject;
+  private updateGfx: Graphics;
+  private renderGfx: Graphics;
+  private textures: Textures;
+  private gridSize: GridSize;
+  private buffer: FramebufferObject;
+
+  public onFrameRate = (f: number) => {};
 
   constructor(
     canvas: HTMLCanvasElement,
-    readonly rows: number,
-    readonly columns: number,
-    readonly aspect: number,
-    public onRender: (wg: WarpGrid) => void
+    private params: RenderParams,
+    private onUpdate: (wg: WarpGrid) => void
   ) {
+    const { columns, rows } = params;
+    this.gridSize = { columns: 2 * columns, rows: 2 * rows };
+
     this.warp = new Float32Array(rows);
     for (let i = 0; i < this.warp.length; i++) this.warp[i] = 1;
+
     this.scale = new Float32Array(columns);
     for (let i = 0; i < this.scale.length; i++) this.scale[i] = 1;
-    this.image = new ImageData(columns, rows);
-    this.image.data.forEach((_, i, data) => {
-      if (i % 8 === 0) data[i] = 255;
-    });
 
     const gl = canvas.getContext("webgl2");
     if (!gl) throw new Error("canvas does not support webgl");
+    this.gl = gl;
+
+    this.textures = new Textures(gl, this.params);
 
     const vertexSrc = vertexShaderSource
       .replace(/\{0\}/g, rows.toString())
@@ -133,41 +172,88 @@ export class WarpGrid {
       new ShaderConfig(fragmenShaderSource, gl.FRAGMENT_SHADER, [], []),
     ];
     const cv = new CanvasObject(gl);
-    const gfx = new Graphics(gl, cv, shaderConfigs, this.render.bind(this));
-    this.gfx = gfx;
+    let gfx = new Graphics(gl, cv, shaderConfigs, this.render.bind(this));
+    this.renderGfx = gfx;
 
-    this.texture = new TextureObject(gl, {
-      mode: gl.LINEAR,
-      internalFormat: gl.RGBA,
-      format: gl.RGBA,
-      type: gl.UNSIGNED_BYTE,
-    });
-
-    gfx.attachTexture(this.texture, "tex");
+    gfx.attachTexture(this.textures.image, "texImage");
     gfx.attachUniform("warp", gfx.gl.uniform1fv.bind(gfx.gl));
     gfx.attachUniform("scale", gfx.gl.uniform1fv.bind(gfx.gl));
+    this.createCells(gfx);
 
-    this.createCells(gfx, columns, rows);
+    const fbo = new FramebufferObject(gl, { width: columns, height: rows });
+    fbo.attach(this.textures.image, 0);
+    fbo.bind();
+    fbo.checkStatus();
+    this.buffer = fbo;
 
-    gl.enable(gl.DEPTH_TEST);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    const ugfx = new Graphics(
+      gl,
+      fbo,
+      [updateVertShader(gl), updateFragShader(gl)],
+      this.update.bind(this)
+    );
+    this.updateGfx = ugfx;
 
-    this.gfx.start();
+    ugfx.attachUniform("uColumnIndex", gl.uniform1i.bind(gl));
+    ugfx.attachUniform("uStateSize", (l, v: GridSize) => {
+      gl.uniform2f(l, v.columns, v.rows);
+    });
+    ugfx.attachUniform("uColorParams.valueScale", (l, v: RenderParams) => {
+      gl.uniform2f(l, v.valueScale, v.valueOffset);
+    });
+    ugfx.attachUniform("uColorParams.lightnessScale", (l, v: RenderParams) => {
+      gl.uniform2f(l, v.lightnessScale, v.lightnessOffset);
+    });
+    ugfx.attachUniform("uColorParams.alphaScale", (l, v: RenderParams) => {
+      gl.uniform2f(l, v.alphaScale, v.alphaOffset);
+    });
+    ugfx.attachUniform("uColorParams.period", gl.uniform1f.bind(gl));
+    ugfx.attachUniform("uColorParams.cycle", gl.uniform1f.bind(gl));
+    ugfx.attachTexture(this.textures.hsluv, "texHSLuv");
+    ugfx.attachTexture(this.textures.amplitudes, "texAmplitudes");
+    ugfx.attachTexture(this.textures.drivers, "texDrivers");
+
+    const buf = ugfx.newBufferObject(
+      new BufferConfig(
+        QUAD2,
+        [{ name: "quad", offset: 0, size: 2 }],
+        () => true
+      )
+    );
+    ugfx.addVertexArrayObject(
+      new VertexArrayObject(
+        buf,
+        0,
+        QUAD2.length / 2,
+        gl.TRIANGLE_STRIP,
+        (g) => {
+          g.bindUniform("uColumnIndex", this.columnIndex);
+          g.bindUniform("uStateSize", this.params);
+          g.bindUniform("uColorParams.valueScale", this.params);
+          g.bindUniform("uColorParams.lightnessScale", this.params);
+          g.bindUniform("uColorParams.alphaScale", this.params);
+          g.bindUniform("uColorParams.period", this.params.period);
+          g.bindUniform("uColorParams.cycle", this.params.colorCycle);
+          g.bindTexture(this.textures.hsluv, 0);
+          g.bindTexture(this.textures.amplitudes, 1);
+          g.bindTexture(this.textures.drivers, 2);
+          return true;
+        }
+      )
+    );
+
+    this.loop();
   }
 
-  private async render(g: Graphics) {
-    this.onRender(this);
-    this.texture.update(this.image);
-  }
-
-  private createCells(gfx: Graphics, columns: number, rows: number) {
+  private createCells(gfx: Graphics) {
     const density = 2;
+    const { aspect } = this.params;
+    const { columns, rows } = this.gridSize;
 
     const texsx = 1 / columns;
     const texsy = 1 / rows;
-    const versx = 1 / columns / this.aspect;
-    const versy = 1 / rows / this.aspect;
+    const versx = 1 / columns / aspect;
+    const versy = 1 / rows / aspect;
 
     const vscale = mat4.create();
     mat4.fromScaling(
@@ -229,7 +315,7 @@ export class WarpGrid {
         (_) => {
           gfx.bindUniform("warp", warp);
           gfx.bindUniform("scale", scale);
-          gfx.bindTexture(this.texture, 0);
+          gfx.bindTexture(this.textures.image, 0);
           return true;
         }
       )
@@ -244,32 +330,124 @@ export class WarpGrid {
     gfx.addVertexArrayObject(vao);
   }
 
-  public setPixel(x: number, y: number, c: RGBA) {
-    const pix = new PixelMap(this.image);
-    pix.at(x, y).a = c.a;
-    pix.at(x, y).r = c.r;
-    pix.at(x, y).g = c.g;
-    pix.at(x, y).b = c.b;
+  private render(g: Graphics) {
+    const gl = g.gl;
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
 
-  public setPixelSlice(x: number, y: number, c: Uint8ClampedArray) {
-    const idx = (this.image.width * y + x) * 4;
-    this.image.data.set(c, idx);
+  private update(g: Graphics) {
+    g.gl.disable(g.gl.BLEND);
+    g.gl.disable(g.gl.DEPTH_TEST);
+
+    this.buffer.attach(this.textures.image, 0);
   }
 
-  public setImage(img: ImageData) {
-    this.image = img;
+  private loopHandle: number | null = null;
+
+  private loop() {
+    // if (this.frameCount > 20) {
+    //   return;
+    // }
+    this.loopHandle = requestAnimationFrame(this.loop.bind(this));
+    this.onUpdate(this);
+
+    this.updateGfx.render(false);
+    this.renderGfx.render(false);
+
+    this.updateFrameRate();
   }
 
-  public setWarp(warp: Float32Array) {
-    for (let i = 0; i < this.warp.length; i++) {
-      this.warp[i] = warp[i];
+  private frameCount = 0;
+  private lastTime = 0;
+
+  private updateFrameRate() {
+    if ((this.frameCount++ & 0xf) === 0) {
+      const now = Date.now();
+      const elapsed = now - this.lastTime;
+      this.lastTime = now;
+      const fr = (16 / elapsed) * 1000;
+      this.onFrameRate(fr);
     }
   }
 
-  public setScale(scale: Float32Array) {
-    for (let i = 0; i < this.scale.length; i++) {
-      this.scale[i] = scale[i];
+  private stop() {
+    if (this.loopHandle !== null) {
+      cancelAnimationFrame(this.loopHandle);
+      this.loopHandle = null;
+    }
+  }
+
+  public setParams(params: RenderParams) {
+    if (params === this.params) return;
+
+    if (
+      params.rows !== this.params.rows ||
+      params.columns !== this.params.columns
+    ) {
+      this.stop();
+
+      this.columnIndex = 0;
+      this.params = params;
+      this.gridSize = { rows: 2 * params.rows, columns: 2 * params.columns };
+      this.textures = new Textures(this.gl, this.params);
+      this.createCells(this.renderGfx);
+
+      const fbo = new FramebufferObject(this.gl, {
+        width: params.columns,
+        height: params.rows,
+      });
+      fbo.attach(this.textures.image, 0);
+      fbo.bind();
+      fbo.checkStatus();
+      this.buffer = fbo;
+
+      this.loop();
+    } else {
+      this.params = params;
+    }
+  }
+
+  private columnIndex = 0;
+
+  public updateFromDrivers(drivers: Drivers) {
+    const { rows, columns } = this.params;
+    if (drivers.rows !== rows || drivers.columns !== columns)
+      throw new Error("drivers size does not match display");
+
+    this.columnIndex = drivers.getColumnIndex();
+    this.calculateWarp(drivers);
+    this.calculateScale(drivers);
+    this.textures.update(drivers);
+  }
+
+  private calculateWarp(drivers: Drivers) {
+    const { rows } = this.params;
+    const { warpScale, warpOffset } = this.params;
+    for (let i = 0; i < rows; i++) {
+      this.warp[i] = warpScale * drivers.diff[i] + warpOffset;
+    }
+    for (let i = 1; i < rows - 1; i++) {
+      const wl = this.warp[i - 1];
+      const wr = this.warp[i + 1];
+      const w = this.warp[i];
+      this.warp[i] = (wl + w + wr) / 3;
+    }
+  }
+
+  private calculateScale(drivers: Drivers) {
+    const { columns, rows } = this.params;
+    const { scaleScale, scaleOffset } = this.params;
+    for (let i = 0; i < columns; i++) {
+      let s = 0;
+      const amp = drivers.amp[i]; // getColumn(i); shader will take care of indexing the correct column
+      for (let j = 0; j < rows; j++) {
+        s += drivers.scales[j] * (amp[j] - 1);
+      }
+      s /= rows;
+      const ss = 1 - (columns - i / 2) / columns;
+      this.scale[i] = scaleScale * ss * s + scaleOffset;
     }
   }
 }

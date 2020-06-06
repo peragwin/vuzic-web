@@ -3,6 +3,7 @@ export interface TextureConfig {
   internalFormat: number;
   format: number;
   type: number;
+  wrap?: { s: number; t: number };
 }
 export class TextureObject {
   readonly tex: WebGLTexture;
@@ -18,8 +19,13 @@ export class TextureObject {
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, cfg.mode);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, cfg.mode);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    let wrap = {
+      s: gl.CLAMP_TO_EDGE,
+      t: gl.CLAMP_TO_EDGE,
+      ...(cfg.wrap || {}),
+    };
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap.s);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap.t);
   }
 
   public bind(unit: number) {
@@ -92,9 +98,11 @@ export class BufferObject {
   ) {}
 
   public bindBuffer(gl: WebGL2RenderingContext) {
+    // took literally like 3 hours to realize this line has to come before
+    // setting the attrib pointers...
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     this.setAttribPointers();
     this.ondraw(gl);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
   }
 }
 
@@ -403,9 +411,11 @@ export class Graphics {
 
     let lastBuf: BufferObject | null = null;
     this.vaos.forEach((v) => {
-      if (v.buffer && v.buffer !== lastBuf) {
-        v.buffer.bindBuffer(gl);
+      if (v.buffer !== lastBuf) {
         lastBuf = v.buffer;
+        if (v.buffer) {
+          v.buffer.bindBuffer(gl);
+        }
       }
       v.draw(this);
     });

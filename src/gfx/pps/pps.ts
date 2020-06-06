@@ -433,21 +433,21 @@ export class PPS {
   });
 
   public setParams(params: RenderParams) {
-    if (params !== this.params) {
-      this.stop();
+    if (params === this.params) return;
 
-      const oldParams = this.params;
+    if (this.params.particles !== params.particles) {
+      this.stop();
       this.params = params;
 
-      if (oldParams.particles !== params.particles) {
-        this.stateSize = this.getStateSize();
-        this.textures = new Textures(this.gl);
-        this.initState();
-        this.initRender();
-        this.initUpdate();
-      }
+      this.stateSize = this.getStateSize();
+      this.textures = new Textures(this.gl);
+      this.initState();
+      this.initRender();
+      this.initUpdate();
 
       this.loop();
+    } else {
+      this.params = params;
     }
   }
 

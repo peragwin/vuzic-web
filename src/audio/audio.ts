@@ -99,17 +99,26 @@ export class AudioProcessor {
 
 export class Drivers {
   private columnIdx = 0;
+  readonly rows: number;
+  readonly columns: number;
 
   constructor(
     readonly amp: Array<Float32Array>,
     readonly scales: Float32Array,
     readonly energy: Float32Array,
     readonly diff: Float32Array
-  ) {}
+  ) {
+    this.columns = amp.length;
+    this.rows = amp[0].length;
+  }
 
   public incrementColumnIdx() {
     this.columnIdx++;
     this.columnIdx %= this.amp.length;
+  }
+
+  public getColumnIndex() {
+    return this.columnIdx;
   }
 
   public getColumn(column: number) {

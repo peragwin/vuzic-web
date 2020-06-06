@@ -7,10 +7,9 @@ import {
   audioParamReducer,
 } from "./audio/audio";
 import {
-  RenderParams as WarpInitRenderParams,
+  RenderParams as WarpRenderParams,
   renderParamReducer as warpRenderParamReducer,
-  WarpRenderer,
-  WarpRenderParams,
+  WarpController,
 } from "./gfx/warpgrid/render";
 import { PPS, defaultParams as ppsDefaultParams } from "./gfx/pps/pps";
 import { PpsRenderParams, ppsRenderParamsReducer } from "./gfx/pps/params";
@@ -71,20 +70,23 @@ const useStyles = makeStyles({
 const buckets = 32;
 const length = 120;
 
-const warpRenderParamsInit = new WarpInitRenderParams(
-  2, //valueScale,
-  0, //valueOffset,
-  0.88, //satScale,
-  0, //satOffset,
-  1, // alphaScale
-  0.25, // alphaOffset
-  16, //warpScale,
-  1.35, //warpOffset,
-  2.26, //scaleScale,
-  0.45, //scaleOffset,
-  3 * 60, //period
-  0.00001 // colorCycle
-);
+const warpRenderParamsInit: WarpRenderParams = {
+  rows: buckets,
+  columns: length,
+  aspect: 4 / 3,
+  valueScale: 2,
+  valueOffset: 0,
+  lightnessScale: 0.88,
+  lightnessOffset: 0,
+  alphaScale: 1,
+  alphaOffset: 0.25,
+  warpScale: 16,
+  warpOffset: 1.35,
+  scaleScale: 2.26,
+  scaleOffset: 0.45,
+  period: 3 * 60,
+  colorCycle: 0.01,
+};
 
 const audioParamsInit = new AudioProcessorParams(
   2, //preemph
@@ -125,7 +127,7 @@ const App: React.FC = () => {
     warpRenderParamReducer,
     warpRenderParamsInit
   );
-  const warpController = new WarpRenderParams(
+  const warpController = new WarpController(
     warpRenderParams,
     updateWarpRenderParam
   );
@@ -145,7 +147,7 @@ const App: React.FC = () => {
   );
 
   const audioProcessor = useRef(
-    new AudioProcessor(1024, 512, buckets, length, audioParams)
+    new AudioProcessor(1024, 256, buckets, length, audioParams)
   );
 
   const settingsManager = new Manager(audioProcessor.current, [
@@ -178,45 +180,21 @@ const App: React.FC = () => {
               )
           );
 
-          new WarpGrid(cv, buckets * 2, length * 2, 4 / 3, (wg: WarpGrid) => {
-            if (!(renderController.current instanceof WarpRenderParams)) return;
-            const params = renderController.current.params;
-            const renderer = new WarpRenderer(length, buckets, params);
+          const wg = new WarpGrid(
+            cv,
+            { ...warpController.params },
+            (w: WarpGrid) => {
+              if (!(renderController.current instanceof WarpController)) return;
+              if (!audioProcessor.current) return;
 
-            if (!audioProcessor.current) return;
-            const drivers = audioProcessor.current.getDrivers();
+              const params = renderController.current.params;
+              const drivers = audioProcessor.current.getDrivers();
 
-            const [display, warp, scale] = renderer.render(drivers);
-
-            const mwarp = new Float32Array(warp.length * 2);
-            const wo = warp.length;
-            for (let i = 0; i < wo; i++) {
-              mwarp[wo + i] = warp[i];
-              mwarp[wo - 1 - i] = warp[i];
+              w.setParams(params);
+              w.updateFromDrivers(drivers);
             }
-            wg.setWarp(mwarp);
-
-            const mscale = new Float32Array(scale.length * 2);
-            const so = scale.length;
-            for (let i = 0; i < so; i++) {
-              mscale[so + i] = scale[i];
-              mscale[so - 1 - i] = scale[i];
-            }
-            wg.setScale(mscale);
-
-            const xo = display.width;
-            const yo = display.height;
-            for (let x = 0; x < display.width; x++) {
-              for (let y = 0; y < display.height; y++) {
-                const idx = 4 * (x + display.width * y);
-                const c = display.data.slice(idx, idx + 4);
-                wg.setPixelSlice(xo + x, yo + y, c);
-                wg.setPixelSlice(xo - 1 - x, yo + y, c);
-                wg.setPixelSlice(xo + x, yo - 1 - y, c);
-                wg.setPixelSlice(xo - 1 - x, yo - 1 - y, c);
-              }
-            }
-          });
+          );
+          wg.onFrameRate = (f: number) => setFrameRate(f);
 
           break;
 
@@ -238,18 +216,17 @@ const App: React.FC = () => {
     }
   }, [start, visual]);
 
+  // effect watches for changes made to params and will mutate the ref with
+  // the new values wrapped in a controller.
   useEffect(() => {
-    const rc = (renderController.current = (() => {
+    renderController.current = (() => {
       switch (visual) {
         case "pps":
           return ppsController;
         case "warp":
           return warpController;
       }
-    })());
-    if (rc instanceof WarpRenderer) {
-      rc.setRenderParams(warpRenderParams);
-    }
+    })();
   }, [warpRenderParams, ppsRenderParams, visual]);
 
   useEffect(() => {
