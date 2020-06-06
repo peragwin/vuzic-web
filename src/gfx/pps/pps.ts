@@ -178,7 +178,7 @@ class Textures {
 }
 
 export class PPS {
-  private gl: WebGL2RenderingContext;
+  private gl: WebGL2RenderingContext | WebGL2ComputeRenderingContext;
 
   private particleVAO!: VertexArrayObject;
   private textures!: Textures;
@@ -200,14 +200,20 @@ export class PPS {
   private colors!: ColorParams;
 
   constructor(canvas: HTMLCanvasElement, private onRender: (pps: PPS) => void) {
-    const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
-    if (!gl) throw new Error("webgl2 is required");
-    this.gl = gl;
+    const cgl = canvas.getContext("webgl2-compute");
+    if (!cgl) {
+      const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
+      if (!gl) throw new Error("webgl2 is required");
+      this.gl = gl;
+    } else {
+      console.info("webgl2-compute is supported");
+      this.gl = cgl;
+    }
 
     this.params = { ...defaultParams };
     this.stateSize = this.getStateSize();
 
-    this.textures = new Textures(gl);
+    this.textures = new Textures(this.gl);
     this.initState();
     this.initRender();
     this.initUpdate();
@@ -412,10 +418,9 @@ export class PPS {
 
     this.onRender(this);
 
+    this.calculateSortedPositions(this.swap);
     this.updateGfx.render(false);
     this.renderGfx.render(false);
-
-    this.calculateSortedPositions(this.swap);
 
     if (this.frameCount % 16 === 0) {
       this.captureFrameRate(16);
