@@ -43,3 +43,13 @@
 - add randomness / entropy
 
 - save configs into URL / tokens
+
+- gradient palette
+
+  - maybe scale it dynamically
+
+- can have different rules for each particle and evolve them over time to maximize / minimize
+  some prefered density, or individual particles could live and die based on some criteria
+
+- is it possible to train the system to reach some desired behavior??
+  - can particles making it through a maze?

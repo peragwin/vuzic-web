@@ -422,9 +422,6 @@ export class PPS {
     this.updateGfx.render(false);
     this.renderGfx.render(false);
 
-    if (this.frameCount % 16 === 0) {
-      this.captureFrameRate(16);
-    }
     this.frameCount = (this.frameCount + 1) & 0xffff;
   }
 
@@ -462,16 +459,10 @@ export class PPS {
     this.colors.thresholds = getColorThresholds(mean, std, cellsInRadius);
   }
 
-  public onFrameRate: ((f: number) => void) | undefined;
-
-  private captureFrameRate(interval: number) {
-    const now = Date.now();
-    const elapsed = now - this.lastTime;
-    this.lastTime = now;
-    this.frameRate = (interval / elapsed) * 1000;
-    if (this.onFrameRate) {
-      this.onFrameRate(this.frameRate);
-    }
+  public getFrameRate(interval: number) {
+    const fc = this.frameCount;
+    this.frameCount = 0;
+    return Math.trunc((fc / interval) * 100000) / 100;
   }
 }
 

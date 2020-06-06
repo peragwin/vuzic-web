@@ -369,7 +369,7 @@ class FrequencyProcessor {
   private diffFeedback: Filter;
   private scaleFilter: BiasedFilter;
 
-  private lastTime = 0;
+  private frameCount = 0;
 
   constructor(
     readonly size: number,
@@ -458,7 +458,7 @@ class FrequencyProcessor {
 
       diff[i] = dg * (this.diffFilter.values[i] + this.diffFeedback.values[i]);
 
-      let ph = energy[i] + 0.001;
+      let ph = energy[i] + 0.0002;
       ph -= diff[i]; //Math.abs(diff[i])
       energy[i] = ph;
     }
@@ -498,6 +498,8 @@ class FrequencyProcessor {
       mean += energy[i];
     }
     mean /= this.size;
+
+    if ((this.frameCount++ & 0xff) === 0) console.log(mean);
 
     if (mean < -2 * Math.PI) {
       // wait until all elements go past the mark so theres no sign flips

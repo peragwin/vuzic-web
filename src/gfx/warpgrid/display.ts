@@ -99,7 +99,7 @@ class Textures {
       internalFormat: gl.RGBA,
       format: gl.RGBA,
       type: gl.UNSIGNED_BYTE,
-      wrap: { s: gl.REPEAT, t: gl.CLAMP_TO_EDGE },
+      wrap: { s: gl.REPEAT, t: gl.MIRRORED_REPEAT },
     });
     const hbuf = new Uint8ClampedArray(36000 * 4);
     for (let i = 0; i < 36000; i++) {
@@ -334,7 +334,13 @@ export class WarpGrid {
     const gl = g.gl;
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.blendFuncSeparate(
+      gl.SRC_ALPHA,
+      gl.ONE_MINUS_SRC_ALPHA,
+      gl.ONE,
+      gl.ONE_MINUS_SRC_ALPHA
+    );
   }
 
   private update(g: Graphics) {
@@ -356,20 +362,17 @@ export class WarpGrid {
     this.updateGfx.render(false);
     this.renderGfx.render(false);
 
-    this.updateFrameRate();
+    this.frameCount = (this.frameCount + 1) & 0xffff;
   }
 
   private frameCount = 0;
-  private lastTime = 0;
+  private lastCount = 0;
 
-  private updateFrameRate() {
-    if ((this.frameCount++ & 0xf) === 0) {
-      const now = Date.now();
-      const elapsed = now - this.lastTime;
-      this.lastTime = now;
-      const fr = (16 / elapsed) * 1000;
-      this.onFrameRate(fr);
-    }
+  public getFrameRate(interval: number) {
+    const fc = this.frameCount;
+    const count = fc - this.lastCount;
+    this.lastCount = fc;
+    return Math.trunc((count / interval) * 1000);
   }
 
   private stop() {

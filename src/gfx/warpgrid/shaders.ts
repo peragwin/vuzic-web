@@ -46,7 +46,7 @@ vec4 getHSLuv(in float amp, in float ph, in float phi) {
   vec2 ls = uColorParams.lightnessScale;
   vec2 as = uColorParams.alphaScale;
 
-  float hue = (0.5 * (uColorParams.cycle * phi * ph) / PI);
+  float hue = (0.5 * (uColorParams.cycle * phi + ph) / PI);
   // texture can wrap so no mod
   // hue -= 0.5 * (sign(mod(hue, 1.)) - 1.);
 
@@ -63,7 +63,7 @@ float getAmp(in ivec2 index) {
   return texelFetch(texAmplitudes, ivec2(index.y, index.x), 0).r;
 }
 
-// .r = scale, .g = energy
+// .s = scale, .t = energy
 vec2 getDrivers(in ivec2 index) {
   return texelFetch(texDrivers, index, 0).rg;
 }
@@ -118,7 +118,7 @@ void main() {
   float elev = wv + sv;
 
   if (x <= 0.0) {
-    x = pow(x + 1.1, wv) - 1.0; // wtf why 1.1?
+    x = pow(x + 1.1, wv) - 1.0; // wtf why 1.1? (<- adds cool overlapping effect)
   } else {
     x = 1.0 - pow(abs(x - 1.1), wv);
   }
@@ -131,7 +131,7 @@ void main() {
     y = 1.0 - pow(abs(y - 1.0), s);
   }
 
-  float z = max(-elev * vertPos.z, 0.);
+  float z = max(-1000. + elev * vertPos.z, 0.);
 
   vUvw = vec3(uvPos, elev);
   fragTexPos = abs(2.*texPos-1.);
@@ -148,7 +148,9 @@ out vec4 fragColor;
 
 void main() {
   vec4 color = texture(texImage, fragTexPos.xy);
-  float r = length(vUvw.xy);
-  float a = vUvw.z * smoothstep(0.0, 1.0, 1. - r*r);
-  fragColor = color * a;
+  // float r = length(vUvw.xy);
+  // float a = (1. - r*r);// vUvw.z * (1. - r*r);
+  // if (a < 0.) discard;
+  // fragColor = color * a;
+  fragColor = color;
 }`;

@@ -168,6 +168,8 @@ const App: React.FC = () => {
 
     if (!start) return;
 
+    let viz: WarpGrid | PPS | undefined;
+
     try {
       switch (visual) {
         case "warp":
@@ -180,7 +182,7 @@ const App: React.FC = () => {
               )
           );
 
-          const wg = new WarpGrid(
+          viz = new WarpGrid(
             cv,
             { ...warpController.params },
             (w: WarpGrid) => {
@@ -194,25 +196,31 @@ const App: React.FC = () => {
               w.updateFromDrivers(drivers);
             }
           );
-          wg.onFrameRate = (f: number) => setFrameRate(f);
 
           break;
 
         case "pps":
           renderController.current = ppsController;
 
-          const pps = new PPS(cv, (p: PPS) => {
+          viz = new PPS(cv, (p: PPS) => {
             if (!(renderController.current instanceof PpsRenderParams)) return;
             const params = renderController.current;
             p.setParams(params.params);
           });
-          pps.onFrameRate = (f: number) => setFrameRate(f);
 
           break;
       }
     } catch (e) {
       console.error(e);
       setErrorState(e);
+    }
+
+    // fixme: this will break when switching visuals...
+    if (viz) {
+      setInterval(() => {
+        const fr = viz!.getFrameRate(1000);
+        setFrameRate(fr);
+      }, 1000);
     }
   }, [start, visual]);
 
