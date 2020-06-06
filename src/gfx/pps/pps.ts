@@ -25,9 +25,10 @@ export const defaultParams = {
   velocity: 0.0067,
   radialDecay: 0,
   size: 4,
+  particleDensity: 1,
   particles: +(process.env.REACT_APP_INIT_PARTICLES || "8192"),
   palette: "default",
-  version: "v0.1" as ParamsVersion,
+  version: "v0.2" as ParamsVersion,
 };
 
 export type RenderParams = {
@@ -36,6 +37,7 @@ export type RenderParams = {
   radius: number;
   velocity: number;
   size: number;
+  particleDensity: number;
   radialDecay: number;
   particles: number;
   palette: string;
@@ -239,6 +241,7 @@ export class PPS {
       }
     );
     gfx.attachUniform("uPointSize", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniform("uAlpha", gl.uniform1f.bind(gl));
 
     this.textures.positions.forEach((p) =>
       gfx.attachTexture(p, "texPositions")
@@ -254,6 +257,7 @@ export class PPS {
       (gfx: Graphics) => {
         gfx.bindUniform("uStateSize", this.stateSize);
         gfx.bindUniform("uPointSize", this.params.size);
+        gfx.bindUniform("uAlpha", this.params.particleDensity);
         gfx.bindTexture(this.textures.positions[this.swap], 0);
         gfx.bindTexture(this.textures.colors, 1);
         gfx.bindTexture(this.textures.palette, 2);
@@ -363,7 +367,7 @@ export class PPS {
   private render(g: Graphics) {
     const gl = g.gl;
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.blendFunc(gl.SRC_ALPHA, gl.DST_ALPHA);
   }
 
   private update(g: Graphics) {

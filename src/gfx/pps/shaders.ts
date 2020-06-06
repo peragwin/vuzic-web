@@ -35,13 +35,16 @@ export const drawVertShader = (gl: WebGL2RenderingContext) =>
 const drawFragSrc = `#version 300 es
 precision mediump float;
 
+uniform float uAlpha;
+
 in vec4 color;
 out vec4 fragColor;
 
 void main() {
   vec2 p =  2. * gl_PointCoord.xy - 1.;
-  float a = 1. - smoothstep(0.8, 1.0, length(p));
-  fragColor = a * color;
+  float r = length(p);
+  float a = 1. - r*r;
+  fragColor = vec4(a * color.rgb, uAlpha);
 }
 `;
 

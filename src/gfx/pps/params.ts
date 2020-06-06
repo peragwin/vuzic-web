@@ -11,6 +11,7 @@ export type PpsRenderParamKey =
   | "radialDecay"
   | "velocity"
   | "size"
+  | "particleDensity"
   | "particles"
   | "load";
 
@@ -39,6 +40,8 @@ export const ppsRenderParamsReducer = (
       return { ...state, particles: action.value as number };
     case "size":
       return { ...state, size: action.value as number };
+    case "particleDensity":
+      return { ...state, particleDensity: action.value as number };
     case "velocity":
       return { ...state, velocity: action.value as number };
     case "all":
@@ -49,7 +52,7 @@ export const ppsRenderParamsReducer = (
     case "load":
       let v = action.value as number[];
       const version = (v[0] as unknown) as string;
-      if (version === "v0.1") {
+      if (version === "v0.1" || version === "v0.2") {
         v = v.slice(1);
         return {
           ...state,
@@ -60,6 +63,7 @@ export const ppsRenderParamsReducer = (
           velocity: v[4],
           particles: v[5],
           size: v[6],
+          particleDensity: v[7] || state.particleDensity,
         };
       } else {
         return state;
@@ -81,9 +85,10 @@ export class PpsRenderParams {
     this.params.velocity,
     this.params.particles,
     this.params.size,
+    this.params.particleDensity,
   ];
 
-  public version = "v0.1";
+  public version = "v0.2";
 
   public export = () => [this.version as any].concat(this.values());
 
@@ -141,6 +146,13 @@ export class PpsRenderParams {
       max: 48,
       step: 1,
       update: this.updater("size"),
+    },
+    {
+      title: "Particle Draw Density",
+      min: 0.001,
+      max: 1,
+      step: 0.001,
+      update: this.updater("particleDensity"),
     },
   ];
 }
@@ -288,6 +300,8 @@ const palettes = {
     },
   ],
 };
+
+export const paletteNames = ["default", "cool"];
 
 type Color = {
   rgb: number[];
