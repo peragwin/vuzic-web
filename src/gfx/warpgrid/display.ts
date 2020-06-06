@@ -99,13 +99,16 @@ class Textures {
       internalFormat: gl.RGBA,
       format: gl.RGBA,
       type: gl.UNSIGNED_BYTE,
-      wrap: { s: gl.REPEAT, t: gl.MIRRORED_REPEAT },
+      wrap: { s: gl.REPEAT, t: gl.CLAMP_TO_EDGE },
     });
     const hbuf = new Uint8ClampedArray(36000 * 4);
     for (let i = 0; i < 36000; i++) {
       const hue = i % 360;
       const val = Math.floor(i / 360);
-      const [r, g, b] = hsluvToRgb([hue, 100, val]);
+      let [r, g, b] = hsluvToRgb([hue, 100, val]);
+      r *= r;
+      g *= g;
+      b *= b;
       hbuf.set([r * 255, g * 255, b * 255, 255], i * 4);
     }
     this.hsluv.update(new ImageData(hbuf, 360, 100));

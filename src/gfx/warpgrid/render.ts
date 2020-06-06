@@ -106,9 +106,9 @@ export class WarpController {
     },
     {
       title: "Color Cycle Rate",
-      min: 0.001,
-      max: 1.0,
-      step: 0.001,
+      min: 0.0001,
+      max: 0.1,
+      step: 0.0001,
       update: this.updater(RenderParamKey.colorCycle),
     },
   ];
