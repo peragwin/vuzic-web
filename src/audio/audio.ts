@@ -7,13 +7,14 @@ export class AudioProcessor {
   private analyzer?: AnalyserNode;
   private fft: SlidingFFT;
   private bucketer: Bucketer;
+  private processHandle?: number;
 
   constructor(
     readonly size: number,
     readonly blockSize: number,
     readonly buckets: number,
     readonly length: number,
-    public params: AudioProcessorParams
+    private params: AudioProcessorParams
   ) {
     polyfill();
 
@@ -71,7 +72,15 @@ export class AudioProcessor {
     this.analyzer!.smoothingTimeConstant = 0;
     source.connect(this.analyzer);
 
-    setInterval(this.process.bind(this), (1000 * this.blockSize) / 44100);
+    this.processHandle = window.setInterval(
+      this.process.bind(this),
+      (1000 * this.blockSize) / 44100
+    );
+  }
+
+  public stop() {
+    if (this.processHandle) clearInterval(this.processHandle);
+    // FIXME: clean up other stuff
   }
 
   public process() {
@@ -146,6 +155,21 @@ export class AudioProcessorParams {
   ) {}
 }
 
+export const audioParamsInit = new AudioProcessorParams(
+  2, //preemph
+  { tao: 2.924, gain: 1 }, // gain filter params
+  { tao: 138, gain: -1 }, // gain feedback params
+  { tao: 10.5, gain: 1 }, // diff filter params
+  { tao: 56.6, gain: -0.05 }, // diff feedback param
+  { tao: 69, gain: 1 }, // pos value scale params
+  { tao: 693, gain: 1 }, // neg value scale params
+  1.3, //diffGain
+  1.2, // amp scale
+  0, //amp offset
+  1e-2, //sync
+  0.35 // decay
+);
+
 export enum AudioParamKey {
   preemphasis,
   gainFilterParams,
@@ -163,7 +187,7 @@ export enum AudioParamKey {
 }
 
 export interface AudioParamUpdate {
-  type: AudioParamKey;
+  type: AudioParamKey | "load";
   value: number | FilterParams | AudioProcessorParams;
 }
 
@@ -212,8 +236,43 @@ export const audioParamReducer = (
     case AudioParamKey.all:
       state = action.value as AudioProcessorParams;
       break;
+    case "load":
+      const update = action.value as AudioProcessorParams;
+      return { ...state, ...update };
   }
   return state;
+};
+
+type VersionString = "v0.1";
+
+export type ExportAudioSettings = [VersionString, ...Array<number>];
+
+export const fromExportAudioSettings = (
+  s: ExportAudioSettings
+): AudioProcessorParams | undefined => {
+  const version = s[0];
+  const filterParams = (offset: number): FilterParams => ({
+    tao: s[offset] as number,
+    gain: s[offset + 1] as number,
+  });
+  if (version === "v0.1") {
+    return {
+      preemphasis: s[1],
+      gainFilterParams: filterParams(2),
+      gainFeedbackParams: filterParams(4),
+      diffFilterParams: filterParams(6),
+      diffFeedbackParams: filterParams(8),
+      posScaleFilterParams: filterParams(10),
+      negScaleFilterParams: filterParams(12),
+      diffGain: s[14],
+      ampScale: s[15],
+      ampOffset: s[16],
+      sync: s[17],
+      decay: s[18],
+    };
+  } else {
+    console.warn(`could not load settings: unsupported version ${version}`);
+  }
 };
 
 class Filter {
@@ -360,6 +419,8 @@ class GainController {
 }
 
 class FrequencyProcessor {
+  private params: AudioProcessorParams;
+
   private drivers: Drivers;
   private gainController: GainController;
 
@@ -374,8 +435,10 @@ class FrequencyProcessor {
   constructor(
     readonly size: number,
     readonly length: number,
-    public params: AudioProcessorParams
+    params: AudioProcessorParams
   ) {
+    this.params = { ...params };
+
     const amp = new Array<Float32Array>(length);
     for (let i = 0; i < amp.length; i++) {
       amp[i] = new Float32Array(size).fill(0);

@@ -160,7 +160,7 @@ export class WarpGrid {
     this.scale = new Float32Array(columns);
     for (let i = 0; i < this.scale.length; i++) this.scale[i] = 1;
 
-    const gl = canvas.getContext("webgl2");
+    const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
     if (!gl) throw new Error("canvas does not support webgl");
     this.gl = gl;
 
@@ -378,7 +378,7 @@ export class WarpGrid {
     return Math.trunc((count / interval) * 1000);
   }
 
-  private stop() {
+  public stop() {
     if (this.loopHandle !== null) {
       cancelAnimationFrame(this.loopHandle);
       this.loopHandle = null;

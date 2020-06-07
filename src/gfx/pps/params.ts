@@ -1,4 +1,5 @@
 import { RenderParams } from "./pps";
+import { setUrlParam } from "../../hooks/routeSettings";
 
 const toDegrees = (rad: number) => (180.0 * rad) / Math.PI;
 const toRadians = (deg: number) => (Math.PI * deg) / 180.0;
@@ -15,11 +16,11 @@ export type PpsRenderParamKey =
   | "particles"
   | "load";
 
-export type ParamsVersion = "v0.1" | undefined;
+export type ParamsVersion = "v0.1" | "v0.2" | undefined;
 
 export interface PpsRenderParamUpdate {
   type: PpsRenderParamKey;
-  value: number | RenderParams | number[];
+  value: number | RenderParams | number[] | ImportRenderParams;
   version?: ParamsVersion;
 }
 
@@ -50,47 +51,83 @@ export const ppsRenderParamsReducer = (
         ...(action.value as RenderParams),
       };
     case "load":
-      let v = action.value as number[];
-      const version = (v[0] as unknown) as string;
-      if (version === "v0.1" || version === "v0.2") {
-        v = v.slice(1);
-        return {
-          ...state,
-          alpha: toRadians(v[0]),
-          beta: toRadians(v[1]),
-          radius: v[2],
-          radialDecay: v[3],
-          velocity: v[4],
-          particles: v[5],
-          size: v[6],
-          particleDensity: v[7] || state.particleDensity,
-        };
-      } else {
-        return state;
-      }
+      let params = action.value as ImportRenderParams;
+      return { ...state, ...params };
   }
 };
 
-export class PpsRenderParams {
+export type ExportPpsSettings = [ParamsVersion, ...Array<number>];
+
+export interface ImportRenderParams {
+  alpha: number;
+  beta: number;
+  radius: number;
+  velocity: number;
+  size: number;
+  radialDecay: number;
+  particles: number;
+  particleDensity?: number;
+}
+
+export const fromExportPpsSettings = (s: ExportPpsSettings) => {
+  const version = s[0];
+  if (version === "v0.1" || version === "v0.2") {
+    const v = s.slice(1) as number[];
+    const re: ImportRenderParams = {
+      alpha: toRadians(v[0]),
+      beta: toRadians(v[1]),
+      radius: v[2],
+      radialDecay: v[3],
+      velocity: v[4],
+      particles: v[5],
+      size: v[6],
+    };
+    if (version === "v0.2") {
+      re.particleDensity = v[7];
+    }
+    return re;
+  } else {
+    throw new Error(`could not load pps settings: unknown version ${version}`);
+  }
+};
+
+export class PpsController {
   constructor(
-    public params: RenderParams,
-    public update: (action: PpsRenderParamUpdate) => void
+    // readonly pps: React.MutableRefObject<PpsController>,
+    readonly params: RenderParams,
+    private updateState: (action: PpsRenderParamUpdate) => void
   ) {}
 
-  public values = () => [
-    toDegrees(this.params.alpha),
-    toDegrees(this.params.beta),
-    this.params.radius,
-    this.params.radialDecay,
-    this.params.velocity,
-    this.params.particles,
-    this.params.size,
-    this.params.particleDensity,
-  ];
+  // this is a hacky interceptor which will push the update to the URL parameter
+  // as well updating the internal state. "load" is used to load URL parameters,
+  // so don't bother updating it in that case.
+  // TODO: refactor into a base class
+  public update(action: PpsRenderParamUpdate) {
+    this.updateState(action);
+    if (action.type !== "load") {
+      const nextState = ppsRenderParamsReducer(this.params, action);
+      setUrlParam("params", this.export(nextState));
+    }
+  }
+
+  public values = (params?: RenderParams) => {
+    params = params || this.params;
+    return [
+      toDegrees(params.alpha),
+      toDegrees(params.beta),
+      params.radius,
+      params.radialDecay,
+      params.velocity,
+      params.particles,
+      params.size,
+      params.particleDensity,
+    ];
+  };
 
   public version = "v0.2";
 
-  public export = () => [this.version as any].concat(this.values());
+  public export = (params?: RenderParams) =>
+    [this.version as any].concat(this.values(params || this.params));
 
   private updater = (type: PpsRenderParamKey) => (
     e: React.ChangeEvent<{}>,

@@ -1,38 +1,28 @@
-import React, { useState, useMemo, useEffect } from "react";
-
+import React, { useState, useMemo } from "react";
+import { useHistory } from "react-router-dom";
 import base64url from "base64url";
 import copy from "copy-to-clipboard";
 
 import { makeStyles } from "@material-ui/core";
 import AppBar from "@material-ui/core/AppBar";
+import AppsIcon from "@material-ui/icons/Apps";
 import Button from "@material-ui/core/Button";
 import ClickAwayListener from "@material-ui/core/ClickAwayListener";
-import CreateIcon from "@material-ui/icons/Create";
 import FileCopyIcon from "@material-ui/icons/FileCopy";
-import FolderOpenIcon from "@material-ui/icons/FolderOpen";
 import IconButton from "@material-ui/core/IconButton";
 import InputAdornment from "@material-ui/core/InputAdornment";
-import ListItemIcon from "@material-ui/core/ListItemIcon";
-import Menu from "@material-ui/core/Menu";
 import MenuIcon from "@material-ui/icons/Menu";
-import MenuItem from "@material-ui/core/MenuItem";
 import Paper from "@material-ui/core/Paper";
-import SaveIcon from "@material-ui/icons/Save";
-import ShareIcon from "@material-ui/icons/Share";
 import Slide from "@material-ui/core/Slide";
-import Slider from "@material-ui/core/Slider";
 import TextField from "@material-ui/core/TextField";
 import Toolbar from "@material-ui/core/Toolbar";
-import Tooltip from "@material-ui/core/Tooltip";
 import Typography from "@material-ui/core/Typography";
 
-import { ExportSettings, Manager, VisualOptions } from "../gfx/renderconfig";
-import {
-  AudioProcessorParams,
-  AudioParamUpdate,
-  AudioParamKey,
-  FilterParams,
-} from "../audio/audio";
+import { ExportSettings, Manager } from "../hooks/settings";
+import { VisualOptions } from "../types/types";
+import { AudioParamKey, FilterParams } from "../audio/audio";
+import { ParamSlider, FilterParamSlider } from "./ParamSlider";
+import SaveMenu from "./SaveMenu";
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -85,14 +75,6 @@ const useStyles = makeStyles((theme) => ({
     height: "100%",
     margin: theme.spacing(1),
   },
-  slider: {
-    width: "90%",
-    margin: "auto",
-  },
-  filterParamSlider: {
-    borderTop: "1px",
-    borderBottom: "1px",
-  },
   thumbPopover: {
     zIndex: 1000,
   },
@@ -117,301 +99,20 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-interface ParamSliderProps {
-  title: string;
-  min: number;
-  max: number;
-  value: number;
-  onChange: (e: React.ChangeEvent<{}>, value: number) => void;
-  step: number;
-  displayValue?: number;
-}
-
-const ParamSlider: React.FC<ParamSliderProps> = (props: ParamSliderProps) => {
-  const { title, min, max, value, onChange, step } = props;
-  const classes = useStyles();
-  return (
-    <div>
-      <Typography id={`slider-${title}`} gutterBottom>
-        {title} = {value}
-      </Typography>
-      <Slider
-        className={classes.slider}
-        min={min}
-        max={max}
-        aria-labelledby={`slider-${title}`}
-        step={step}
-        value={value || 0}
-        // @ts-ignore
-        onChange={onChange}
-        valueLabelDisplay="auto"
-      />
-    </div>
-  );
-};
-
-interface FilterParamSliderProps {
-  title: string;
-  min: number;
-  max: number;
-  value: FilterParams;
-  onChange: (e: React.ChangeEvent<{}>, value: FilterParams) => void;
-  step: number;
-}
-
-const FilterParamSlider: React.FC<FilterParamSliderProps> = (
-  props: FilterParamSliderProps
-) => {
-  const { title, min, max, value, onChange, step } = props;
-  const handleChange = (key: "tao" | "gain") => (
-    e: React.ChangeEvent<{}>,
-    val: number | number[]
-  ) => {
-    switch (key) {
-      case "tao":
-        onChange(e, { ...value, tao: (val as number) * (val as number) });
-        break;
-      case "gain":
-        onChange(e, { ...value, gain: val as number });
-        break;
-    }
-  };
-  const classes = useStyles();
-  return (
-    <div className={classes.filterParamSlider}>
-      <Typography id={`slider-${title}`}>{title}</Typography>
-      <Typography id={`slider-${title}-tao`} gutterBottom>
-        Tao = {value.tao}
-      </Typography>
-      <Slider
-        className={classes.slider}
-        min={Math.sqrt(min)}
-        max={Math.sqrt(max)}
-        aria-labelledby={`slider-${title}-tao`}
-        step={step}
-        value={Math.sqrt(value.tao)}
-        onChange={handleChange("tao")}
-        valueLabelDisplay="off"
-      />
-      <Typography id={`slider-${title}-gain`} gutterBottom>
-        Gain = {value.gain}
-      </Typography>
-      <Slider
-        className={classes.slider}
-        min={-2}
-        max={2}
-        aria-labelledby={`slider-${title}-gain`}
-        step={0.01}
-        value={value.gain}
-        onChange={handleChange("gain")}
-        valueLabelDisplay="auto"
-      />
-    </div>
-  );
-};
-
-interface Capture {
-  capture: string | undefined;
-}
-
-interface MenuPanelProps {
+export interface MenuPanelProps {
   visual: VisualOptions;
-  settingsManager: Manager;
-  audioParams: AudioProcessorParams;
-  updateAudioParam: (action: AudioParamUpdate) => void;
+  manager: Manager;
   captureCanvas: () => string | null;
   frameRate: number;
   children?: React.ReactNode;
 }
-
-interface SaveMenuProps extends MenuPanelProps {
-  setShowImportExport: (show: boolean) => void;
-}
-
-const SaveMenu: React.FC<SaveMenuProps> = (props: SaveMenuProps) => {
-  const [anchorMenu, setAnchorMenu] = React.useState<null | HTMLElement>(null);
-  const open = Boolean(anchorMenu);
-
-  function handleShowMenu(event: React.MouseEvent<HTMLElement>) {
-    setAnchorMenu(event.currentTarget);
-  }
-
-  function handleCloseMenu() {
-    setAnchorMenu(null);
-  }
-
-  const [thumb, setThumb] = React.useState("");
-  const [showThumb, setShowThumb] = React.useState("");
-
-  const handleShowThumb = (name: string) => () => {
-    setShowThumb("");
-    const profile = window.localStorage.getItem(`profile.${name}`);
-    if (profile !== null) {
-      const prof = JSON.parse(profile);
-      if (prof.thumb) {
-        setThumb(prof.thumb);
-        setShowThumb(name);
-      }
-    }
-  };
-
-  const { visual, settingsManager, audioParams } = props;
-  const renderController = settingsManager.controller(visual);
-
-  const saveProfile = (name: string) => {
-    let thumb: string | undefined;
-
-    const save = () => {
-      const data = {
-        [visual]: { params: renderController.params },
-        audioParams,
-        thumb,
-      };
-      console.log(
-        base64url.encode(
-          JSON.stringify({ visual, params: renderController.params })
-        )
-      );
-      window.localStorage.setItem(`profile.${name}`, JSON.stringify(data));
-      handleCloseMenu();
-    };
-
-    const capture = props.captureCanvas();
-    if (capture) {
-      const resizedCanvas = document.createElement("canvas");
-      const ctx = resizedCanvas.getContext("2d");
-      resizedCanvas.height = 256;
-      resizedCanvas.width = 256;
-      if (ctx) {
-        thumb = ""; // assign thumb so we know that save will be defered to the img onload
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0, 256, 256);
-          thumb = resizedCanvas.toDataURL();
-          resizedCanvas.remove();
-          save();
-        };
-        img.src = capture;
-      }
-    }
-
-    if (thumb === undefined) {
-      save();
-    }
-  };
-
-  const [didLoad, setDidLoad] = React.useState(false);
-
-  const loadProfile = (name: string, audioOnly?: boolean) => {
-    const profile = window.localStorage.getItem(`profile.${name}`);
-    if (profile === null) return;
-    const prof = JSON.parse(profile);
-
-    setDidLoad(true);
-
-    const renderParams = prof[visual];
-    const audioParams = prof.audioParams;
-
-    if (renderParams && !audioOnly) {
-      renderController.update({ type: "all", value: renderParams.params });
-    }
-    props.updateAudioParam({ type: AudioParamKey.all, value: audioParams });
-    handleCloseMenu();
-  };
-
-  // FIXME: figure out a better way to load audio params
-  useEffect(() => {
-    loadProfile("current", true);
-  }, []);
-
-  useEffect(() => {
-    const params = renderController.export();
-    const enc = base64url.encode(JSON.stringify({ visual, params }));
-    window.location.hash = enc;
-  }, [renderController.params]);
-
-  useEffect(() => {
-    if (didLoad) {
-      setDidLoad(false);
-      return;
-    }
-    saveProfile("current");
-  }, [audioParams]);
-
-  const classes = useStyles();
-
-  return (
-    <div className={classes.title}>
-      <IconButton
-        aria-label="account of current user"
-        aria-controls="menu-appbar"
-        aria-haspopup="true"
-        onClick={handleShowMenu}
-        color="inherit"
-      >
-        <SaveIcon />
-      </IconButton>
-      <Menu
-        id="menu-appbar"
-        anchorEl={anchorMenu}
-        anchorOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        keepMounted
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-        open={open}
-        onClose={handleCloseMenu}
-      >
-        <MenuItem
-          onClick={() => {
-            handleCloseMenu();
-            props.setShowImportExport(true);
-          }}
-        >
-          <ListItemIcon>
-            <ShareIcon />
-          </ListItemIcon>
-          <Typography variant="inherit">Share</Typography>
-        </MenuItem>
-        {["Default", "Bright", "Dim", "Sensitive", "Other"].map((name) => (
-          <div key={name}>
-            <MenuItem key={"save" + name} onClick={() => saveProfile(name)}>
-              <ListItemIcon>
-                <CreateIcon />
-              </ListItemIcon>
-              <Typography variant="inherit">{`Save Profile: ${name}`}</Typography>
-            </MenuItem>
-            <Tooltip
-              placement="right"
-              title={showThumb ? <img src={thumb} /> : "No Preview"}
-            >
-              <MenuItem
-                key={"load" + name}
-                onClick={() => loadProfile(name)}
-                onMouseEnter={handleShowThumb(name)}
-              >
-                <ListItemIcon>
-                  <FolderOpenIcon />
-                </ListItemIcon>
-                <Typography variant="inherit">{`Load Profile: ${name}`}</Typography>
-              </MenuItem>
-            </Tooltip>
-          </div>
-        ))}
-      </Menu>
-    </div>
-  );
-};
 
 const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
   const classes = useStyles();
   const [showMenu, setShowMenu] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [showRenderSettings, setShowRenderSettings] = useState(false);
+  const history = useHistory();
 
   const handleShowMenu = () => {
     setShowMenu(true);
@@ -435,15 +136,18 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
 
   const [showImportExport, setShowImportExport] = useState(false);
 
-  const rc = props.settingsManager.controller(props.visual);
+  const rc = props.manager.controller(props.visual);
   const renderParamConfig = useMemo(() => rc.config(), [rc]);
   const renderParamValues = rc.values();
 
-  const audioParams = props.audioParams;
+  const audioController = props.manager.audio;
+  const audioParams = audioController.params;
   const setAudioParam = (type: AudioParamKey) => (
     _: React.ChangeEvent<{}>,
     value: number | FilterParams
-  ) => props.updateAudioParam({ type, value });
+  ) => audioController.update({ type, value });
+
+  const handleMain = () => history.push("/");
 
   return (
     <div>
@@ -455,6 +159,23 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
         <Slide appear={false} in={showMenu} direction="down">
           <AppBar position="static" className={classes.background}>
             <Toolbar>
+              <IconButton
+                edge="start"
+                className={classes.menuButton}
+                color="inherit"
+                aria-label="mainMenu"
+                onClick={handleMain}
+              >
+                <AppsIcon />
+              </IconButton>
+              <Typography
+                variant="h6"
+                className={classes.title}
+                onClick={handleMain}
+              >
+                Main
+              </Typography>
+
               <IconButton
                 edge="start"
                 className={classes.menuButton}
@@ -521,7 +242,7 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
             </Paper>
           </ClickAwayListener>
         ) : null}
-        {showAudioSettings ? (
+        {showAudioSettings && audioParams ? (
           <ClickAwayListener onClickAway={handleHideAudioSettings}>
             <Paper className={classes.settings}>
               <div className={classes.settingsOptions}>
@@ -628,9 +349,7 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
         {showImportExport && (
           <ClickAwayListener onClickAway={(_) => setShowImportExport(false)}>
             <ShareContainer
-              importSettings={(settings) =>
-                props.settingsManager.update(settings)
-              }
+              importSettings={(settings) => props.manager.update(settings)}
               currentSettings={{
                 visual: props.visual,
                 params: rc.export(),

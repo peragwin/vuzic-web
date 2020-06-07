@@ -11,6 +11,7 @@
     "@types/node": "12.7.2",
     "@types/react": "16.9.2",
     "@types/react-dom": "16.8.5",
+    "@types/react-router-dom": "^5.1.5",
     "@types/webgl2": "^0.0.5",
     "base64url": "^3.0.1",
     "copy-to-clipboard": "^3.3.1",
@@ -21,6 +22,7 @@
     "raw-loader": "^4.0.1",
     "react": "^16.9.0",
     "react-dom": "^16.9.0",
+    "react-router-dom": "^5.2.0",
     "react-scripts": "^3.4.1",
     "typescript": "3.5.3"
   },

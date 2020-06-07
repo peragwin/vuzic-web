@@ -1,4 +1,4 @@
-import { Drivers } from "../../audio/audio";
+import { setUrlParam } from "../../hooks/routeSettings";
 
 export enum RenderParamKey {
   valueScale,
@@ -18,8 +18,20 @@ export enum RenderParamKey {
 export class WarpController {
   constructor(
     public params: RenderParams,
-    public update: (action: RenderParamUpdate) => void
+    private updateState: (action: RenderParamUpdate) => void
   ) {}
+
+  // this is a hacky interceptor which will push the update to the URL parameter
+  // as well updating the internal state. "load" is used to load URL parameters,
+  // so don't bother updating it in that case.
+  // TODO: refactor into a base class
+  public update(action: RenderParamUpdate) {
+    this.updateState(action);
+    if (action.type !== "load") {
+      const nextState = renderParamReducer(this.params, action);
+      setUrlParam("params", this.export(nextState));
+    }
+  }
 
   private updater = (type: RenderParamKey) => (
     e: React.ChangeEvent<{}>,
@@ -113,25 +125,31 @@ export class WarpController {
     },
   ];
 
-  public values = () => [
-    this.params.valueScale,
-    this.params.valueOffset,
-    this.params.lightnessScale,
-    this.params.lightnessOffset,
-    this.params.alphaScale,
-    this.params.alphaOffset,
-    this.params.warpScale,
-    this.params.warpOffset,
-    this.params.scaleScale,
-    this.params.scaleOffset,
-    this.params.period,
-    this.params.colorCycle,
-  ];
+  public values = (params?: RenderParams) => {
+    params = params || this.params;
+    return [
+      this.params.valueScale,
+      this.params.valueOffset,
+      this.params.lightnessScale,
+      this.params.lightnessOffset,
+      this.params.alphaScale,
+      this.params.alphaOffset,
+      this.params.warpScale,
+      this.params.warpOffset,
+      this.params.scaleScale,
+      this.params.scaleOffset,
+      this.params.period,
+      this.params.colorCycle,
+    ];
+  };
 
-  public version = "v0.1";
+  public version: VersionString = "v0.1";
 
-  public export = () => [this.version as any].concat(this.values());
+  public export = (params?: RenderParams) =>
+    [this.version as any].concat(this.values(params || this.params));
 }
+
+export type VersionString = "v0.1";
 
 export interface RenderParams {
   rows: number;
@@ -151,9 +169,30 @@ export interface RenderParams {
   colorCycle: number;
 }
 
+export const warpRenderParamsInit = (
+  buckets: number,
+  length: number
+): RenderParams => ({
+  rows: buckets,
+  columns: length,
+  aspect: 4 / 3,
+  valueScale: 2,
+  valueOffset: 0,
+  lightnessScale: 0.88,
+  lightnessOffset: 0,
+  alphaScale: 1,
+  alphaOffset: 0.25,
+  warpScale: 16,
+  warpOffset: 1.35,
+  scaleScale: 2.26,
+  scaleOffset: 0.45,
+  period: 3 * 60,
+  colorCycle: 0.01,
+});
+
 export interface RenderParamUpdate {
   type: RenderParamKey | "all" | "load";
-  value: number | RenderParams;
+  value: number | RenderParams | ImportRenderParams;
 }
 
 export const renderParamReducer = (
@@ -202,19 +241,48 @@ export const renderParamReducer = (
     case "all":
       return action.value as RenderParams;
     case "load":
-      const v = (action.value as unknown) as number[];
-      state.valueScale = v[1];
-      state.valueOffset = v[2];
-      state.lightnessScale = v[3];
-      state.lightnessOffset = v[4];
-      state.alphaScale = v[5];
-      state.alphaOffset = v[6];
-      state.warpScale = v[7];
-      state.warpOffset = v[8];
-      state.scaleScale = v[9];
-      state.scaleOffset = v[10];
-      state.period = v[11];
-      state.colorCycle = v[12];
-      return state;
+      const v = action.value as ImportRenderParams;
+      return { ...state, ...v };
+  }
+};
+
+export type ExportWarpSettings = [VersionString, ...Array<number>];
+
+export interface ImportRenderParams {
+  valueScale: number;
+  valueOffset: number;
+  lightnessScale: number;
+  lightnessOffset: number;
+  alphaScale: number;
+  alphaOffset: number;
+  warpScale: number;
+  warpOffset: number;
+  scaleScale: number;
+  scaleOffset: number;
+  period: number;
+  colorCycle: number;
+}
+
+export const fromExportWarpSettings = (
+  s: ExportWarpSettings
+): ImportRenderParams => {
+  const version = s[0];
+  if (version === "v0.1") {
+    return {
+      valueScale: s[1],
+      valueOffset: s[2],
+      lightnessScale: s[3],
+      lightnessOffset: s[4],
+      alphaScale: s[5],
+      alphaOffset: s[6],
+      warpScale: s[7],
+      warpOffset: s[8],
+      scaleScale: s[9],
+      scaleOffset: s[10],
+      period: s[11],
+      colorCycle: s[12],
+    };
+  } else {
+    throw new Error(`could not load warp settings: unknown version ${version}`);
   }
 };

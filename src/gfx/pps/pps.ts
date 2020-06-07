@@ -194,7 +194,6 @@ export class PPS {
   private gridSize = 48;
   private loopHandle!: number;
   private frameCount = 0;
-  private frameRate = 0;
   public paused = false;
 
   private countingSort = countingSort(this.gridSize, 4);
@@ -202,7 +201,9 @@ export class PPS {
   private colors!: ColorParams;
 
   constructor(canvas: HTMLCanvasElement, private onRender: (pps: PPS) => void) {
-    const cgl = canvas.getContext("webgl2-compute");
+    const cgl = canvas.getContext("webgl2-compute", {
+      preserveDrawingBuffer: true,
+    });
     if (!cgl) {
       const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
       if (!gl) throw new Error("webgl2 is required");
