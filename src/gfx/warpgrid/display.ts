@@ -335,21 +335,12 @@ export class WarpGrid {
 
   private render(g: Graphics) {
     const gl = g.gl;
-    gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
-    // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.blendFuncSeparate(
-      gl.SRC_ALPHA,
-      gl.ONE_MINUS_SRC_ALPHA,
-      gl.ONE,
-      gl.ONE_MINUS_SRC_ALPHA
-    );
+    gl.blendFunc(gl.SRC_ALPHA, gl.DST_ALPHA);
   }
 
   private update(g: Graphics) {
     g.gl.disable(g.gl.BLEND);
-    g.gl.disable(g.gl.DEPTH_TEST);
-
     this.buffer.attach(this.textures.image, 0);
   }
 
