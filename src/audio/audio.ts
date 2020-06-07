@@ -562,8 +562,6 @@ class FrequencyProcessor {
     }
     mean /= this.size;
 
-    if ((this.frameCount++ & 0xff) === 0) console.log(mean);
-
     if (mean < -2 * Math.PI) {
       // wait until all elements go past the mark so theres no sign flips
       for (let i = 0; i < this.size; i++) {

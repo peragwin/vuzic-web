@@ -21,6 +21,8 @@ export const useController = (init: RenderParams) => {
 const Warp: React.FC<Props> = (props) => {
   const { canvas, audio, controller, setFrameRate, setErrorState } = props;
 
+  const isInit = Boolean(canvas.current && audio.current);
+
   useEffect(() => {
     if (!canvas.current || !audio.current) {
       return;
@@ -66,7 +68,7 @@ const Warp: React.FC<Props> = (props) => {
     }
     // run once to initialize warp
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isInit]);
 
   return null;
 };

@@ -15,6 +15,8 @@ export const useController = (init: RenderParams) => {
 const Particle: React.FC<Props> = (props) => {
   const { canvas, controller, setFrameRate, setErrorState } = props;
 
+  const isInit = Boolean(canvas.current);
+
   useEffect(() => {
     if (!canvas.current) return;
 
@@ -40,7 +42,7 @@ const Particle: React.FC<Props> = (props) => {
     }
     // run once to initialize PPS
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isInit]);
 
   return null;
 };
