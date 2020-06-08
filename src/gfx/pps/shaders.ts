@@ -77,6 +77,8 @@ uniform isampler2D texPositions;
 uniform isampler2D texVelocities;
 uniform isampler2D texSortedPositions;
 uniform isampler2D texCountedPositions;
+uniform isampler2D texGradientField;
+
 uniform ivec2 uStateSize;
 uniform int uGridSize;
 uniform float uAlpha;
@@ -106,6 +108,12 @@ Bucket fetchCount(in isampler2D tex, in ivec2 cell) {
   b.count = count.x;
   b.index = count.y - count.x;
   return b;
+}
+
+vec2 fetchGradientValue(in vec2 xy) {
+  vec2 uv = 0.5 * (xy + 1.);
+  ivec2 di = texture(texGradientField, uv).rg;
+  return vec2(intBitsToFloat(di.x), intBitsToFloat(di.y));
 }
 
 ivec2 cellCoord(in vec2 pos, float gridSize) {
@@ -186,9 +194,11 @@ mat2 rotate2d(float angle){
 }
 
 vec2 integrate(in vec2 pos, in vec2 vel) {
-  pos += vel * uVelocity;
-  vec2 apos = pos + 1.0;
-  return mod(apos, 2.0) - 1.0;
+  vec2 avel = vel + fetchGradientValue(pos);
+  pos += avel * uVelocity;
+  return pos;
+  // vec2 apos = pos + 1.0;
+  // return mod(apos, 2.0) - 1.0;
 }
 
 uint getColorUint(in float count) {

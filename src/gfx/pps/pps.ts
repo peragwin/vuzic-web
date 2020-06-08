@@ -14,8 +14,9 @@ import {
 } from "./shaders";
 import { getPalette, ParamsVersion } from "./params";
 import { countingSort } from "./countingsort";
+import { GradientField, BorderSize } from "./gradientField";
 
-const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+export const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 const TEX_WIDTH = 1024;
 
 export const defaultParams = {
@@ -28,6 +29,7 @@ export const defaultParams = {
   particleDensity: 1,
   particles: +(process.env.REACT_APP_INIT_PARTICLES || "8192"),
   palette: "default",
+  borderSize: { radius: 1, sharpness: 2, intensity: 1 },
   version: "v0.2" as ParamsVersion,
 };
 
@@ -41,6 +43,7 @@ export type RenderParams = {
   radialDecay: number;
   particles: number;
   palette: string;
+  borderSize: BorderSize;
   version: ParamsVersion;
 };
 
@@ -186,6 +189,7 @@ export class PPS {
   private textures!: Textures;
   private renderGfx!: Graphics;
   private updateGfx!: Graphics;
+  private gradientField: GradientField;
 
   private swap: number = 1;
   private frameBuffers!: FramebufferObject[];
@@ -216,6 +220,7 @@ export class PPS {
     this.params = { ...defaultParams };
     this.stateSize = this.getStateSize();
 
+    this.gradientField = new GradientField(this.gl);
     this.textures = new Textures(this.gl);
     this.initState();
     this.initRender();
@@ -304,6 +309,7 @@ export class PPS {
     );
     gfx.attachTexture(this.textures.sortedPositions, "texSortedPositions");
     gfx.attachTexture(this.textures.countedPositions, "texCountedPositions");
+    gfx.attachTexture(this.gradientField.gradientField(), "texGradientField");
 
     this.frameBuffers.forEach((fb, i) => {
       fb.attach(this.textures.positions[i], 0);
@@ -340,6 +346,7 @@ export class PPS {
           gfx.bindTexture(this.textures.velocities[s], 1);
           gfx.bindTexture(this.textures.sortedPositions, 2);
           gfx.bindTexture(this.textures.countedPositions, 3);
+          gfx.bindTexture(this.gradientField.gradientField(), 4);
           return true;
         }
       )
@@ -423,6 +430,7 @@ export class PPS {
 
     this.onRender(this);
 
+    this.gradientField.update();
     this.calculateSortedPositions(this.swap);
     this.updateGfx.render(false);
     this.renderGfx.render(false);
@@ -441,6 +449,8 @@ export class PPS {
 
   public setParams(params: RenderParams) {
     if (params === this.params) return;
+
+    this.gradientField.setParams(params);
 
     if (this.params.particles !== params.particles) {
       this.stop();

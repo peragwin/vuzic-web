@@ -1,5 +1,6 @@
 import { RenderParams } from "./pps";
 import { setUrlParam } from "../../hooks/routeSettings";
+import { BorderSize } from "./gradientField";
 
 const toDegrees = (rad: number) => (180.0 * rad) / Math.PI;
 const toRadians = (deg: number) => (Math.PI * deg) / 180.0;
@@ -14,9 +15,12 @@ export type PpsRenderParamKey =
   | "size"
   | "particleDensity"
   | "particles"
+  | "borderRadius"
+  | "borderSharpness"
+  | "borderIntensity"
   | "load";
 
-export type ParamsVersion = "v0.1" | "v0.2" | undefined;
+export type ParamsVersion = "v0.1" | "v0.2" | "v0.3" | undefined;
 
 export interface PpsRenderParamUpdate {
   type: PpsRenderParamKey;
@@ -45,6 +49,21 @@ export const ppsRenderParamsReducer = (
       return { ...state, particleDensity: action.value as number };
     case "velocity":
       return { ...state, velocity: action.value as number };
+    case "borderRadius":
+      return {
+        ...state,
+        borderSize: { ...state.borderSize, radius: action.value as number },
+      };
+    case "borderSharpness":
+      return {
+        ...state,
+        borderSize: { ...state.borderSize, sharpness: action.value as number },
+      };
+    case "borderIntensity":
+      return {
+        ...state,
+        borderSize: { ...state.borderSize, intensity: action.value as number },
+      };
     case "all":
       return {
         ...state,
@@ -67,11 +86,15 @@ export interface ImportRenderParams {
   radialDecay: number;
   particles: number;
   particleDensity?: number;
+  borderRadius?: number;
+  borderSharpness?: number;
+  borderIntensity?: number;
 }
 
 export const fromExportPpsSettings = (s: ExportPpsSettings) => {
   const version = s[0];
-  if (version === "v0.1" || version === "v0.2") {
+  console.log("pps", version);
+  if (version === "v0.1" || version === "v0.2" || version === "v0.3") {
     const v = s.slice(1) as number[];
     const re: ImportRenderParams = {
       alpha: toRadians(v[0]),
@@ -82,8 +105,13 @@ export const fromExportPpsSettings = (s: ExportPpsSettings) => {
       particles: v[5],
       size: v[6],
     };
-    if (version === "v0.2") {
+    if (version === "v0.2" || version === "v0.3") {
       re.particleDensity = v[7];
+    }
+    if (version === "v0.3") {
+      re.borderRadius = v[8];
+      re.borderSharpness = v[9];
+      re.borderIntensity = v[10];
     }
     return re;
   } else {
@@ -121,10 +149,11 @@ export class PpsController {
       params.particles,
       params.size,
       params.particleDensity,
+      ...fromBorderSize(params.borderSize),
     ];
   };
 
-  public version = "v0.2";
+  readonly version = "v0.3";
 
   public export = (params?: RenderParams) =>
     [this.version as any].concat(this.values(params || this.params));
@@ -190,6 +219,27 @@ export class PpsController {
       max: 1,
       step: 0.001,
       update: this.updater("particleDensity"),
+    },
+    {
+      title: "Border Size",
+      min: 0.01,
+      max: 2.0,
+      step: 0.002,
+      update: this.updater("borderRadius"),
+    },
+    {
+      title: "Border Sharpness",
+      min: 0.02,
+      max: 4,
+      step: 0.02,
+      update: this.updater("borderSharpness"),
+    },
+    {
+      title: "Border Force",
+      min: 1,
+      max: 100,
+      step: 0.1,
+      update: this.updater("borderIntensity"),
     },
   ];
 }
@@ -356,4 +406,8 @@ export const getPalette = (name: string) => {
     case "cool":
       return get(palettes.cool);
   }
+};
+
+const fromBorderSize = ({ radius, sharpness, intensity }: BorderSize) => {
+  return [radius, sharpness, intensity];
 };

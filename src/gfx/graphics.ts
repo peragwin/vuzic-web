@@ -252,8 +252,8 @@ export class ShaderConfig {
   constructor(
     public source: string,
     public type: number,
-    public attributeNames: Array<string>,
-    public uniformNames: Array<string>
+    public attributeNames?: Array<string>,
+    public uniformNames?: Array<string>
   ) {}
 }
 
@@ -301,7 +301,28 @@ export class Graphics {
     const success = this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS);
     if (success) return shader;
 
-    console.log(this.gl.getShaderInfoLog(shader));
+    const error = this.gl.getShaderInfoLog(shader);
+    if (error) {
+      const matchError = /^ERROR:\s+\d+:(\d+):\s+(.*)$/;
+      const lines = error.split("\n");
+      const srcLines = s.source.split("\n");
+      const errInfo = lines.map((l) => {
+        const match = matchError.exec(l);
+        if (match) {
+          const line = +match[1] - 1;
+          return (
+            l +
+            srcLines
+              .slice(Math.max(0, line - 2), line + 3)
+              .map((s, i) => `\n${i - 1 + line} >>> ${s}`)
+              .join("")
+          );
+        }
+        return l;
+      });
+      console.log(errInfo.join("\n"));
+    }
+    console.log(s.source);
     this.gl.deleteShader(shader);
     return null;
   }
