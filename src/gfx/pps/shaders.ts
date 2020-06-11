@@ -49,7 +49,7 @@ void main() {
 `;
 
 export const drawFragShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(drawFragSrc, gl.FRAGMENT_SHADER, [], []);
+  new ShaderConfig(drawFragSrc, gl.FRAGMENT_SHADER);
 
 const quadVertSrc = `#version 300 es
 precision highp float;
@@ -65,7 +65,7 @@ void main() {
 }`;
 
 export const updateVertShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(quadVertSrc, gl.VERTEX_SHADER, [], []);
+  new ShaderConfig(quadVertSrc, gl.VERTEX_SHADER);
 
 const updateFragSrc = `#version 300 es
 precision highp float;
@@ -196,9 +196,9 @@ mat2 rotate2d(float angle){
 vec2 integrate(in vec2 pos, in vec2 vel) {
   vec2 avel = vel + fetchGradientValue(pos);
   pos += avel * uVelocity;
-  return pos;
-  // vec2 apos = pos + 1.0;
-  // return mod(apos, 2.0) - 1.0;
+  // return pos;
+  vec2 apos = pos + 1.0;
+  return mod(apos, 2.0) - 1.0;
 }
 
 uint getColorUint(in float count) {
@@ -244,7 +244,7 @@ float getColor(in float count) {
       clamp(0., 0.2, (count - t[2]) / (t[3] - t[2])) +
       clamp(0., 0.2, (count - t[3]) / (1. - t[3]))
     ),
-    0.0);
+    1.0);
 }
 
 ivec2 toIEEE(in vec2 v) {

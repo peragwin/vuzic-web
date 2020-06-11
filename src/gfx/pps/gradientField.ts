@@ -45,12 +45,13 @@ layout(location = 0) out int outFieldValue;
 
 float borderValue(vec2 uv) {
   vec2 xy = 2. * uv - 1.;
-  vec2 g = uBorderSize.z * pow(xy * uBorderSize.x, vec2(uBorderSize.y));
+  vec2 g = uBorderSize.z * pow(abs(xy) * uBorderSize.x, vec2(uBorderSize.y));
+  // vec2 g = uBorderSize.xy * uv;
   return length(g);
 }
 
 void main () {
-  vec2 uv = gl_FragCoord.xy / uResolution;
+  vec2 uv = gl_FragCoord.xy / 512. + uResolution/32768.;
 
   float bv = borderValue(uv);
 
@@ -180,8 +181,8 @@ export class GradientField {
         QUAD2.length / 2,
         gl.TRIANGLE_STRIP,
         (gfx) => {
-          gl.clearColor(0, 0, 0, 0);
-          gl.clear(gl.COLOR_BUFFER_BIT);
+          // gl.clearColor(0, 0, 0, 0);
+          // gl.clear(gl.COLOR_BUFFER_BIT);
           gfx.bindUniform("uResolution", this.size);
           gfx.bindUniform("uBorderSize", this.borderSize);
           // gfx.bindTexture(this.texFieldValue[1 - this.swap], 0);
@@ -237,8 +238,8 @@ export class GradientField {
         QUAD2.length / 2,
         gl.TRIANGLE_STRIP,
         (gfx) => {
-          gl.clearColor(0, 0, 0, 0);
-          gl.clear(gl.COLOR_BUFFER_BIT);
+          // gl.clearColor(0, 0, 0, 0);
+          // gl.clear(gl.COLOR_BUFFER_BIT);
           // gfx.bindUniform("uResolution", this.size);
           gfx.bindTexture(this.texFieldValue[this.swap], 0);
           return true;
@@ -266,6 +267,10 @@ export class GradientField {
 
   public gradientField() {
     return this.texGradientField;
+  }
+
+  public fieldValue() {
+    return this.texFieldValue[this.swap];
   }
 
   public setParams(params: RenderParams) {

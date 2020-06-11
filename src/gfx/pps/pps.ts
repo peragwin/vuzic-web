@@ -15,6 +15,7 @@ import {
 import { getPalette, ParamsVersion } from "./params";
 import { countingSort } from "./countingsort";
 import { GradientField, BorderSize } from "./gradientField";
+import { Debug } from "../debug";
 
 export const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 const TEX_WIDTH = 1024;
@@ -30,7 +31,7 @@ export const defaultParams = {
   particles: +(process.env.REACT_APP_INIT_PARTICLES || "8192"),
   palette: "default",
   borderSize: { radius: 1, sharpness: 2, intensity: 1 },
-  version: "v0.2" as ParamsVersion,
+  version: "v0.3" as ParamsVersion,
 };
 
 export type RenderParams = {
@@ -191,6 +192,8 @@ export class PPS {
   private updateGfx!: Graphics;
   private gradientField: GradientField;
 
+  private debug: Debug;
+
   private swap: number = 1;
   private frameBuffers!: FramebufferObject[];
 
@@ -225,6 +228,12 @@ export class PPS {
     this.initState();
     this.initRender();
     this.initUpdate();
+
+    this.debug = new Debug(
+      canvas,
+      this.gradientField.gradientField(),
+      this.gradientField.fieldValue()
+    );
 
     this.loop();
   }
@@ -434,6 +443,7 @@ export class PPS {
     this.calculateSortedPositions(this.swap);
     this.updateGfx.render(false);
     this.renderGfx.render(false);
+    // this.debug.render();
 
     this.frameCount = (this.frameCount + 1) & 0xffff;
   }

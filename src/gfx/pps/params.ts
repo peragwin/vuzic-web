@@ -86,9 +86,7 @@ export interface ImportRenderParams {
   radialDecay: number;
   particles: number;
   particleDensity?: number;
-  borderRadius?: number;
-  borderSharpness?: number;
-  borderIntensity?: number;
+  borderSize?: BorderSize;
 }
 
 export const fromExportPpsSettings = (s: ExportPpsSettings) => {
@@ -109,9 +107,11 @@ export const fromExportPpsSettings = (s: ExportPpsSettings) => {
       re.particleDensity = v[7];
     }
     if (version === "v0.3") {
-      re.borderRadius = v[8];
-      re.borderSharpness = v[9];
-      re.borderIntensity = v[10];
+      re.borderSize = {
+        radius: v[8],
+        sharpness: v[9],
+        intensity: v[10],
+      };
     }
     return re;
   } else {
@@ -230,8 +230,8 @@ export class PpsController {
     {
       title: "Border Sharpness",
       min: 0.02,
-      max: 4,
-      step: 0.02,
+      max: 10,
+      step: 0.05,
       update: this.updater("borderSharpness"),
     },
     {
