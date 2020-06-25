@@ -131,7 +131,7 @@ export class VertexArrayObject {
   }
 }
 
-abstract class RenderTarget {
+export abstract class RenderTarget {
   abstract use(): void;
 }
 
