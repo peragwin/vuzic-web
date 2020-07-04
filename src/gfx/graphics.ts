@@ -4,12 +4,15 @@ export interface TextureConfig {
   format: number;
   type: number;
   wrap?: { s: number; t: number };
+  immutable?: boolean;
+  width?: number;
+  height?: number;
 }
 export class TextureObject {
   readonly tex: WebGLTexture;
 
   constructor(
-    readonly gl: WebGL2RenderingContext,
+    readonly gl: WebGL2RenderingContext | WebGL2ComputeRenderingContext,
     readonly cfg: TextureConfig
   ) {
     const tex = gl.createTexture();
@@ -26,6 +29,19 @@ export class TextureObject {
     };
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap.s);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap.t);
+
+    if (cfg.immutable) {
+      if (cfg.width === undefined || cfg.height === undefined) {
+        throw new Error("immutable texture requires cfg width and height");
+      }
+      gl.texStorage2D(
+        gl.TEXTURE_2D,
+        1,
+        cfg.internalFormat,
+        cfg.width,
+        cfg.height
+      );
+    }
   }
 
   public bind(unit: number) {
@@ -34,17 +50,38 @@ export class TextureObject {
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
   }
 
+  public bindImage(unit: number, access: number) {
+    const gl = this.gl;
+    if ("bindImageTexture" in gl) {
+      gl.bindImageTexture(
+        unit,
+        this.tex,
+        0,
+        true,
+        0,
+        access,
+        this.cfg.internalFormat
+      );
+    } else {
+      throw new Error("bindImage requires webgl2-compute context");
+    }
+  }
+
   public update(image: ImageData, unit: number = 0) {
     const { gl, cfg } = this;
     this.bind(unit);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      cfg.internalFormat,
-      cfg.format,
-      cfg.type,
-      image
-    );
+    if (this.cfg.immutable) {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, cfg.format, cfg.type, image);
+    } else {
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        cfg.internalFormat,
+        cfg.format,
+        cfg.type,
+        image
+      );
+    }
   }
 
   public updateData(
@@ -55,17 +92,31 @@ export class TextureObject {
   ) {
     const { gl, cfg } = this;
     this.bind(unit);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      cfg.internalFormat,
-      width,
-      height,
-      0,
-      cfg.format,
-      cfg.type,
-      data
-    );
+    if (this.cfg.immutable) {
+      gl.texSubImage2D(
+        gl.TEXTURE_2D,
+        0,
+        0,
+        0,
+        width,
+        height,
+        cfg.format,
+        cfg.type,
+        data
+      );
+    } else {
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        cfg.internalFormat,
+        width,
+        height,
+        0,
+        cfg.format,
+        cfg.type,
+        data
+      );
+    }
   }
 }
 
@@ -150,7 +201,9 @@ export class FramebufferObject extends RenderTarget {
   }
 
   public attach(tex: TextureObject, id: number) {
-    this.textures.push({ id, tex: tex.tex });
+    const findex = this.textures.findIndex((v) => v.id === id);
+    if (findex !== -1) this.textures[findex] = { id, tex: tex.tex };
+    else this.textures.push({ id, tex: tex.tex });
   }
 
   public bind() {
@@ -180,11 +233,21 @@ export class FramebufferObject extends RenderTarget {
     data: ArrayBufferView,
     id: number,
     format: number,
-    type: number
+    type: number,
+    width?: number,
+    height?: number
   ) {
     const gl = this.gl;
     gl.readBuffer(gl.COLOR_ATTACHMENT0 + id);
-    gl.readPixels(0, 0, this.dims.width, this.dims.height, format, type, data);
+    gl.readPixels(
+      0,
+      0,
+      width || this.dims.width,
+      height || this.dims.height,
+      format,
+      type,
+      data
+    );
     // hacky cleanup.. should find a better way to manage this
     this.textures = [];
   }

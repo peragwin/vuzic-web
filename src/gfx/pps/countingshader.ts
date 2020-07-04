@@ -12,7 +12,8 @@ const countingShader = (
 ) => {
   const countingShaderSrc = `#version 310 es
 precision highp float;
-precicion highp int;
+precision highp int;
+precision highp iimage2D;
 
 // there are likely to be problems if workGroupSize does not divide gridSize*gridSize,
 // or if workGroupSize does not divide uStateSize.x*uStateSize.y
@@ -41,18 +42,33 @@ uniform ivec2 uStateSize;
 //   ivec2 data[];
 // } ssboPositionCount;
 
-layout (rg32i, binding = 0) uniform coherent readonly restrict image2D imgPosition;
-layout (rg32i, binding = 1) uniform coherent writeonly restrict image2D imgSortedPosition;
-layout (rg32i, binding = 2) uniform coherent writeonly restrict image2D imgPositionCount;
+layout (rgba32i, binding = 0) uniform readonly iimage2D imgPosition;
+layout (rgba32i, binding = 1) uniform writeonly iimage2D imgSortedPosition;
+layout (rgba32i, binding = 2) uniform writeonly iimage2D imgPositionCount;
 
 shared int counts[${gridSize * gridSize}];
 shared int totals[${gridSize * gridSize}];
 shared int subTotals[GROUP_SIZE];
 
+void initSharedMemory(in ivec2 seg, in int threadIndex) {
+  subTotals[threadIndex] = 0;
+  for (int i = seg.s; i < seg.t; i++) {
+    counts[i] = 0;
+    totals[i] = 0;
+  }
+}
+
+// returns the image coordinate for the particle at index i
+ivec2 posImgCoord(in int i) {
+  return ivec2(i % uStateSize.x, i / uStateSize.x);
+}
+
+// returns the index of the cell where the i'th particle is positioned 
 int positionToIndex(in int index) {
   // ivec2 pi = ssboPosition.data[index];
-  ivec2 pi = imageLoad()
-  vec2 p = vec2(intBitsToFloat(p.x), intBitsToFloat(p.y));
+  ivec2 imgCoord = posImgCoord(index);
+  ivec2 pi = imageLoad(imgPosition, imgCoord).xy;
+  vec2 p = vec2(intBitsToFloat(pi.x), intBitsToFloat(pi.y));
   p = (p + 1.) / 2.;
   ivec2 gi = ivec2(floor(p * float(GRID_SIZE)));
   return gi.x + int(GRID_SIZE) * gi.y;
@@ -64,7 +80,7 @@ void countPositions(in ivec2 seg) {
   }
 }
 
-void totalCounts(in ivec2 seg) {
+void totalCounts(in ivec2 seg, in int threadIndex) {
   int total = 0;
   for (int i = seg.s; i < seg.t; i++) {
     int c = counts[i];
@@ -90,15 +106,23 @@ void applySubtotalOffset(in ivec2 seg, in int offset) {
 
 void sortPositions(in ivec2 seg) {  
   for (int i = seg.s; i < seg.t; i++) {
-    const idx = positionToIndex(i);
-    const total = atomicAdd(totals[idx], 1);
-    ssboSortedPosition.data[total] = ssboPosition.data[i];
+    int idx = positionToIndex(i);
+    int total = atomicAdd(totals[idx], 1);
+
+    // ivec4 pos = ivec4(floatBitsToInt(0.5), floatBitsToInt(0.5), 0, 0);
+    ivec4 pos = imageLoad(imgPosition, posImgCoord(i));
+    imageStore(imgSortedPosition, posImgCoord(total), pos);
+    // ssboSortedPosition.data[total] = ssboPosition.data[i];
   }
 }
 
 void writeCounts(in ivec2 seg, in int threadIndex) {
+  int gridSize = int(GRID_SIZE);
   for (int i = seg.s; i < seg.t; i++) {
-    ssboPositionCount.data[i] = ivec2(counts[i], totals[i]);
+    // ssboPositionCount.data[i] = ivec2(counts[i], totals[i]);
+    ivec2 gridIndex = ivec2(i % gridSize, i / gridSize);
+    ivec4 cval = ivec4(counts[i], totals[i], 69, 420);
+    imageStore(imgPositionCount, gridIndex, cval);
   }
 }
 
@@ -119,15 +143,19 @@ ivec2 gridSegment(in int threadIndex) {
 }
 
 void main () {
-  uint threadIndex = gl_GlobalInvocationID.x;
+  int threadIndex = int(gl_LocalInvocationID.x);
   ivec2 posSeg = positionSegment(threadIndex);
   ivec2 gridSeg = gridSegment(threadIndex);
+
+  initSharedMemory(gridSeg, threadIndex);
+  memoryBarrierShared();
+  barrier();
   
   countPositions(posSeg);
   memoryBarrierShared();
   barrier();
 
-  totalCounts(gridSeg);
+  totalCounts(gridSeg, threadIndex);
   memoryBarrierShared();
   barrier();
 
@@ -143,34 +171,32 @@ void main () {
   memoryBarrierShared();
   barrier();
 
-  writeCounts(gridSeg);
+  writeCounts(gridSeg, threadIndex);
+  memoryBarrierShared();
+  barrier();
 }
 `;
   return new ShaderConfig(countingShaderSrc, gl.COMPUTE_SHADER, [], []);
 };
 
 class ComputeTarget extends RenderTarget {
-  constructor() {
-    super();
-  }
-
   public use() {}
 }
 
-class ShaderBufferObject {
-  private buffer: WebGLBuffer;
-  constructor(private gl: WebGL2ComputeRenderingContext) {
-    const buffer = gl.createBuffer();
-    if (!buffer) {
-      throw new Error("failed to create buffer");
-    }
-    this.buffer = buffer;
-  }
+// class ShaderBufferObject {
+//   private buffer: WebGLBuffer;
+//   constructor(private gl: WebGL2ComputeRenderingContext) {
+//     const buffer = gl.createBuffer();
+//     if (!buffer) {
+//       throw new Error("failed to create buffer");
+//     }
+//     this.buffer = buffer;
+//   }
 
-  public bind(id: number) {
-    this.gl.bindBufferBase(this.gl.SHADER_STORAGE_BUFFER, id, this.buffer);
-  }
-}
+//   public bind(id: number) {
+//     this.gl.bindBufferBase(this.gl.SHADER_STORAGE_BUFFER, id, this.buffer);
+//   }
+// }
 
 interface StateSize {
   width: number;
@@ -185,17 +211,17 @@ interface Textures {
 
 export class CountingSortComputer {
   private gfx: Graphics;
-  private ssboPosition: ShaderBufferObject;
-  private ssboSortedPosition: ShaderBufferObject;
-  private ssboPositionCount: ShaderBufferObject;
+  // private ssboPosition: ShaderBufferObject;
+  // private ssboSortedPosition: ShaderBufferObject;
+  // private ssboPositionCount: ShaderBufferObject;
 
-  private readonly workGroupSize = 1024;
+  private readonly workGroupSize = 256;
 
   constructor(
     private gl: WebGL2ComputeRenderingContext,
+    private textures: Textures,
     private stateSize: StateSize,
-    private gridSize: number,
-    private textures: Textures
+    gridSize: number
   ) {
     const workGroupSize = this.workGroupSize;
     const ss = stateSize.width * stateSize.height;
@@ -217,28 +243,43 @@ export class CountingSortComputer {
     this.gfx = gfx;
 
     gfx.attachUniform("uStateSize", (l, v: StateSize) =>
-      gl.uniform2f(l, v.width, v.height)
+      gl.uniform2i(l, v.width, v.height)
     );
 
-    this.ssboPosition = new ShaderBufferObject(gl);
-    this.ssboSortedPosition = new ShaderBufferObject(gl);
-    this.ssboPositionCount = new ShaderBufferObject(gl);
+    // this.ssboPosition = new ShaderBufferObject(gl);
+    // this.ssboSortedPosition = new ShaderBufferObject(gl);
+    // this.ssboPositionCount = new ShaderBufferObject(gl);
+  }
+
+  public update(stateSize: StateSize, textures: Textures) {
+    const ss = stateSize.width * stateSize.height;
+    if (ss % this.workGroupSize !== 0) {
+      throw new Error(
+        `stateSize x*y ${ss} must be divisible by ${this.workGroupSize}`
+      );
+    }
+    this.stateSize = stateSize;
+    this.textures = textures;
   }
 
   private onCompute() {
-    // 1. Copy position texture to ssboPosition
-    this.gl.copyBufferSubData;
+    const gl = this.gl;
+
+    // 1. Bind textures to image buffers
+    this.textures.position.bindImage(0, gl.READ_ONLY);
+    this.textures.sortedPosition.bindImage(1, gl.WRITE_ONLY);
+    this.textures.positionCount.bindImage(2, gl.WRITE_ONLY);
 
     // 2. Bind buffers and uniform
-    this.ssboPosition.bind(0);
-    this.ssboSortedPosition.bind(1);
-    this.ssboPositionCount.bind(2);
     this.gfx.bindUniform("uStateSize", this.stateSize);
 
     // 3. Execute compute shader
     this.gl.dispatchCompute(1, 1, 1);
-    this.gl.memoryBarrier(this.gl.SHADER_STORAGE_BARRIER_BIT);
 
-    // 4. Copy output buffers to textures
+    // 4. Copy output buffers to textures (???)
+  }
+
+  public compute() {
+    this.gfx.render(false);
   }
 }

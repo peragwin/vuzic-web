@@ -19,17 +19,17 @@ export const countingSort = (size: number, stride: number = 2) => {
   const k = size * size;
 
   return (positions: Float32Array) => {
-    const count = new Int32Array(2 * k);
+    const count = new Int32Array(stride * k);
 
     for (let i = 0; i < positions.length; i += stride) {
       const p = positions.slice(i, i + 2);
-      count[2 * index(p[0], p[1])] += 1;
+      count[stride * index(p[0], p[1])] += 1;
     }
 
     let total = 0;
     for (let i = 0; i < k; i++) {
-      const c = count[2 * i];
-      count[2 * i + 1] = total;
+      const c = count[stride * i];
+      count[stride * i + 1] = total;
       total += c;
     }
 
@@ -37,7 +37,7 @@ export const countingSort = (size: number, stride: number = 2) => {
 
     for (let i = 0; i < positions.length; i += stride) {
       const p = positions.slice(i, i + 2);
-      const j = 2 * index(p[0], p[1]) + 1;
+      const j = stride * index(p[0], p[1]) + 1;
       const x = count[j];
       output.set(p, stride * x);
       count[j] = x + 1;

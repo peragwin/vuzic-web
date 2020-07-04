@@ -38,6 +38,7 @@ const Particle: React.FC<Props> = (props) => {
         pps.stop();
       };
     } catch (e) {
+      console.error(e);
       setErrorState(e);
     }
     // run once to initialize PPS

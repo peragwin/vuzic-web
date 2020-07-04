@@ -16,6 +16,7 @@ import { getPalette, ParamsVersion } from "./params";
 import { countingSort } from "./countingsort";
 import { GradientField, BorderSize } from "./gradientField";
 import { Debug } from "../debug";
+import { CountingSortComputer } from "./countingshader";
 
 export const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 const TEX_WIDTH = 1024;
@@ -62,15 +63,23 @@ class Textures {
   palette: TextureObject;
   colors: TextureObject;
 
-  constructor(gl: WebGL2RenderingContext) {
+  constructor(
+    gl: WebGL2RenderingContext,
+    gridSize: number,
+    computeEnabled: boolean
+  ) {
     // format is x0, y0, x1, y1, ...
+    // RGBA32I is required by compute shader
     this.positions = Array.from(Array(2)).map(
       (_) =>
         new TextureObject(gl, {
           mode: gl.NEAREST,
-          internalFormat: gl.RG32I,
-          format: gl.RG_INTEGER,
+          internalFormat: gl.RGBA32I,
+          format: gl.RGBA_INTEGER,
           type: gl.INT,
+          immutable: computeEnabled,
+          width: TEX_WIDTH,
+          height: TEX_WIDTH,
         })
     );
 
@@ -81,6 +90,9 @@ class Textures {
           internalFormat: gl.RG32I,
           format: gl.RG_INTEGER,
           type: gl.INT,
+          immutable: computeEnabled,
+          width: TEX_WIDTH,
+          height: TEX_WIDTH,
         })
     );
 
@@ -89,13 +101,19 @@ class Textures {
       internalFormat: gl.RGBA32I,
       format: gl.RGBA_INTEGER,
       type: gl.INT,
+      immutable: computeEnabled,
+      width: TEX_WIDTH,
+      height: TEX_WIDTH,
     });
 
     this.countedPositions = new TextureObject(gl, {
       mode: gl.NEAREST,
-      internalFormat: gl.RG32I,
-      format: gl.RG_INTEGER,
+      internalFormat: gl.RGBA32I,
+      format: gl.RGBA_INTEGER,
       type: gl.INT,
+      immutable: computeEnabled,
+      width: gridSize,
+      height: gridSize,
     });
 
     this.palette = new TextureObject(gl, {
@@ -110,6 +128,9 @@ class Textures {
       internalFormat: gl.R32I,
       format: gl.RED_INTEGER,
       type: gl.INT,
+      immutable: computeEnabled,
+      width: TEX_WIDTH,
+      height: TEX_WIDTH,
     });
   }
 
@@ -121,7 +142,7 @@ class Textures {
     const { width, height } = stateSize;
     const particles = width * height;
 
-    const pbuf = new ArrayBuffer(particles * 2 * 4);
+    const pbuf = new ArrayBuffer(particles * 4 * 4);
     const pstate = new Float32Array(pbuf);
     pstate.forEach((_, i, data) => {
       const xory = i % 2 === 0;
@@ -151,10 +172,19 @@ class Textures {
       v.updateData(width, height, new Int32Array(vbuf));
     });
 
+    const countData = new Int32Array(gridSize * gridSize * 4);
+    for (let i = 0; i < countData.length; i++) {
+      if (i % 4 === 0) countData[i] = particles / (gridSize * gridSize);
+      if (i % 4 === 1)
+        countData[i] =
+          ((Math.floor(i / 4) + 1) * particles) / (gridSize * gridSize);
+    }
+
     this.writeSortedPositions(
       {
-        count: new Int32Array(gridSize * gridSize * 2),
-        output: new Int32Array(particles * 4 * 4), // needs RBGA fmt for read
+        count: countData,
+        // needs RBGA fmt for read and when computeEnabled
+        output: new Int32Array(particles * 4),
       },
       stateSize,
       gridSize
@@ -185,11 +215,13 @@ class Textures {
 
 export class PPS {
   private gl: WebGL2RenderingContext | WebGL2ComputeRenderingContext;
+  private computeEnabled = false;
 
   private particleVAO!: VertexArrayObject;
   private textures!: Textures;
   private renderGfx!: Graphics;
   private updateGfx!: Graphics;
+  private computeShader: CountingSortComputer | null = null;
   private gradientField: GradientField;
 
   private debug: Debug;
@@ -198,7 +230,7 @@ export class PPS {
   private frameBuffers!: FramebufferObject[];
 
   private stateSize!: { width: number; height: number };
-  private gridSize = 48;
+  private gridSize = 32;
   private loopHandle!: number;
   private frameCount = 0;
   public paused = false;
@@ -217,6 +249,7 @@ export class PPS {
       this.gl = gl;
     } else {
       console.info("webgl2-compute is supported");
+      this.computeEnabled = true;
       this.gl = cgl;
     }
 
@@ -224,10 +257,11 @@ export class PPS {
     this.stateSize = this.getStateSize();
 
     this.gradientField = new GradientField(this.gl);
-    this.textures = new Textures(this.gl);
+    this.textures = new Textures(this.gl, this.gridSize, this.computeEnabled);
     this.initState();
     this.initRender();
     this.initUpdate();
+    this.initCompute();
 
     this.debug = new Debug(
       canvas,
@@ -362,6 +396,21 @@ export class PPS {
     );
   }
 
+  private initCompute() {
+    if (!this.computeEnabled) return;
+
+    this.computeShader = new CountingSortComputer(
+      this.gl as WebGL2ComputeRenderingContext,
+      {
+        position: this.textures.positions[this.swap],
+        sortedPosition: this.textures.sortedPositions,
+        positionCount: this.textures.countedPositions,
+      },
+      this.stateSize,
+      this.gridSize
+    );
+  }
+
   private initState() {
     let palette = (this.params.palette as any) as number[];
     if (typeof palette === "string") {
@@ -402,21 +451,66 @@ export class PPS {
   }
 
   private calculateSortedPositions(src: number) {
+    if (this.computeEnabled) {
+      const cs = this.computeShader!;
+      cs.update(this.stateSize, {
+        position: this.textures.positions[src],
+        sortedPosition: this.textures.sortedPositions,
+        positionCount: this.textures.countedPositions,
+      });
+
+      cs.compute();
+      const gl = this.gl as WebGL2ComputeRenderingContext;
+      gl.memoryBarrier(
+        gl.SHADER_STORAGE_BARRIER_BIT |
+          gl.SHADER_IMAGE_ACCESS_BARRIER_BIT |
+          gl.TEXTURE_UPDATE_BARRIER_BIT |
+          gl.TEXTURE_FETCH_BARRIER_BIT
+      );
+
+      return;
+    }
+
     const gl = this.gl;
     const particles = this.stateSize.width * this.stateSize.height;
 
-    // // attach the src position texture to the buffer so we can read it
+    // attach the src position texture to the buffer so we can read it
     this.frameBuffers[src].attach(this.textures.positions[src], 0);
     this.frameBuffers[src].bind();
 
     const pbuf = new ArrayBuffer(particles * 4 * 4);
     const pdata = new Float32Array(pbuf);
-    this.frameBuffers[src].readData(
-      new Int32Array(pbuf),
-      0,
-      gl.RGBA_INTEGER,
-      gl.INT
-    );
+    const idata = new Int32Array(pbuf);
+    this.frameBuffers[src].readData(idata, 0, gl.RGBA_INTEGER, gl.INT);
+
+    // this.frameBuffers[src].attach(this.textures.sortedPositions, 0); // positions[src], 0);
+    // this.frameBuffers[src].bind();
+
+    // const pbuf = new ArrayBuffer(/*particles*/ this.gridSize * 4 * 4);
+    // const pdata = new Float32Array(pbuf);
+    // const idata = new Int32Array(pbuf);
+    // this.frameBuffers[src].readData(
+    //   idata,
+    //   0,
+    //   gl.RGBA_INTEGER,
+    //   gl.INT,
+    //   this.gridSize,
+    //   1
+    // );
+
+    // console.log(pdata);
+
+    // const fb = new FramebufferObject(gl, {
+    //   width: this.gridSize,
+    //   height: this.gridSize,
+    // });
+    // fb.attach(this.textures.countedPositions, 0);
+    // fb.bind();
+    // fb.readData(idata, 0, gl.RGBA_INTEGER, gl.INT, this.gridSize, 1);
+
+    // console.log(idata);
+    // return;
+
     const sort = this.countingSort(pdata);
     const output = new Int32Array(sort.output.buffer);
     this.textures.writeSortedPositions(
@@ -430,10 +524,8 @@ export class PPS {
     }
   }
 
-  private lastTime: number = 0;
-
   private loop() {
-    // if (this.frameCount++ < 20) {
+    // if (this.frameCount++ < 60) {
     this.loopHandle = requestAnimationFrame(this.loop.bind(this));
     // }
 
@@ -467,10 +559,11 @@ export class PPS {
       this.params = params;
 
       this.stateSize = this.getStateSize();
-      this.textures = new Textures(this.gl);
+      this.textures = new Textures(this.gl, this.gridSize, this.computeEnabled);
       this.initState();
       this.initRender();
       this.initUpdate();
+      this.initCompute();
 
       this.loop();
     } else {
