@@ -141,6 +141,35 @@ class Uniform {
   }
 }
 
+export class UniformBuffer {
+  buffer: WebGLBuffer;
+
+  constructor(
+    private gl: WebGL2RenderingContext,
+    readonly boundLocation = 0,
+    data: ArrayBufferView
+  ) {
+    const buffer = gl.createBuffer();
+    if (!buffer) {
+      throw new Error("failed to create uniform buffer");
+    }
+    this.buffer = buffer;
+
+    gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
+    gl.bufferData(gl.UNIFORM_BUFFER, data, gl.STATIC_COPY);
+    gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+    gl.bindBufferBase(gl.UNIFORM_BUFFER, this.boundLocation, this.buffer);
+  }
+
+  update(data: ArrayBufferView) {
+    const gl = this.gl;
+    gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
+    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, data, 0);
+    gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+    gl.bindBufferBase(gl.UNIFORM_BUFFER, this.boundLocation, this.buffer);
+  }
+}
+
 export class BufferObject {
   constructor(
     readonly buffer: WebGLBuffer,
@@ -476,6 +505,17 @@ export class Graphics {
     const u = this.uniforms.get(uname);
     if (!u) throw new Error(`uniform ${uname} is not attached`);
     u.bind(value);
+  }
+
+  // private uniformBlockIndices = new Map<string, number>();
+
+  public attachUniformBlock(name: string, location: number) {
+    const uidx = this.gl.getUniformBlockIndex(this.program, name);
+    if (uidx === this.gl.INVALID_INDEX) {
+      throw new Error(`unknown uniform block ${name}`);
+    }
+    this.gl.uniformBlockBinding(this.program, uidx, location);
+    // this.uniformBlockIndices.set(name, uidx);
   }
 
   public start() {

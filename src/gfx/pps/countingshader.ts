@@ -5,6 +5,96 @@ import {
   TextureObject,
 } from "../graphics";
 
+const thresholdShader = (
+  gl: WebGL2ComputeRenderingContext,
+  gridSize: number
+) => {
+  const passes = Math.log2(gridSize);
+  if (Math.floor(passes) !== passes)
+    throw new Error("gridSize must be a power of 2");
+  const source = `#version 310 es
+precision highp float;
+
+#define GRID_SIZE ${gridSize}
+// #define GROUP_SIZE ${gridSize * gridSize}
+#define PASSES ${passes}
+
+layout (local_size_x = GRID_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+uniform ivec2 uStateSize;
+uniform float uRadius;
+
+layout (rgba32i, binding = 0) uniform readonly highp iimage2D imgPositionCount;
+layout (std140, binding = 1) buffer TData {
+  float data[4];
+} ssboThresholds;
+
+shared float variance[${2 * gridSize}];
+
+float getCount(in int x, in int y) {
+  ivec2 imgCoord = ivec2(x, y);
+  int cval = imageLoad(imgPositionCount, imgCoord).x;
+  return float(cval);
+}
+
+int varianceIndex(in int index, in int level) {
+  int offset = 0;
+  for (int i = 0; i < level; i++) {
+    offset += 1 << (PASSES-i);
+  }
+  return index + offset;
+}
+
+void main() {
+  int threadIndex = int(gl_LocalInvocationID.x);
+
+  for (int i = 0; i < 4; i++) {
+    ssboThresholds.data[i] = float((i+1) * 100);
+  }
+
+  float nParticles = float(uStateSize.x * uStateSize.y);
+  float gridSize = float(GRID_SIZE * GRID_SIZE);
+  float mean = nParticles / gridSize;
+
+  float s = 0.;
+  for (int i = 0; i < GRID_SIZE; i++) {
+    float dev = getCount(i, threadIndex) - mean;
+    s += dev * dev;
+  }
+  variance[varianceIndex(threadIndex, 0)] = s;
+
+  memoryBarrierShared();
+  barrier();
+
+  for (int pass = 1; pass <= PASSES; pass++) {
+    if (threadIndex < (GRID_SIZE >> pass)) {
+      float v = variance[varianceIndex(2*threadIndex, pass-1)] +
+                variance[varianceIndex(2*threadIndex+1, pass-1)];
+      variance[varianceIndex(threadIndex, pass)] = v;
+    }
+
+    memoryBarrierShared();
+    barrier();
+  }
+
+  if (threadIndex == 0) {
+    float std = sqrt(variance[varianceIndex(0, PASSES)] / gridSize);
+    
+    float cellsInRadius = ceil(uRadius * float(GRID_SIZE));
+    float c2 = cellsInRadius * cellsInRadius;
+    float particlesInRadius = c2 * mean;
+    float dev = c2 * std;
+
+    for (int i = 0; i < 5; i++) {
+      float th = (-1.5 + float(i)) * dev / 2.;
+      ssboThresholds.data[i] = th + particlesInRadius;
+    }
+  }
+}
+`;
+  return new ShaderConfig(source, gl.COMPUTE_SHADER);
+};
+
 const countingShader = (
   gl: WebGL2ComputeRenderingContext,
   gridSize: number,
@@ -23,24 +113,6 @@ precision highp iimage2D;
 layout (local_size_x = GROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
 uniform ivec2 uStateSize;
-// uniform int uGridSize;
-
-// struct Position {
-//   int x;
-//   int y;
-// };
-
-// layout (std140, binding = 0) buffer PositionBuffer {
-//   ivec2 data[];
-// } ssboPosition;
-
-// layout (std140, binding = 1) buffer SortedPositions {
-//   ivec2 data[];
-// } ssboSortedPosition;
-
-// layout (std140, binding = 2) buffer PositionCounts {
-//   ivec2 data[];
-// } ssboPositionCount;
 
 layout (rgba32i, binding = 0) uniform readonly iimage2D imgPosition;
 layout (rgba32i, binding = 1) uniform writeonly iimage2D imgSortedPosition;
@@ -65,7 +137,6 @@ ivec2 posImgCoord(in int i) {
 
 // returns the index of the cell where the i'th particle is positioned 
 int positionToIndex(in int index) {
-  // ivec2 pi = ssboPosition.data[index];
   ivec2 imgCoord = posImgCoord(index);
   ivec2 pi = imageLoad(imgPosition, imgCoord).xy;
   vec2 p = vec2(intBitsToFloat(pi.x), intBitsToFloat(pi.y));
@@ -109,17 +180,14 @@ void sortPositions(in ivec2 seg) {
     int idx = positionToIndex(i);
     int total = atomicAdd(totals[idx], 1);
 
-    // ivec4 pos = ivec4(floatBitsToInt(0.5), floatBitsToInt(0.5), 0, 0);
     ivec4 pos = imageLoad(imgPosition, posImgCoord(i));
     imageStore(imgSortedPosition, posImgCoord(total), pos);
-    // ssboSortedPosition.data[total] = ssboPosition.data[i];
   }
 }
 
 void writeCounts(in ivec2 seg, in int threadIndex) {
   int gridSize = int(GRID_SIZE);
   for (int i = seg.s; i < seg.t; i++) {
-    // ssboPositionCount.data[i] = ivec2(counts[i], totals[i]);
     ivec2 gridIndex = ivec2(i % gridSize, i / gridSize);
     ivec4 cval = ivec4(counts[i], totals[i], 69, 420);
     imageStore(imgPositionCount, gridIndex, cval);
@@ -176,27 +244,12 @@ void main () {
   barrier();
 }
 `;
-  return new ShaderConfig(countingShaderSrc, gl.COMPUTE_SHADER, [], []);
+  return new ShaderConfig(countingShaderSrc, gl.COMPUTE_SHADER);
 };
 
 class ComputeTarget extends RenderTarget {
   public use() {}
 }
-
-// class ShaderBufferObject {
-//   private buffer: WebGLBuffer;
-//   constructor(private gl: WebGL2ComputeRenderingContext) {
-//     const buffer = gl.createBuffer();
-//     if (!buffer) {
-//       throw new Error("failed to create buffer");
-//     }
-//     this.buffer = buffer;
-//   }
-
-//   public bind(id: number) {
-//     this.gl.bindBufferBase(this.gl.SHADER_STORAGE_BUFFER, id, this.buffer);
-//   }
-// }
 
 interface StateSize {
   width: number;
@@ -209,17 +262,21 @@ interface Textures {
   positionCount: TextureObject;
 }
 
+interface Threshold {
+  buffer: WebGLBuffer;
+  radius: number;
+}
+
 export class CountingSortComputer {
   private gfx: Graphics;
-  // private ssboPosition: ShaderBufferObject;
-  // private ssboSortedPosition: ShaderBufferObject;
-  // private ssboPositionCount: ShaderBufferObject;
+  private thresholdGfx: Graphics;
 
   private readonly workGroupSize = 256;
 
   constructor(
     private gl: WebGL2ComputeRenderingContext,
     private textures: Textures,
+    private threshold: Threshold,
     private stateSize: StateSize,
     gridSize: number
   ) {
@@ -238,20 +295,29 @@ export class CountingSortComputer {
     }
 
     const tgt = new ComputeTarget();
-    const shaders = [countingShader(gl, gridSize, workGroupSize)];
-    const gfx = new Graphics(gl, tgt, shaders, this.onCompute.bind(this));
+    let shaders = [countingShader(gl, gridSize, workGroupSize)];
+    let gfx = new Graphics(gl, tgt, shaders, this.onCompute.bind(this));
     this.gfx = gfx;
 
     gfx.attachUniform("uStateSize", (l, v: StateSize) =>
       gl.uniform2i(l, v.width, v.height)
     );
 
-    // this.ssboPosition = new ShaderBufferObject(gl);
-    // this.ssboSortedPosition = new ShaderBufferObject(gl);
-    // this.ssboPositionCount = new ShaderBufferObject(gl);
+    shaders = [thresholdShader(gl, gridSize)];
+    gfx = new Graphics(gl, tgt, shaders, this.onThresholds.bind(this));
+    this.thresholdGfx = gfx;
+
+    gfx.attachUniform("uStateSize", (l, v: StateSize) =>
+      gl.uniform2i(l, v.width, v.height)
+    );
+    gfx.attachUniform("uRadius", (l, v) => gl.uniform1f(l, v));
   }
 
-  public update(stateSize: StateSize, textures: Textures) {
+  public update(
+    stateSize: StateSize,
+    textures: Textures,
+    threshold: Threshold
+  ) {
     const ss = stateSize.width * stateSize.height;
     if (ss % this.workGroupSize !== 0) {
       throw new Error(
@@ -260,6 +326,7 @@ export class CountingSortComputer {
     }
     this.stateSize = stateSize;
     this.textures = textures;
+    this.threshold = threshold;
   }
 
   private onCompute() {
@@ -274,12 +341,35 @@ export class CountingSortComputer {
     this.gfx.bindUniform("uStateSize", this.stateSize);
 
     // 3. Execute compute shader
-    this.gl.dispatchCompute(1, 1, 1);
+    gl.dispatchCompute(1, 1, 1);
 
     // 4. Copy output buffers to textures (???)
   }
 
+  private onThresholds() {
+    const gl = this.gl;
+
+    this.textures.positionCount.bindImage(0, gl.READ_ONLY);
+    gl.bindBufferBase(gl.SHADER_STORAGE_BUFFER, 1, this.threshold.buffer);
+
+    this.thresholdGfx.bindUniform("uStateSize", this.stateSize);
+    this.thresholdGfx.bindUniform("uRadius", this.threshold.radius);
+
+    gl.dispatchCompute(1, 1, 1);
+  }
+
   public compute() {
+    const gl = this.gl;
+
     this.gfx.render(false);
+
+    gl.memoryBarrier(
+      gl.SHADER_STORAGE_BARRIER_BIT |
+        gl.SHADER_IMAGE_ACCESS_BARRIER_BIT |
+        gl.TEXTURE_UPDATE_BARRIER_BIT |
+        gl.TEXTURE_FETCH_BARRIER_BIT
+    );
+
+    this.thresholdGfx.render(false);
   }
 }

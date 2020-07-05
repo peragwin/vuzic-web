@@ -5,6 +5,7 @@ import {
   VertexArrayObject,
   CanvasObject,
   FramebufferObject,
+  UniformBuffer,
 } from "../graphics";
 import {
   drawVertShader,
@@ -230,7 +231,7 @@ export class PPS {
   private frameBuffers!: FramebufferObject[];
 
   private stateSize!: { width: number; height: number };
-  private gridSize = 32;
+  private gridSize = 64;
   private loopHandle!: number;
   private frameCount = 0;
   public paused = false;
@@ -316,12 +317,19 @@ export class PPS {
     gfx.addVertexArrayObject(this.particleVAO);
   }
 
+  private uColorThresholds!: UniformBuffer;
+
   private initUpdate() {
     const gl = this.gl;
 
     this.frameBuffers = Array.from(Array(2)).map(
       (_) => new FramebufferObject(gl, this.stateSize)
     );
+    const tdata = new Float32Array(20);
+    for (let i = 0; i < 16; i++) {
+      tdata[i] = 1000 * (i + 1);
+    }
+    this.uColorThresholds = new UniformBuffer(gl, 0, tdata);
 
     const gfx = new Graphics(
       gl,
@@ -342,7 +350,10 @@ export class PPS {
     gfx.attachUniform("uRadius", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uVelocity", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uRadialDecay", (l, v) => gl.uniform1f(l, v));
-    gfx.attachUniform("uColorThresholds", (l, v) => gl.uniform1fv(l, v));
+    gfx.attachUniformBlock(
+      "uColorThresholdBlock",
+      this.uColorThresholds.boundLocation
+    );
 
     this.textures.positions.forEach((p) =>
       gfx.attachTexture(p, "texPositions")
@@ -383,7 +394,9 @@ export class PPS {
           gfx.bindUniform("uRadius", this.params.radius);
           gfx.bindUniform("uVelocity", this.params.velocity);
           gfx.bindUniform("uRadialDecay", this.params.radialDecay);
-          gfx.bindUniform("uColorThresholds", this.colors.thresholds);
+          // gfx.bindUniform("uColorThresholds", this.colors.thresholds);
+          gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, this.uColorThresholds.buffer);
+          // this.uColorThresholds.update(tdata);
           let s = 1 - this.swap;
           gfx.bindTexture(this.textures.positions[s], 0);
           gfx.bindTexture(this.textures.velocities[s], 1);
@@ -405,6 +418,10 @@ export class PPS {
         position: this.textures.positions[this.swap],
         sortedPosition: this.textures.sortedPositions,
         positionCount: this.textures.countedPositions,
+      },
+      {
+        radius: this.params.radius,
+        buffer: this.uColorThresholds.buffer,
       },
       this.stateSize,
       this.gridSize
@@ -453,11 +470,18 @@ export class PPS {
   private calculateSortedPositions(src: number) {
     if (this.computeEnabled) {
       const cs = this.computeShader!;
-      cs.update(this.stateSize, {
-        position: this.textures.positions[src],
-        sortedPosition: this.textures.sortedPositions,
-        positionCount: this.textures.countedPositions,
-      });
+      cs.update(
+        this.stateSize,
+        {
+          position: this.textures.positions[src],
+          sortedPosition: this.textures.sortedPositions,
+          positionCount: this.textures.countedPositions,
+        },
+        {
+          radius: this.params.radius,
+          buffer: this.uColorThresholds.buffer,
+        }
+      );
 
       cs.compute();
       const gl = this.gl as WebGL2ComputeRenderingContext;
@@ -524,6 +548,8 @@ export class PPS {
     }
   }
 
+  private lastTime: number = 0;
+
   private loop() {
     // if (this.frameCount++ < 60) {
     this.loopHandle = requestAnimationFrame(this.loop.bind(this));
@@ -532,9 +558,27 @@ export class PPS {
     this.onRender(this);
 
     this.gradientField.update();
+
+    // let t: number = 0;
+    // if (this.frameCount % 32 === 0) {
+    //   t = performance.now();
+    // }
     this.calculateSortedPositions(this.swap);
+    // if (this.frameCount % 32 === 0) {
+    //   const e = performance.now() - t;
+    //   console.log(`compute shader took ${e}`);
+    // }
+
+    // if (this.frameCount % 32 === 0) {
+    //   t = performance.now();
+    // }
     this.updateGfx.render(false);
     this.renderGfx.render(false);
+    // if (this.frameCount % 32 === 0) {
+    //   const e = performance.now() - t;
+    //   console.log(`update shader took ${e}`);
+    // }
+
     // this.debug.render();
 
     this.frameCount = (this.frameCount + 1) & 0xffff;

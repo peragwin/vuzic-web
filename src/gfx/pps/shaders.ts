@@ -86,7 +86,9 @@ uniform float uBeta;
 uniform float uRadius;
 uniform float uVelocity;
 uniform float uRadialDecay;
-uniform float uColorThresholds[4];
+uniform uColorThresholdBlock {
+  float uColorThresholds[5];
+};
 
 layout(location = 0) out ivec2 position;
 layout(location = 1) out ivec2 velocity;
@@ -201,15 +203,6 @@ vec2 integrate(in vec2 pos, in vec2 vel) {
   return mod(apos, 2.0) - 1.0;
 }
 
-uint getColorUint(in float count) {
-  float[] t = uColorThresholds;
-  float one =        step(t[0], count) * (1. - step(t[1], count));
-  float two =   2. * step(t[1], count) * (1. - step(t[2], count));
-  float three = 3. * step(t[2], count) * (1. - step(t[3], count));
-  float four =  4. * step(t[3], count);
-  return uint(one + two + three + four);
-}
-
 float getColor(in float count) {
   float[] t = uColorThresholds;
 
@@ -235,16 +228,17 @@ float getColor(in float count) {
   // float l5 = count * (count - t[0]) * (count - t[1]) * (count - t[2]) * (count - t[3])
   //          / (1. * (1. - t[0]) * (1. - t[1]) * (1. - t[2]) * (1. - t[3]));
 
-  return mix(
-    clamp((0.2 * l1) + (0.4 * l2) + (0.6 * l3) + (0.8 * l4) * sign(l4), 0.0, 1.0),
-    clamp(0.0, 1.0,
-      clamp(0., 0.2, count / t[0]) +
-      clamp(0., 0.2, (count - t[0])  / (t[1] - t[0])) +
-      clamp(0., 0.2, (count - t[1]) / (t[2] - t[1])) +
-      clamp(0., 0.2, (count - t[2]) / (t[3] - t[2])) +
-      clamp(0., 0.2, (count - t[3]) / (1. - t[3]))
-    ),
-    1.0);
+  float poly = clamp((0.2 * l1) + (0.4 * l2) + (0.6 * l3) + (0.8 * l4) * sign(l4), 0.0, 1.0);
+
+  float lerp = (
+    clamp( count         /  t[0]        , 0., 1.) +
+    clamp((count - t[0]) / (t[1] - t[0]), 0., 1.) +
+    clamp((count - t[1]) / (t[2] - t[1]), 0., 1.) +
+    clamp((count - t[2]) / (t[3] - t[2]), 0., 1.) +
+    clamp((count - t[3]) / (t[4] - t[3]), 0., 1.)
+  ) / 5.;
+
+  return mix(poly, lerp, 1.0);
 }
 
 ivec2 toIEEE(in vec2 v) {
