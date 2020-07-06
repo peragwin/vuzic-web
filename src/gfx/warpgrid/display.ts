@@ -18,6 +18,16 @@ import {
 import { RenderParams } from "./render";
 import { Drivers } from "../../audio/audio";
 
+// const linTosRGB = (v: number) =>
+//   v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+
+const sRGBtoLin = (v: number) =>
+  v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+
+const sRGB = (vals: number[]) => vals.map(sRGBtoLin);
+
+// const sRGB = (vals: number[]) => vals.map((v) => v * v);
+
 const square = [
   // add degenerate triangle
   vec2.fromValues(-1, 1),
@@ -105,10 +115,7 @@ class Textures {
     for (let i = 0; i < 36000; i++) {
       const hue = i % 360;
       const val = Math.floor(i / 360);
-      let [r, g, b] = hsluvToRgb([hue, 100, val]);
-      r *= r;
-      g *= g;
-      b *= b;
+      let [r, g, b] = sRGB(hsluvToRgb([hue, 100, val]));
       hbuf.set([r * 255, g * 255, b * 255, 255], i * 4);
     }
     this.hsluv.update(new ImageData(hbuf, 360, 100));
