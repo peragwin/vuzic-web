@@ -231,7 +231,7 @@ float getColor(in float count) {
   float poly = clamp((0.2 * l1) + (0.4 * l2) + (0.6 * l3) + (0.8 * l4) * sign(l4), 0.0, 1.0);
 
   float lerp = (
-    clamp( count         /  t[0]        , 0., 1.) +
+    (t[0] <= 0. ? 1. : clamp( count         /  t[0]        , 0., 1.)) +
     clamp((count - t[0]) / (t[1] - t[0]), 0., 1.) +
     clamp((count - t[1]) / (t[2] - t[1]), 0., 1.) +
     clamp((count - t[2]) / (t[3] - t[2]), 0., 1.) +

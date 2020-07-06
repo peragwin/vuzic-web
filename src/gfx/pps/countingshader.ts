@@ -86,7 +86,7 @@ void main() {
     float dev = c2 * std;
 
     for (int i = 0; i < 5; i++) {
-      float th = (-1.5 + float(i)) * dev / 2.;
+      float th = (-1.0 + float(i)) * dev / 4.;
       ssboThresholds.data[i] = th + particlesInRadius;
     }
   }

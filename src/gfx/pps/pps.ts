@@ -507,34 +507,6 @@ export class PPS {
     const idata = new Int32Array(pbuf);
     this.frameBuffers[src].readData(idata, 0, gl.RGBA_INTEGER, gl.INT);
 
-    // this.frameBuffers[src].attach(this.textures.sortedPositions, 0); // positions[src], 0);
-    // this.frameBuffers[src].bind();
-
-    // const pbuf = new ArrayBuffer(/*particles*/ this.gridSize * 4 * 4);
-    // const pdata = new Float32Array(pbuf);
-    // const idata = new Int32Array(pbuf);
-    // this.frameBuffers[src].readData(
-    //   idata,
-    //   0,
-    //   gl.RGBA_INTEGER,
-    //   gl.INT,
-    //   this.gridSize,
-    //   1
-    // );
-
-    // console.log(pdata);
-
-    // const fb = new FramebufferObject(gl, {
-    //   width: this.gridSize,
-    //   height: this.gridSize,
-    // });
-    // fb.attach(this.textures.countedPositions, 0);
-    // fb.bind();
-    // fb.readData(idata, 0, gl.RGBA_INTEGER, gl.INT, this.gridSize, 1);
-
-    // console.log(idata);
-    // return;
-
     const sort = this.countingSort(pdata);
     const output = new Int32Array(sort.output.buffer);
     this.textures.writeSortedPositions(
@@ -559,25 +531,10 @@ export class PPS {
 
     this.gradientField.update();
 
-    // let t: number = 0;
-    // if (this.frameCount % 32 === 0) {
-    //   t = performance.now();
-    // }
     this.calculateSortedPositions(this.swap);
-    // if (this.frameCount % 32 === 0) {
-    //   const e = performance.now() - t;
-    //   console.log(`compute shader took ${e}`);
-    // }
 
-    // if (this.frameCount % 32 === 0) {
-    //   t = performance.now();
-    // }
     this.updateGfx.render(false);
     this.renderGfx.render(false);
-    // if (this.frameCount % 32 === 0) {
-    //   const e = performance.now() - t;
-    //   console.log(`update shader took ${e}`);
-    // }
 
     // this.debug.render();
 
@@ -618,7 +575,8 @@ export class PPS {
   async updateColorThresholds(count: Int32Array) {
     const [mean, std] = getCountStatistics(count);
     const cellsInRadius = Math.ceil(this.params.radius * this.gridSize);
-    this.colors.thresholds = getColorThresholds(mean, std, cellsInRadius);
+    const thresholds = getColorThresholds(mean, std, cellsInRadius);
+    this.uColorThresholds.update(new Float32Array(thresholds));
   }
 
   public getFrameRate(interval: number) {
@@ -653,10 +611,15 @@ function getColorThresholds(mean: number, std: number, cellsInRadius: number) {
   const particlesInRadius = mean * c2;
   const dev = std * c2;
 
-  const thresholds = [];
-  for (let i = 0; i < 4; i++) {
-    const d = ((-1.5 + i) * dev) / 2;
+  let thresholds = [];
+  for (let i = 0; i < 5; i++) {
+    const d = ((-1.0 + i) * dev) / 4;
     thresholds.push(d + particlesInRadius);
+  }
+
+  const t0 = thresholds[0];
+  if (t0 < 0) {
+    thresholds = thresholds.map((x) => x - t0);
   }
 
   return thresholds;
