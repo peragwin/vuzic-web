@@ -144,11 +144,7 @@ class Uniform {
 export class UniformBuffer {
   buffer: WebGLBuffer;
 
-  constructor(
-    private gl: WebGL2RenderingContext,
-    readonly boundLocation = 0,
-    data: ArrayBufferView
-  ) {
+  constructor(private gl: WebGL2RenderingContext, data: ArrayBufferView) {
     const buffer = gl.createBuffer();
     if (!buffer) {
       throw new Error("failed to create uniform buffer");
@@ -158,15 +154,13 @@ export class UniformBuffer {
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
     gl.bufferData(gl.UNIFORM_BUFFER, data, gl.STATIC_COPY);
     gl.bindBuffer(gl.UNIFORM_BUFFER, null);
-    gl.bindBufferBase(gl.UNIFORM_BUFFER, this.boundLocation, this.buffer);
   }
 
-  update(data: ArrayBufferView) {
+  update(data: ArrayBufferView, offset: number = 0) {
     const gl = this.gl;
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
-    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, data, 0);
+    gl.bufferSubData(gl.UNIFORM_BUFFER, offset, data);
     gl.bindBuffer(gl.UNIFORM_BUFFER, null);
-    gl.bindBufferBase(gl.UNIFORM_BUFFER, this.boundLocation, this.buffer);
   }
 }
 
@@ -507,7 +501,7 @@ export class Graphics {
     u.bind(value);
   }
 
-  // private uniformBlockIndices = new Map<string, number>();
+  private uniformBlockLocations = new Map<string, number>();
 
   public attachUniformBlock(name: string, location: number) {
     const uidx = this.gl.getUniformBlockIndex(this.program, name);
@@ -515,7 +509,15 @@ export class Graphics {
       throw new Error(`unknown uniform block ${name}`);
     }
     this.gl.uniformBlockBinding(this.program, uidx, location);
-    // this.uniformBlockIndices.set(name, uidx);
+    this.uniformBlockLocations.set(name, location);
+  }
+
+  public bindUniformBuffer(uname: string, uBuffer: UniformBuffer) {
+    const loc = this.uniformBlockLocations.get(uname);
+    if (loc === undefined) {
+      throw new Error(`uniform block not bound for ${uname}`);
+    }
+    this.gl.bindBufferBase(this.gl.UNIFORM_BUFFER, loc, uBuffer.buffer);
   }
 
   public start() {

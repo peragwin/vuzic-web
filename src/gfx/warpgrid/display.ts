@@ -8,6 +8,7 @@ import {
   VertexArrayObject,
   CanvasObject,
   FramebufferObject,
+  UniformBuffer,
 } from "../graphics";
 import {
   updateVertShader,
@@ -17,6 +18,8 @@ import {
 } from "./shaders";
 import { RenderParams } from "./render";
 import { Drivers } from "../../audio/audio";
+import { Camera } from "../util/camera";
+import { CameraController } from "../util/cameraController";
 
 // const linTosRGB = (v: number) =>
 //   v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
@@ -64,6 +67,7 @@ interface GridSize {
 }
 
 const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+const Z_SCALE = 0.1;
 
 class Textures {
   readonly image: TextureObject;
@@ -150,6 +154,9 @@ export class WarpGrid {
   private textures: Textures;
   private gridSize: GridSize;
   private buffer: FramebufferObject;
+  private camera: Camera;
+  private cameraController: CameraController;
+  private uCameraMatrix: UniformBuffer;
 
   public onFrameRate = (f: number) => {};
 
@@ -171,6 +178,15 @@ export class WarpGrid {
     if (!gl) throw new Error("canvas does not support webgl");
     this.gl = gl;
 
+    this.camera = new Camera((45 * Math.PI) / 180, 1, -1, 1);
+    this.camera.location = vec3.fromValues(0, 0, -1);
+    this.camera.target = vec3.fromValues(0, 0, 0);
+    this.uCameraMatrix = new UniformBuffer(
+      gl,
+      new Float32Array(this.camera.matrix)
+    );
+    this.cameraController = new CameraController(this.camera, canvas);
+
     this.textures = new Textures(gl, this.params);
 
     const vertexSrc = vertexShaderSource
@@ -188,6 +204,9 @@ export class WarpGrid {
     gfx.attachTexture(this.textures.image, "texImage");
     gfx.attachUniform("warp", gfx.gl.uniform1fv.bind(gfx.gl));
     gfx.attachUniform("scale", gfx.gl.uniform1fv.bind(gfx.gl));
+    gfx.attachUniform("uzScale", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniformBlock("uCameraMatrix", 0);
+
     this.createCells(gfx);
 
     const fbo = new FramebufferObject(gl, { width: columns, height: rows });
@@ -325,7 +344,9 @@ export class WarpGrid {
         (_) => {
           gfx.bindUniform("warp", warp);
           gfx.bindUniform("scale", scale);
+          gfx.bindUniform("uzScale", Z_SCALE);
           gfx.bindTexture(this.textures.image, 0);
+          gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
           return true;
         }
       )
@@ -351,6 +372,10 @@ export class WarpGrid {
     this.buffer.attach(this.textures.image, 0);
   }
 
+  private updateCamera(cameraMatrix: mat4) {
+    this.uCameraMatrix.update(new Float32Array(cameraMatrix));
+  }
+
   private loopHandle: number | null = null;
 
   private loop() {
@@ -359,6 +384,7 @@ export class WarpGrid {
     // }
     this.loopHandle = requestAnimationFrame(this.loop.bind(this));
     this.onUpdate(this);
+    this.cameraController.update(this.updateCamera.bind(this));
 
     this.updateGfx.render(false);
     this.renderGfx.render(false);

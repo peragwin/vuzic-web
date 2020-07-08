@@ -94,6 +94,11 @@ export const vertexShaderSource = `#version 300 es
 
 uniform float warp[{0}]; // for y rows
 uniform float scale[{1}]; // for x cols
+uniform float uzScale;
+layout (std140) uniform uCameraMatrix {
+  mat4 uvpMatrix;
+};
+
 const vec2 gridSize = vec2({1}, {0});
 
 in vec3 vertPos;
@@ -131,11 +136,15 @@ void main() {
     y = 1.0 - pow(abs(y - 1.0), s);
   }
 
-  float z = max(-1000. + elev * vertPos.z, 0.);
+  // float z = max(-1000. + elev * vertPos.z, 0.);
+  float z = elev * vertPos.z * uzScale;
+  // float z = 0.;
 
   vUvw = vec3(uvPos, elev);
   fragTexPos = abs(2.*texPos-1.);
-  gl_Position = vec4(elev * x, elev * y, -z, 1.0);
+  vec4 pos = vec4(elev * x, elev * y, z, 1.0);
+
+  gl_Position = uvpMatrix * pos;
 }`;
 
 export const fragmenShaderSource = `#version 300 es

@@ -329,7 +329,7 @@ export class PPS {
     for (let i = 0; i < 16; i++) {
       tdata[i] = 1000 * (i + 1);
     }
-    this.uColorThresholds = new UniformBuffer(gl, 0, tdata);
+    this.uColorThresholds = new UniformBuffer(gl, tdata);
 
     const gfx = new Graphics(
       gl,
@@ -350,10 +350,7 @@ export class PPS {
     gfx.attachUniform("uRadius", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uVelocity", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uRadialDecay", (l, v) => gl.uniform1f(l, v));
-    gfx.attachUniformBlock(
-      "uColorThresholdBlock",
-      this.uColorThresholds.boundLocation
-    );
+    gfx.attachUniformBlock("uColorThresholdBlock", 0);
 
     this.textures.positions.forEach((p) =>
       gfx.attachTexture(p, "texPositions")
@@ -394,9 +391,7 @@ export class PPS {
           gfx.bindUniform("uRadius", this.params.radius);
           gfx.bindUniform("uVelocity", this.params.velocity);
           gfx.bindUniform("uRadialDecay", this.params.radialDecay);
-          // gfx.bindUniform("uColorThresholds", this.colors.thresholds);
-          gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, this.uColorThresholds.buffer);
-          // this.uColorThresholds.update(tdata);
+          gfx.bindUniformBuffer("uColorThresholdBlock", this.uColorThresholds);
           let s = 1 - this.swap;
           gfx.bindTexture(this.textures.positions[s], 0);
           gfx.bindTexture(this.textures.velocities[s], 1);
