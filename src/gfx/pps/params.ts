@@ -18,6 +18,7 @@ export type PpsRenderParamKey =
   | "borderRadius"
   | "borderSharpness"
   | "borderIntensity"
+  | "colorScale"
   | "load";
 
 export type ParamsVersion = "v0.1" | "v0.2" | "v0.3" | undefined;
@@ -64,6 +65,8 @@ export const ppsRenderParamsReducer = (
         ...state,
         borderSize: { ...state.borderSize, intensity: action.value as number },
       };
+    case "colorScale":
+      return { ...state, colorScale: action.value as number };
     case "all":
       return {
         ...state,
@@ -87,6 +90,7 @@ export interface ImportRenderParams {
   particles: number;
   particleDensity?: number;
   borderSize?: BorderSize;
+  colorScale?: number;
 }
 
 export const fromExportPpsSettings = (s: ExportPpsSettings) => {
@@ -112,6 +116,7 @@ export const fromExportPpsSettings = (s: ExportPpsSettings) => {
         sharpness: v[9],
         intensity: v[10],
       };
+      re.colorScale = v[11];
     }
     return re;
   } else {
@@ -150,6 +155,7 @@ export class PpsController {
       params.size,
       params.particleDensity,
       ...fromBorderSize(params.borderSize),
+      params.colorScale,
     ];
   };
 
@@ -240,6 +246,13 @@ export class PpsController {
       max: 100,
       step: 0.1,
       update: this.updater("borderIntensity"),
+    },
+    {
+      title: "Color Scaler",
+      min: 0.01,
+      max: 16,
+      step: 0.01,
+      update: this.updater("colorScale"),
     },
   ];
 }

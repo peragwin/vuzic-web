@@ -17,7 +17,6 @@ const thresholdShader = (
 precision highp float;
 
 #define GRID_SIZE ${gridSize}
-// #define GROUP_SIZE ${gridSize * gridSize}
 #define PASSES ${passes}
 
 layout (local_size_x = GRID_SIZE, local_size_y = GRID_SIZE, local_size_z = 1) in;
@@ -76,12 +75,12 @@ void main() {
   }
 
   if (threadIndex == 0) {
-    float std = sqrt(variance[varianceIndex(0, PASSES)] / gridSize);
+    float std = sqrt(variance[varianceIndex(0, PASSES)]) / float(GRID_SIZE);
     
     float cellsInRadius = ceil(uRadius * float(GRID_SIZE));
-    float c2 = cellsInRadius * cellsInRadius;
-    float particlesInRadius = c2 * mean;
-    float dev = c2 * std;
+    float c3 = cellsInRadius * cellsInRadius * cellsInRadius;
+    float particlesInRadius = c3 * mean;
+    float dev = c3 * std;
 
     for (int i = 0; i < 5; i++) {
       float th = (-1.0 + float(i)) * dev / 4.;

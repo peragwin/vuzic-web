@@ -89,6 +89,8 @@ uniform float uBeta;
 uniform float uRadius;
 uniform float uVelocity;
 uniform float uRadialDecay;
+uniform float uColorScale;
+
 uniform uColorThresholdBlock {
   float uColorThresholds[5];
 };
@@ -237,7 +239,7 @@ vec3 integrate(in vec3 pos, in vec3 vel) {
 }
 
 float getColor(in float count) {
-  count /= float(uGridSize);
+  count /= uColorScale;
   float[] t = uColorThresholds;
 
   /*
@@ -279,11 +281,30 @@ ivec3 toIEEE(in vec3 v) {
   return ivec3(floatBitsToInt(v.x), floatBitsToInt(v.y), floatBitsToInt(v.z));
 }
 
+bool isnanv(in vec3 v) {
+  return isnan(v.x) || isinf(v.x) ||
+    isnan(v.y) || isinf(v.y) ||
+    isnan(v.z) || isinf(v.z);
+}
+
+void fixNaN(inout vec3 v, in vec3 fix) {
+  if (isnan(v.x) || isinf(v.x)) v.x = fix.x;
+  if (isnan(v.y) || isinf(v.y)) v.y = fix.y;
+  if (isnan(v.z) || isinf(v.z)) v.z = fix.z;
+}
+
 void main() {
   ivec2 index = ivec2(gl_FragCoord.xy);
   vec3 pos = fetch(texPositions, index);
   vec3 vel = fetch(texVelocities, index);
   vec3 ori = fetch(texOrientations, index);
+
+  fixNaN(pos, gl_FragCoord.xyz / vec3(uStateSize, 1.));
+  if (isnanv(vel) || isnanv(ori)) {
+    fixNaN(vel, vec3(1., 0., 0.));
+    fixNaN(ori, vec3(0., 1., 0.));
+    ori = normalize(cross(vel, ori));
+  }
 
   // pos = vec3(pos.xy, 0.);
   // ori = normalize(vec3(0., 0., ori.z));

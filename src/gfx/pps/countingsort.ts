@@ -1,5 +1,7 @@
 const fromSpace = (x: number) => (x + 1) / 2;
 
+// const fixNaN = (x: number) => (Number.isNaN(x) ? 0 : x);
+
 export type CountingSorter = (
   p: Float32Array
 ) => { count: Int32Array; output: Float32Array };
@@ -24,7 +26,7 @@ export const countingSort = (size: number, stride: number = 4) => {
     const count = new Int32Array(stride * k);
 
     for (let i = 0; i < positions.length; i += stride) {
-      const p = positions.slice(i, i + 3);
+      const p = positions.slice(i, i + 3); //.map(fixNaN);
       count[stride * index(p[0], p[1], p[2])] += 1;
     }
 
@@ -38,7 +40,7 @@ export const countingSort = (size: number, stride: number = 4) => {
     const output = new Float32Array(positions.length);
 
     for (let i = 0; i < positions.length; i += stride) {
-      const p = positions.slice(i, i + 3);
+      const p = positions.slice(i, i + 3); //.map(fixNaN);
       const j = stride * index(p[0], p[1], p[2]) + 1;
       const x = count[j];
       output.set(p, stride * x);

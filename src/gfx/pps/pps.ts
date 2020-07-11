@@ -37,6 +37,7 @@ export const defaultParams = {
   particles: +(process.env.REACT_APP_INIT_PARTICLES || "8192"),
   palette: "default",
   borderSize: { radius: 1, sharpness: 2, intensity: 1 },
+  colorScale: 1,
   version: "v0.3" as ParamsVersion,
 };
 
@@ -51,6 +52,7 @@ export type RenderParams = {
   particles: number;
   palette: string;
   borderSize: BorderSize;
+  colorScale: number;
   version: ParamsVersion;
 };
 
@@ -285,7 +287,7 @@ export class PPS {
       this.gl = gl;
     } else {
       console.info("webgl2-compute is supported");
-      // this.computeEnabled = true;
+      this.computeEnabled = true;
       this.gl = cgl;
     }
 
@@ -406,6 +408,7 @@ export class PPS {
     gfx.attachUniform("uRadius", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uVelocity", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uRadialDecay", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniform("uColorScale", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniformBlock("uColorThresholdBlock", 0);
 
     this.textures.positions.forEach((p) =>
@@ -451,6 +454,7 @@ export class PPS {
           gfx.bindUniform("uRadius", this.params.radius);
           gfx.bindUniform("uVelocity", this.params.velocity);
           gfx.bindUniform("uRadialDecay", this.params.radialDecay);
+          gfx.bindUniform("uColorScale", this.params.colorScale);
           gfx.bindUniformBuffer("uColorThresholdBlock", this.uColorThresholds);
           let s = 1 - this.swap;
           gfx.bindTexture(this.textures.positions[s], 0);
@@ -576,9 +580,9 @@ export class PPS {
       this.updateColorThresholds(sort.count);
     }
 
-    // if (this.frameCount % 640 === 0) {
-    // console.log(sort.output.slice(0, 100));
-    // }
+    if (this.frameCount % 640 === 0) {
+      console.log(sort);
+    }
   }
 
   private lastTime: number = 0;
@@ -634,7 +638,7 @@ export class PPS {
   }
 
   async updateColorThresholds(count: Int32Array) {
-    const [mean, std] = getCountStatistics(count);
+    const [mean, std] = getCountStatistics(count, this.gridSize);
     const cellsInRadius = Math.ceil(this.params.radius * this.gridSize);
     const thresholds = getColorThresholds(mean, std, cellsInRadius);
     this.uColorThresholds.update(new Float32Array(thresholds));
@@ -647,30 +651,30 @@ export class PPS {
   }
 }
 
-function getCountStatistics(countData: Int32Array) {
+function getCountStatistics(countData: Int32Array, gridSize: number) {
   let sum = 0;
-  for (let i = 0; i < countData.length; i += 2) {
+  for (let i = 0; i < countData.length; i += 4) {
     const c = countData[i];
     sum += c;
   }
 
-  const mean = (sum / countData.length) * 2;
+  const mean = (sum / countData.length) * 4;
 
   sum = 0;
-  for (let i = 0; i < countData.length; i += 2) {
+  for (let i = 0; i < countData.length; i += 4) {
     let dev = countData[i] - mean;
     sum += dev * dev;
   }
 
-  const std = Math.sqrt((sum / countData.length) * 2);
+  const std = Math.sqrt((sum / countData.length) * 4);
 
   return [mean, std];
 }
 
 function getColorThresholds(mean: number, std: number, cellsInRadius: number) {
-  const c2 = cellsInRadius * cellsInRadius;
-  const particlesInRadius = mean * c2;
-  const dev = std * c2;
+  const c3 = cellsInRadius * cellsInRadius * cellsInRadius;
+  const particlesInRadius = mean * c3;
+  const dev = std * c3;
 
   let thresholds = [];
   for (let i = 0; i < 5; i++) {
