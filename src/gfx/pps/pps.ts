@@ -6,6 +6,7 @@ import {
   CanvasObject,
   FramebufferObject,
   UniformBuffer,
+  Texture3DObject,
 } from "../graphics";
 import {
   drawVertShader,
@@ -18,6 +19,9 @@ import { countingSort } from "./countingsort";
 import { GradientField, BorderSize } from "./gradientField";
 import { Debug } from "../debug";
 import { CountingSortComputer } from "./countingshader";
+import { Camera } from "../util/camera";
+import { vec3, mat4 } from "gl-matrix";
+import { CameraController } from "../util/cameraController";
 
 export const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 const TEX_WIDTH = 1024;
@@ -58,8 +62,9 @@ interface ColorParams {
 class Textures {
   positions: TextureObject[];
   velocities: TextureObject[];
+  orientations: TextureObject[];
   sortedPositions: TextureObject;
-  countedPositions: TextureObject;
+  countedPositions: Texture3DObject;
 
   palette: TextureObject;
   colors: TextureObject;
@@ -69,7 +74,6 @@ class Textures {
     gridSize: number,
     computeEnabled: boolean
   ) {
-    // format is x0, y0, x1, y1, ...
     // RGBA32I is required by compute shader
     this.positions = Array.from(Array(2)).map(
       (_) =>
@@ -84,12 +88,26 @@ class Textures {
         })
     );
 
+    // RGBA32I is required (I'm guessing) because of alignment issues
     this.velocities = Array.from(Array(2)).map(
       (_) =>
         new TextureObject(gl, {
           mode: gl.NEAREST,
-          internalFormat: gl.RG32I,
-          format: gl.RG_INTEGER,
+          internalFormat: gl.RGBA32I,
+          format: gl.RGBA_INTEGER,
+          type: gl.INT,
+          immutable: computeEnabled,
+          width: TEX_WIDTH,
+          height: TEX_WIDTH,
+        })
+    );
+
+    this.orientations = Array.from(Array(2)).map(
+      (_) =>
+        new TextureObject(gl, {
+          mode: gl.NEAREST,
+          internalFormat: gl.RGBA32I,
+          format: gl.RGBA_INTEGER,
           type: gl.INT,
           immutable: computeEnabled,
           width: TEX_WIDTH,
@@ -107,7 +125,7 @@ class Textures {
       height: TEX_WIDTH,
     });
 
-    this.countedPositions = new TextureObject(gl, {
+    this.countedPositions = new Texture3DObject(gl, {
       mode: gl.NEAREST,
       internalFormat: gl.RGBA32I,
       format: gl.RGBA_INTEGER,
@@ -115,6 +133,7 @@ class Textures {
       immutable: computeEnabled,
       width: gridSize,
       height: gridSize,
+      depth: gridSize,
     });
 
     this.palette = new TextureObject(gl, {
@@ -146,39 +165,52 @@ class Textures {
     const pbuf = new ArrayBuffer(particles * 4 * 4);
     const pstate = new Float32Array(pbuf);
     pstate.forEach((_, i, data) => {
-      const xory = i % 2 === 0;
-      if (xory) {
-        data[i] = Math.random();
-      } else {
-        data[i] = Math.random();
-      }
-      data[i] = 2 * data[i] - 1 + Math.random() * 0.05;
+      data[i] = 2 * Math.random() - 1;
+      // if (i % 4 === 2) data[i] = 0;
     });
     this.positions.forEach((p) => {
       p.updateData(width, height, new Int32Array(pbuf));
     });
 
-    const vbuf = new ArrayBuffer(particles * 2 * 4);
+    const vecSize = 4;
+
+    const vbuf = new ArrayBuffer(particles * vecSize * 4);
     const vstate = new Float32Array(vbuf);
     vstate.forEach((_, i, data) => {
-      if (i % 2 === 0) {
-        const vx = Math.random();
-        const vy = Math.random();
-        const norm = Math.sqrt(vx * vx + vy * vy);
-        data[i] = vx / norm;
-        data[i + 1] = vy / norm;
+      if (i % vecSize === 0) {
+        const v = vec3.fromValues(Math.random(), Math.random(), Math.random());
+        vec3.normalize(v, v);
+        data.set(v, i);
       }
     });
     this.velocities.forEach((v) => {
       v.updateData(width, height, new Int32Array(vbuf));
     });
 
-    const countData = new Int32Array(gridSize * gridSize * 4);
+    const obuf = new ArrayBuffer(particles * vecSize * 4);
+    const ostate = new Float32Array(obuf);
+    ostate.forEach((_, i, data) => {
+      if (i % vecSize === 0) {
+        const vel = vstate.slice(i, i + 3) as vec3;
+        const u = vec3.fromValues(Math.random(), Math.random(), Math.random());
+
+        const ori = vec3.fromValues(0, 0, 1);
+        vec3.cross(ori, vel, u);
+        vec3.normalize(ori, ori);
+
+        data.set(ori, i);
+      }
+    });
+    this.orientations.forEach((o) => {
+      o.updateData(width, height, new Int32Array(obuf));
+    });
+
+    const gcube = gridSize * gridSize * gridSize;
+    const countData = new Int32Array(gcube * 4);
     for (let i = 0; i < countData.length; i++) {
-      if (i % 4 === 0) countData[i] = particles / (gridSize * gridSize);
+      if (i % 4 === 0) countData[i] = particles / gcube;
       if (i % 4 === 1)
-        countData[i] =
-          ((Math.floor(i / 4) + 1) * particles) / (gridSize * gridSize);
+        countData[i] = ((Math.floor(i / 4) + 1) * particles) / gcube;
     }
 
     this.writeSortedPositions(
@@ -209,7 +241,7 @@ class Textures {
     gridSize: number
   ) {
     const { width, height } = stateSize;
-    this.countedPositions.updateData(gridSize, gridSize, sort.count);
+    this.countedPositions.updateData(gridSize, gridSize, gridSize, sort.count);
     this.sortedPositions.updateData(width, height, sort.output);
   }
 }
@@ -231,7 +263,7 @@ export class PPS {
   private frameBuffers!: FramebufferObject[];
 
   private stateSize!: { width: number; height: number };
-  private gridSize = 64;
+  private gridSize = 16;
   private loopHandle!: number;
   private frameCount = 0;
   public paused = false;
@@ -240,7 +272,10 @@ export class PPS {
   private params: RenderParams;
   private colors!: ColorParams;
 
-  constructor(canvas: HTMLCanvasElement, private onRender: (pps: PPS) => void) {
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private onRender: (pps: PPS) => void
+  ) {
     const cgl = canvas.getContext("webgl2-compute", {
       preserveDrawingBuffer: true,
     });
@@ -250,7 +285,7 @@ export class PPS {
       this.gl = gl;
     } else {
       console.info("webgl2-compute is supported");
-      this.computeEnabled = true;
+      // this.computeEnabled = true;
       this.gl = cgl;
     }
 
@@ -273,14 +308,29 @@ export class PPS {
     this.loop();
   }
 
+  private camera!: Camera;
+  private cameraController!: CameraController;
+  private uCameraMatrix!: UniformBuffer;
+
   private initRender() {
     const gl = this.gl;
     const particles = this.params.particles;
 
-    const canvas = new CanvasObject(gl);
+    const canvas = new CanvasObject(gl, ({ width, height }) =>
+      this.cameraController.setAspect(width / height)
+    );
     const shaderConfigs = [drawFragShader(gl), drawVertShader(gl)];
     const gfx = new Graphics(gl, canvas, shaderConfigs, this.render.bind(this));
     this.renderGfx = gfx;
+
+    this.camera = new Camera((45 * Math.PI) / 180, 1, -1, 1);
+    this.camera.location = vec3.fromValues(0, 0, -2);
+    this.camera.target = vec3.fromValues(0, 0, 0);
+    this.uCameraMatrix = new UniformBuffer(
+      gl,
+      new Float32Array(this.camera.matrix)
+    );
+    this.cameraController = new CameraController(this.camera, this.canvas);
 
     this.textures.positions.map((p) => gfx.attachTexture(p, "texPositions"));
 
@@ -292,12 +342,16 @@ export class PPS {
     );
     gfx.attachUniform("uPointSize", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uAlpha", gl.uniform1f.bind(gl));
+    gfx.attachUniformBlock("uCameraMatrix", 0);
 
     this.textures.positions.forEach((p) =>
       gfx.attachTexture(p, "texPositions")
     );
     gfx.attachTexture(this.textures.colors, "texColors");
     gfx.attachTexture(this.textures.palette, "texPalette");
+
+    const updateCamera = (mat: mat4) =>
+      this.uCameraMatrix.update(new Float32Array(mat));
 
     this.particleVAO = new VertexArrayObject(
       null,
@@ -308,6 +362,8 @@ export class PPS {
         gfx.bindUniform("uStateSize", this.stateSize);
         gfx.bindUniform("uPointSize", this.params.size);
         gfx.bindUniform("uAlpha", this.params.particleDensity);
+        this.cameraController.update(updateCamera);
+        gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
         gfx.bindTexture(this.textures.positions[this.swap], 0);
         gfx.bindTexture(this.textures.colors, 1);
         gfx.bindTexture(this.textures.palette, 2);
@@ -358,14 +414,18 @@ export class PPS {
     this.textures.velocities.forEach((p) =>
       gfx.attachTexture(p, "texVelocities")
     );
+    this.textures.orientations.forEach((p) =>
+      gfx.attachTexture(p, "texOrientations")
+    );
     gfx.attachTexture(this.textures.sortedPositions, "texSortedPositions");
     gfx.attachTexture(this.textures.countedPositions, "texCountedPositions");
-    gfx.attachTexture(this.gradientField.gradientField(), "texGradientField");
+    // gfx.attachTexture(this.gradientField.gradientField(), "texGradientField");
 
     this.frameBuffers.forEach((fb, i) => {
       fb.attach(this.textures.positions[i], 0);
       fb.attach(this.textures.velocities[i], 1);
-      fb.attach(this.textures.colors, 2);
+      fb.attach(this.textures.orientations[i], 2);
+      fb.attach(this.textures.colors, 3);
       fb.bind();
       fb.checkStatus();
     });
@@ -395,9 +455,10 @@ export class PPS {
           let s = 1 - this.swap;
           gfx.bindTexture(this.textures.positions[s], 0);
           gfx.bindTexture(this.textures.velocities[s], 1);
-          gfx.bindTexture(this.textures.sortedPositions, 2);
-          gfx.bindTexture(this.textures.countedPositions, 3);
-          gfx.bindTexture(this.gradientField.gradientField(), 4);
+          gfx.bindTexture(this.textures.orientations[s], 2);
+          gfx.bindTexture(this.textures.sortedPositions, 3);
+          gfx.bindTexture(this.textures.countedPositions, 4);
+          // gfx.bindTexture(this.gradientField.gradientField(), 5);
           return true;
         }
       )
@@ -459,7 +520,8 @@ export class PPS {
 
     this.frameBuffers[tgt].attach(this.textures.positions[tgt], 0);
     this.frameBuffers[tgt].attach(this.textures.velocities[tgt], 1);
-    this.frameBuffers[tgt].attach(this.textures.colors, 2);
+    this.frameBuffers[tgt].attach(this.textures.orientations[tgt], 2);
+    this.frameBuffers[tgt].attach(this.textures.colors, 3);
   }
 
   private calculateSortedPositions(src: number) {
@@ -513,6 +575,10 @@ export class PPS {
     if (this.frameCount % 4 === 0) {
       this.updateColorThresholds(sort.count);
     }
+
+    // if (this.frameCount % 640 === 0) {
+    // console.log(sort.output.slice(0, 100));
+    // }
   }
 
   private lastTime: number = 0;
@@ -524,7 +590,7 @@ export class PPS {
 
     this.onRender(this);
 
-    this.gradientField.update();
+    // this.gradientField.update();
 
     this.calculateSortedPositions(this.swap);
 

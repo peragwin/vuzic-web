@@ -10,20 +10,21 @@ uniform isampler2D texColors;
 uniform sampler2D texPalette;
 uniform ivec2 uStateSize;
 uniform float uPointSize;
+layout (std140) uniform uCameraMatrix {
+  mat4 uvpMatrix;
+};
 
 out vec4 color;
 
 void main() {
   int w = uStateSize.x;
   ivec2 index = ivec2(gl_VertexID % w, gl_VertexID / w);
-  ivec2 ipos = texelFetch(texPositions, index, 0).xy;
-  vec2 position = vec2(intBitsToFloat(ipos.x), intBitsToFloat(ipos.y));
-  gl_Position = vec4(position, 0., 1.);
+  ivec3 ipos = texelFetch(texPositions, index, 0).xyz;
+  vec3 position = vec3(intBitsToFloat(ipos.x), intBitsToFloat(ipos.y), intBitsToFloat(ipos.z));
+  gl_Position = uvpMatrix * vec4(position, 1.);
 
   float cval = intBitsToFloat(texelFetch(texColors, index, 0).r);
-  // cval = .00000000000000001 * cval + 0.0001;
   color = texture(texPalette, vec2(cval, 0.0));
-  // + vec4(1.0, 0.0, 0.0, 1.0);
 
   gl_PointSize = uPointSize;
 }
@@ -71,13 +72,15 @@ const updateFragSrc = `#version 300 es
 precision highp float;
 precision highp int;
 precision highp isampler2D;
-precision highp sampler2D;
+precision highp isampler3D;
+precision highp sampler3D;
 
 uniform isampler2D texPositions;
 uniform isampler2D texVelocities;
+uniform isampler2D texOrientations;
 uniform isampler2D texSortedPositions;
-uniform isampler2D texCountedPositions;
-uniform isampler2D texGradientField;
+uniform isampler3D texCountedPositions;
+// uniform isampler3D texGradientField;
 
 uniform ivec2 uStateSize;
 uniform int uGridSize;
@@ -90,21 +93,22 @@ uniform uColorThresholdBlock {
   float uColorThresholds[5];
 };
 
-layout(location = 0) out ivec2 position;
-layout(location = 1) out ivec2 velocity;
-layout(location = 2) out int color;
+layout(location = 0) out ivec3 position;
+layout(location = 1) out ivec3 velocity;
+layout(location = 2) out ivec3 orientation;
+layout(location = 3) out int color;
 
 struct Bucket {
   int count;
   int index;
 };
 
-vec2 fetch(in isampler2D tex, in ivec2 index) {
-  ivec2 ipos = texelFetch(tex, index, 0).xy;
-  return vec2(intBitsToFloat(ipos.x), intBitsToFloat(ipos.y));
+vec3 fetch(in isampler2D tex, in ivec2 index) {
+  ivec3 ipos = texelFetch(tex, index, 0).xyz;
+  return vec3(intBitsToFloat(ipos.x), intBitsToFloat(ipos.y), intBitsToFloat(ipos.z));
 }
 
-Bucket fetchCount(in isampler2D tex, in ivec2 cell) {
+Bucket fetchCount(in isampler3D tex, in ivec3 cell) {
   ivec2 count = texelFetch(tex, cell, 0).xy;
   Bucket b;
   b.count = count.x;
@@ -112,56 +116,69 @@ Bucket fetchCount(in isampler2D tex, in ivec2 cell) {
   return b;
 }
 
-vec2 fetchGradientValue(in vec2 xy) {
-  vec2 uv = 0.5 * (xy + 1.);
-  ivec2 di = texture(texGradientField, uv).rg;
-  return vec2(intBitsToFloat(di.x), intBitsToFloat(di.y));
+// vec3 fetchGradientValue(in vec3 xyz) {
+//   vec3 uvw = 0.5 * (xyz + 1.);
+//   ivec3 di = texture(texGradientField, uvw).xyz;
+//   return vec3(intBitsToFloat(di.x), intBitsToFloat(di.y), intBitsToFloat(di.z));
+// }
+
+ivec3 cellCoord(in vec3 pos, float gridSize) {
+  vec3 ipos = floor((pos + 1.) / 2. * gridSize);
+  return ivec3(ipos);
 }
 
-ivec2 cellCoord(in vec2 pos, float gridSize) {
-  vec2 ipos = floor((pos + 1.) / 2. * gridSize);
-  return ivec2(ipos);
+ivec3 wrap(in ivec3 coord, int gridSize) {
+  return coord % ivec3(gridSize);
 }
 
-ivec2 wrap(in ivec2 coord, int gridSize) {
-  return coord % ivec2(gridSize, gridSize);
-}
-
-int cellIndex(in ivec2 coord, int gridSize) {
-  return coord.x + coord.y * gridSize;
-}
-
-vec2 fetchIndex(in isampler2D tex, in int index) {
+vec3 fetchIndex(in isampler2D tex, in int index) {
   ivec2 findex = ivec2(index % uStateSize.x, index / uStateSize.x);
   return fetch(tex, findex);
 }
 
-vec2 wrapDistance(vec2 r) {
-  vec2 a = abs(r);
-  a = step(vec2(1.), a) * (2. - a) + step(a, vec2(1.)) * a;
+vec3 wrapDistance(vec3 r) {
+  vec3 a = abs(r);
+  a = step(vec3(1.), a) * (2. - a) + step(a, vec3(1.)) * a;
   return sign(r) * a;
 }
 
+mat3 particleViewMatrix(in vec3 vel, in vec3 ori) {
+  vec3 u = normalize(cross(vel, ori));
+  vec3 v = normalize(ori);
+  vec3 w = normalize(vel);
+  return transpose(mat3(u, v, w));
+}
+
 // head-twisty logic for (r > 0 && lenght(r) <= radius) && (ang < 0 ? (1, 0) : (0, 1))
-vec2 countNeighbor(in vec2 aPos, in vec2 aVel, in vec2 bPos, float radius) {
-  vec2 r = aPos - bPos;
+// the direction of r is expected to be relative a particle oriented such that 
+// forward = (0,0,1) and up = (0,1,0)
+vec4 countNeighbor(in vec3 r, in float radius) {
   // r = wrapDistance(r);
-  float ang = aVel.x * r.y - aVel.y * r.x;
-  float rl = r.x*r.x + r.y*r.y;
+  float rl = dot(r, r);
   float r2 = radius*radius;
   float damp = 1. - uRadialDecay * rl;
   damp = damp * step(0., damp);
-  return damp * step(rl, r2) * (vec2(-1., 1.) * sign(ang) + 1.) / 2.;
+  return damp * step(rl, r2) * (
+    vec4(1., -1., 0., 0.) * sign(r.x) +
+    vec4(0., 0., 1., -1.) * sign(r.y)
+  + 1.) / 2.;
 }
 
-vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos, in vec2 aVel) {
-  vec2 count = vec2(0.);
+vec4 countNeighbors(in vec3 aPos, in mat3 pView) {
+  vec4 count = vec4(0.); // [left, right, above, below]
   float gridSize = float(uGridSize);
-  ivec2 aCell = cellCoord(aPos, gridSize);
-  ivec2 bCell;
+  ivec3 aCell = cellCoord(aPos, gridSize);
+  ivec3 bCell;
   Bucket bucket;
-  ivec2 bIndex;
-  vec2 bPos;
+  vec3 bPos;
+
+  // sanity check
+  // if (dot(pView * aVel, vec3(1., 1., 0.)) > 0.01) {
+  //   return count;
+  // }
+  // if (dot(pView * aOri, vec3(1., 0., 1.)) >= 0.01) {
+  //   return count;
+  // }
 
   // gridRadius is how many extra cells we need to scan in addition to our own
   int gridRadius = int(ceil(uRadius * gridSize / 2.));
@@ -169,14 +186,18 @@ vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos, in vec2 aVel) {
   // apparently this can be a lot better if its using a lut to avoid branching
   for (int x = -gridRadius; x <= gridRadius; x++) {
     for (int y = -gridRadius; y <= gridRadius; y++) {
-      bCell = wrap(aCell + ivec2(x, y), uGridSize);
-      bucket = fetchCount(texCountedPositions, bCell);
+      for (int z = -gridRadius; z <= gridRadius; z++) {
+        bCell = wrap(aCell + ivec3(x, y, z), uGridSize);
+        bucket = fetchCount(texCountedPositions, bCell);
 
-      for (int i = 0; i < bucket.count; i++) {
-        bPos = fetchIndex(texSortedPositions, bucket.index+i);
+        for (int i = 0; i < bucket.count; i++) {
+          bPos = fetchIndex(texSortedPositions, bucket.index+i);
+          vec3 r = aPos - bPos;
+          r = pView * r;
 
-        // increment left or right count if B is within uRadius of A
-        count += countNeighbor(aPos, aVel, bPos, uRadius);
+          // increment left or right count if B is within uRadius of A
+          count += countNeighbor(r, uRadius);
+        }
       }
     }
   }
@@ -184,26 +205,39 @@ vec2 countNeighbors(in ivec2 aIndex, in vec2 aPos, in vec2 aVel) {
   return count;
 }
 
-float deltaTheta(vec2 count) {
-  float sum = count.x + count.y;
-  float diff = count.y - count.x;
+vec2 deltaTheta(vec4 count) {
+  vec2 sum = vec2(count.x + count.y, count.z + count.w);
+  vec2 diff = vec2(count.y - count.x, count.w - count.z);
   return uAlpha + uBeta * sum * sign(diff);
 }
 
-mat2 rotate2d(float angle){
+mat2 rotate2d(float angle) {
   return mat2(cos(angle), -sin(angle),
               sin(angle),  cos(angle));
 }
 
-vec2 integrate(in vec2 pos, in vec2 vel) {
-  vec2 avel = vel + fetchGradientValue(pos);
+mat3 rotate3d(vec2 angle) {
+  // angle = 0.00001 * angle;
+  // matricies are column major, so these should appear transposed
+  mat3 rotY = mat3( cos(angle.s),  0.,           -sin(angle.s),
+                    0.,            1.,            0.,
+                    sin(angle.s),  0.,            cos(angle.s));
+  mat3 rotX = mat3( 1.,            0.,            0.,
+                    0.,            cos(angle.t),  sin(angle.t),
+                    0.,           -sin(angle.t),  cos(angle.t));
+  return rotY * rotX;
+}
+
+vec3 integrate(in vec3 pos, in vec3 vel) {
+  vec3 avel = vel; // + fetchGradientValue(pos);
   pos += avel * uVelocity;
   // return pos;
-  vec2 apos = pos + 1.0;
+  vec3 apos = pos + 1.0;
   return mod(apos, 2.0) - 1.0;
 }
 
 float getColor(in float count) {
+  count /= float(uGridSize);
   float[] t = uColorThresholds;
 
   /*
@@ -241,24 +275,33 @@ float getColor(in float count) {
   return mix(poly, lerp, 1.0);
 }
 
-ivec2 toIEEE(in vec2 v) {
-  return ivec2(floatBitsToInt(v.x), floatBitsToInt(v.y));
+ivec3 toIEEE(in vec3 v) {
+  return ivec3(floatBitsToInt(v.x), floatBitsToInt(v.y), floatBitsToInt(v.z));
 }
 
 void main() {
   ivec2 index = ivec2(gl_FragCoord.xy);
-  vec2 pos = fetch(texPositions, index);
-  vec2 vel = fetch(texVelocities, index);
+  vec3 pos = fetch(texPositions, index);
+  vec3 vel = fetch(texVelocities, index);
+  vec3 ori = fetch(texOrientations, index);
 
-  vec2 count = countNeighbors(index, pos, vel);
-  float dtheta = deltaTheta(count);
+  // pos = vec3(pos.xy, 0.);
+  // ori = normalize(vec3(0., 0., ori.z));
 
-  mat2 rot = rotate2d(dtheta);
-  vel = rot * vel;
+  mat3 pView = particleViewMatrix(vel, ori);
+
+  vec4 count = countNeighbors(pos, pView);
+  vec2 dtheta = deltaTheta(count);
+
+  mat3 rot = transpose(pView) * rotate3d(dtheta) * pView;
+  
+  vel = normalize(rot * vel);
+  ori = normalize(rot * ori);
   pos = integrate(pos, vel);
 
   position = toIEEE(pos);
   velocity = toIEEE(vel);
+  orientation = toIEEE(ori);
   color = floatBitsToInt(getColor(count.x + count.y));
 }
 `;

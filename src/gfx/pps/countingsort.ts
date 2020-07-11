@@ -8,22 +8,24 @@ export type CountingSorter = (
 // @input is Float32Array of vec2(x,y) pairs normalized in the range [-1, 1].
 // @output is an Int32Array of ivec(count, startIndex+count) pairs and
 // the sorted Float32Array of vec2(x,y) pairs.
-export const countingSort = (size: number, stride: number = 2) => {
-  const index = (w: number, h: number) => {
+export const countingSort = (size: number, stride: number = 4) => {
+  const index = (w: number, h: number, z: number) => {
     w = fromSpace(w);
     h = fromSpace(h);
+    z = fromSpace(z);
     w = Math.floor(w * size);
     h = Math.floor(h * size);
-    return w + size * h;
+    z = Math.floor(z * size);
+    return w + size * h + size * size * z;
   };
-  const k = size * size;
+  const k = size * size * size;
 
   return (positions: Float32Array) => {
     const count = new Int32Array(stride * k);
 
     for (let i = 0; i < positions.length; i += stride) {
-      const p = positions.slice(i, i + 2);
-      count[stride * index(p[0], p[1])] += 1;
+      const p = positions.slice(i, i + 3);
+      count[stride * index(p[0], p[1], p[2])] += 1;
     }
 
     let total = 0;
@@ -36,8 +38,8 @@ export const countingSort = (size: number, stride: number = 2) => {
     const output = new Float32Array(positions.length);
 
     for (let i = 0; i < positions.length; i += stride) {
-      const p = positions.slice(i, i + 2);
-      const j = stride * index(p[0], p[1]) + 1;
+      const p = positions.slice(i, i + 3);
+      const j = stride * index(p[0], p[1], p[2]) + 1;
       const x = count[j];
       output.set(p, stride * x);
       count[j] = x + 1;
@@ -47,11 +49,11 @@ export const countingSort = (size: number, stride: number = 2) => {
   };
 };
 
-/*
-const test = () => {
-  const test = new Float32Array(256);
-  test.forEach((_, i, test) => (test[i] = 2 * Math.random() - 1));
-  const sorted = countingSort({ width: 4, height: 4 })(test);
-  console.log(sorted);
-};
-*/
+// const test = () => {
+//   const test = new Float32Array(256);
+//   test.forEach((_, i, test) => (test[i] = 2 * Math.random() - 1));
+//   const sorted = countingSort(4, 4, true)(test);
+//   console.log(sorted);
+// };
+
+// test();

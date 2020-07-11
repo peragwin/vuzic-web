@@ -3,10 +3,11 @@ export interface TextureConfig {
   internalFormat: number;
   format: number;
   type: number;
-  wrap?: { s: number; t: number };
+  wrap?: { s: number; t: number; r?: number };
   immutable?: boolean;
   width?: number;
   height?: number;
+  depth?: number;
 }
 export class TextureObject {
   readonly tex: WebGLTexture;
@@ -120,7 +121,125 @@ export class TextureObject {
   }
 }
 
-type UniformAssignable = TextureObject | string;
+export class Texture3DObject {
+  readonly tex: WebGLTexture;
+
+  constructor(
+    readonly gl: WebGL2RenderingContext | WebGL2ComputeRenderingContext,
+    readonly cfg: TextureConfig
+  ) {
+    const tex = gl.createTexture();
+    if (!tex) throw new Error("failed to create new texture");
+    this.tex = tex;
+
+    gl.bindTexture(gl.TEXTURE_3D, tex);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, cfg.mode);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, cfg.mode);
+    let wrap = {
+      s: gl.CLAMP_TO_EDGE,
+      t: gl.CLAMP_TO_EDGE,
+      r: gl.CLAMP_TO_EDGE,
+      ...(cfg.wrap || {}),
+    };
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, wrap.s);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, wrap.t);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, wrap.r);
+
+    if (cfg.immutable) {
+      if (
+        cfg.width === undefined ||
+        cfg.height === undefined ||
+        cfg.depth === undefined
+      ) {
+        throw new Error(
+          "immutable texture requires cfg width, height, and depth"
+        );
+      }
+      gl.texStorage3D(
+        gl.TEXTURE_3D,
+        1,
+        cfg.internalFormat,
+        cfg.width,
+        cfg.height,
+        cfg.depth
+      );
+    }
+  }
+
+  public bind(unit: number) {
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_3D, this.tex);
+  }
+
+  public bindImage(unit: number, access: number) {
+    const gl = this.gl;
+    if ("bindImageTexture" in gl) {
+      gl.bindImageTexture(
+        unit,
+        this.tex,
+        0,
+        true,
+        0,
+        access,
+        this.cfg.internalFormat
+      );
+    } else {
+      throw new Error("bindImage requires webgl2-compute context");
+    }
+  }
+
+  public update(image: ImageData, unit: number = 0) {
+    return this.updateData(
+      this.cfg.width || 0,
+      this.cfg.height || 0,
+      this.cfg.depth || 0,
+      image.data,
+      unit
+    );
+  }
+
+  public updateData(
+    width: number,
+    height: number,
+    depth: number,
+    data: ArrayBufferView,
+    unit: number = 0
+  ) {
+    const { gl, cfg } = this;
+    this.bind(unit);
+    if (this.cfg.immutable) {
+      gl.texSubImage3D(
+        gl.TEXTURE_3D,
+        0,
+        0,
+        0,
+        0,
+        width,
+        height,
+        depth,
+        cfg.format,
+        cfg.type,
+        data
+      );
+    } else {
+      gl.texImage3D(
+        gl.TEXTURE_3D,
+        0,
+        cfg.internalFormat,
+        width,
+        height,
+        depth,
+        0,
+        cfg.format,
+        cfg.type,
+        data
+      );
+    }
+  }
+}
+
+type UniformAssignable = TextureObject | Texture3DObject | string;
 
 class Uniform {
   private uloc: WebGLUniformLocation;
@@ -307,7 +426,10 @@ export class FramebufferObject extends RenderTarget {
 export class CanvasObject extends RenderTarget {
   private canvas: HTMLCanvasElement | OffscreenCanvas;
 
-  constructor(private gl: WebGL2RenderingContext) {
+  constructor(
+    private gl: WebGL2RenderingContext,
+    private onResize?: (size: { width: number; height: number }) => void
+  ) {
     super();
     this.canvas = gl.canvas;
   }
@@ -320,6 +442,9 @@ export class CanvasObject extends RenderTarget {
       if (w !== canvas.width || h !== canvas.height) {
         canvas.width = w;
         canvas.height = h;
+        if (this.onResize) {
+          this.onResize({ width: w, height: h });
+        }
       }
     }
   }
@@ -472,7 +597,7 @@ export class Graphics {
   }
 
   // associates the texture with the uniform of the given name
-  public attachTexture(tex: TextureObject, uname: string) {
+  public attachTexture(tex: TextureObject | Texture3DObject, uname: string) {
     this.uniforms.set(
       tex,
       new Uniform(this.gl, this.program, uname, (l, v: number) => {
@@ -482,7 +607,7 @@ export class Graphics {
     );
   }
 
-  public bindTexture(tex: TextureObject, unit: number) {
+  public bindTexture(tex: TextureObject | Texture3DObject, unit: number) {
     const u = this.uniforms.get(tex);
     if (!u) throw new Error(`texture ${tex} is not attached to any uniform`);
     u.bind(unit);
