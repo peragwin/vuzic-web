@@ -77,7 +77,7 @@ void main() {
   if (threadIndex == 0) {
     float std = sqrt(variance[varianceIndex(0, PASSES)]) / float(GRID_SIZE);
     
-    float cellsInRadius = ceil(uRadius * float(GRID_SIZE));
+    float cellsInRadius = uRadius * float(GRID_SIZE);
     float c3 = cellsInRadius * cellsInRadius * cellsInRadius;
     float particlesInRadius = c3 * mean;
     float dev = c3 * std;

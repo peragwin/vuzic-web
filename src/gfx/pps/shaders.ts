@@ -44,7 +44,8 @@ out vec4 fragColor;
 void main() {
   vec2 p =  2. * gl_PointCoord.xy - 1.;
   float r = length(p);
-  float a = 1. - r*r;
+  // float a = 1. / (1. + r*r); ??
+  float a = 1. - pow(r, 3.);
   fragColor = vec4(a * color.rgb, uAlpha);
 }
 `;
@@ -84,8 +85,8 @@ uniform isampler3D texCountedPositions;
 
 uniform ivec2 uStateSize;
 uniform int uGridSize;
-uniform float uAlpha;
-uniform float uBeta;
+uniform vec2 uAlpha;
+uniform vec2 uBeta;
 uniform float uRadius;
 uniform float uVelocity;
 uniform float uRadialDecay;
@@ -218,6 +219,8 @@ Compare compareNeighbors(in ivec2 index, in vec3 aPos, in mat3 pView) {
 
           bPos = fetchIndex(texSortedPositions, bIndex);
           vec3 r = aPos - bPos;
+          if (length(r) > uRadius) continue;
+
           r = pView * r;
 
           bVel = fetchIndex(texVelocities, bIndex);
@@ -235,11 +238,17 @@ Compare compareNeighbors(in ivec2 index, in vec3 aPos, in mat3 pView) {
   return compare;
 }
 
+vec2 fromPolar(in vec2 p) {
+  float s = sin(p.t);
+  float c = cos(p.t);
+  return vec2(p.s * s, p.s * c);
+}
+
 vec2 deltaTheta(in Compare compare) {
   vec4 count = vec4(compare.countX, compare.countY);
   vec2 sum = vec2(count.x + count.y, count.z + count.w);
   vec2 diff = vec2(count.y - count.x, count.w - count.z);
-  return uAlpha + uBeta * sum * sign(diff);
+  return fromPolar(uAlpha) + fromPolar(uBeta) * sum * sign(diff);
 }
 
 void applyGroupVelocity(inout vec3 vel, inout vec3 ori, in vec3 groupVel) {

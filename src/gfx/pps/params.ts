@@ -20,6 +20,8 @@ export type PpsRenderParamKey =
   | "borderIntensity"
   | "colorScale"
   | "groupWeight"
+  | "alphaMix"
+  | "betaMix"
   | "load";
 
 export type ParamsVersion = "v0.1" | "v0.2" | "v0.3" | undefined;
@@ -70,6 +72,10 @@ export const ppsRenderParamsReducer = (
       return { ...state, colorScale: action.value as number };
     case "groupWeight":
       return { ...state, groupWeight: action.value as number };
+    case "alphaMix":
+      return { ...state, alphaMix: toRadians(action.value as number) };
+    case "betaMix":
+      return { ...state, betaMix: toRadians(action.value as number) };
     case "all":
       return {
         ...state,
@@ -95,6 +101,8 @@ export interface ImportRenderParams {
   borderSize?: BorderSize;
   colorScale?: number;
   groupWeight?: number;
+  alphaMix?: number;
+  betaMix?: number;
 }
 
 export const fromExportPpsSettings = (s: ExportPpsSettings) => {
@@ -122,6 +130,8 @@ export const fromExportPpsSettings = (s: ExportPpsSettings) => {
       };
       re.colorScale = v[11];
       re.groupWeight = v[12];
+      if (v[13] !== undefined) re.alphaMix = toRadians(v[13]);
+      if (v[14] !== undefined) re.betaMix = toRadians(v[14]);
     }
     return re;
   } else {
@@ -162,6 +172,8 @@ export class PpsController {
       ...fromBorderSize(params.borderSize),
       params.colorScale,
       params.groupWeight,
+      toDegrees(params.alphaMix),
+      toDegrees(params.betaMix),
     ];
   };
 
@@ -266,6 +278,20 @@ export class PpsController {
       max: 2,
       step: 0.01,
       update: this.updater("groupWeight"),
+    },
+    {
+      title: "Alpha Mix",
+      min: -180,
+      max: 180,
+      step: 0.1,
+      update: this.updater("alphaMix"),
+    },
+    {
+      title: "Beta Mix",
+      min: -180,
+      max: 180,
+      step: 0.1,
+      update: this.updater("betaMix"),
     },
   ];
 }

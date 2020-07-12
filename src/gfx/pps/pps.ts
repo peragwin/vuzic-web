@@ -29,6 +29,8 @@ const TEX_WIDTH = 1024;
 export const defaultParams = {
   alpha: Math.PI,
   beta: (17.0 * Math.PI) / 180.0,
+  alphaMix: 45,
+  betaMix: 45,
   radius: 0.05,
   velocity: 0.0067,
   radialDecay: 0,
@@ -45,6 +47,8 @@ export const defaultParams = {
 export type RenderParams = {
   alpha: number;
   beta: number;
+  alphaMix: number;
+  betaMix: number;
   radius: number;
   velocity: number;
   size: number;
@@ -405,8 +409,8 @@ export class PPS {
         gl.uniform2i(loc, value.width, value.height)
     );
     gfx.attachUniform("uGridSize", (l, v) => gl.uniform1i(l, v));
-    gfx.attachUniform("uAlpha", (l, v) => gl.uniform1f(l, v));
-    gfx.attachUniform("uBeta", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniform("uAlpha", (l, v) => gl.uniform2f(l, v[0], v[1]));
+    gfx.attachUniform("uBeta", (l, v) => gl.uniform2f(l, v[0], v[1]));
     gfx.attachUniform("uRadius", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uVelocity", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uRadialDecay", (l, v) => gl.uniform1f(l, v));
@@ -452,8 +456,8 @@ export class PPS {
         (gfx) => {
           gfx.bindUniform("uStateSize", this.stateSize);
           gfx.bindUniform("uGridSize", this.gridSize);
-          gfx.bindUniform("uAlpha", this.params.alpha);
-          gfx.bindUniform("uBeta", this.params.beta);
+          gfx.bindUniform("uAlpha", [this.params.alpha, this.params.alphaMix]);
+          gfx.bindUniform("uBeta", [this.params.beta, this.params.betaMix]);
           gfx.bindUniform("uRadius", this.params.radius);
           gfx.bindUniform("uVelocity", this.params.velocity);
           gfx.bindUniform("uRadialDecay", this.params.radialDecay);
