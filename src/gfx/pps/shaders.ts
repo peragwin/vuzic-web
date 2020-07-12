@@ -90,6 +90,7 @@ uniform float uRadius;
 uniform float uVelocity;
 uniform float uRadialDecay;
 uniform float uColorScale;
+uniform float uGroupWeight;
 
 uniform uColorThresholdBlock {
   float uColorThresholds[5];
@@ -103,6 +104,13 @@ layout(location = 3) out int color;
 struct Bucket {
   int count;
   int index;
+};
+
+struct Compare {
+  vec2 countX;
+  vec2 countY;
+  vec3 groupVel;
+  vec3 groupOri;
 };
 
 vec3 fetch(in isampler2D tex, in ivec2 index) {
@@ -151,28 +159,39 @@ mat3 particleViewMatrix(in vec3 vel, in vec3 ori) {
   return transpose(mat3(u, v, w));
 }
 
-// head-twisty logic for (r > 0 && lenght(r) <= radius) && (ang < 0 ? (1, 0) : (0, 1))
 // the direction of r is expected to be relative a particle oriented such that 
 // forward = (0,0,1) and up = (0,1,0)
-vec4 countNeighbor(in vec3 r, in float radius) {
-  // r = wrapDistance(r);
+void compareNeighbor(in vec3 r, in float radius, in vec3 bVel, in vec3 bOri, inout Compare compare) {
+  if (r == vec3(0.)) return;
+
+  r = wrapDistance(r);
+  
   float rl = dot(r, r);
   float r2 = radius*radius;
-  float damp = 1. - uRadialDecay * rl;
-  damp = damp * step(0., damp);
-  return damp * step(rl, r2) * (
-    vec4(1., -1., 0., 0.) * sign(r.x) +
-    vec4(0., 0., 1., -1.) * sign(r.y)
-  + 1.) / 2.;
+
+  float damp = 1. / (1. + rl * uRadialDecay* uRadialDecay);
+  float s = damp * step(rl, r2);
+
+  // head-twisty logic for (r > 0 && lenght(r) <= radius) && (ang < 0 ? (1, 0) : (0, 1))
+  compare.countX += s * (vec2(1., -1) * sign(r.x) + 1.) / 2.;
+  compare.countY += s * (vec2(1., -1) * sign(r.y) + 1.) / 2.;
+
+  compare.groupVel += s * bVel;
+  compare.groupOri += s * bOri;
 }
 
-vec4 countNeighbors(in vec3 aPos, in mat3 pView) {
-  vec4 count = vec4(0.); // [left, right, above, below]
+Compare compareNeighbors(in ivec2 index, in vec3 aPos, in mat3 pView) {
+  int aIndex = index.x + int(uStateSize.x) * index.y;
+
+  Compare compare = Compare(vec2(0.), vec2(0.), vec3(0.), vec3(0.));
+
   float gridSize = float(uGridSize);
   ivec3 aCell = cellCoord(aPos, gridSize);
   ivec3 bCell;
   Bucket bucket;
   vec3 bPos;
+  vec3 bVel;
+  vec3 bOri;
 
   // sanity check
   // if (dot(pView * aVel, vec3(1., 1., 0.)) > 0.01) {
@@ -189,28 +208,60 @@ vec4 countNeighbors(in vec3 aPos, in mat3 pView) {
   for (int x = -gridRadius; x <= gridRadius; x++) {
     for (int y = -gridRadius; y <= gridRadius; y++) {
       for (int z = -gridRadius; z <= gridRadius; z++) {
+
         bCell = wrap(aCell + ivec3(x, y, z), uGridSize);
         bucket = fetchCount(texCountedPositions, bCell);
 
         for (int i = 0; i < bucket.count; i++) {
-          bPos = fetchIndex(texSortedPositions, bucket.index+i);
+          int bIndex = bucket.index + i;
+          if (aIndex == bIndex) continue; // don't count self
+
+          bPos = fetchIndex(texSortedPositions, bIndex);
           vec3 r = aPos - bPos;
           r = pView * r;
 
-          // increment left or right count if B is within uRadius of A
-          count += countNeighbor(r, uRadius);
+          bVel = fetchIndex(texVelocities, bIndex);
+          bOri = fetchIndex(texOrientations, bIndex);
+
+          // increment left or right counts and groupVel if B is within uRadius of A
+          compareNeighbor(r, uRadius, bVel, bOri, compare);
         }
       }
     }
   }
 
-  return count;
+
+
+  return compare;
 }
 
-vec2 deltaTheta(vec4 count) {
+vec2 deltaTheta(in Compare compare) {
+  vec4 count = vec4(compare.countX, compare.countY);
   vec2 sum = vec2(count.x + count.y, count.z + count.w);
   vec2 diff = vec2(count.y - count.x, count.w - count.z);
   return uAlpha + uBeta * sum * sign(diff);
+}
+
+void applyGroupVelocity(inout vec3 vel, inout vec3 ori, in vec3 groupVel) {
+  vec3 newVel = normalize(vel + uGroupWeight * groupVel);
+  vec3 raxis = cross(newVel, vel);
+  vec3 taxis = cross(raxis, vel);
+  
+  mat3 U = mat3(normalize(vel), normalize(taxis), normalize(raxis));
+  mat3 V = transpose(U);
+
+  float s = length(raxis);
+  float c = dot(newVel, vel);
+  mat3 rot = mat3( c, s, 0., -s, c, 0., 0., 0., 1. );
+
+  ori = U * rot * V * ori;
+  vel = newVel;
+}
+
+void applyGroupOrientation(in vec3 vel, inout vec3 ori, in vec3 groupOri) {
+  vec3 newOri = ori + uGroupWeight * groupOri;
+  // project newOri onto the plane orthoganal to vel by subtracting the component in line with vel
+  ori = newOri - dot(newOri, vel) * vel;
 }
 
 mat2 rotate2d(float angle) {
@@ -241,40 +292,13 @@ vec3 integrate(in vec3 pos, in vec3 vel) {
 float getColor(in float count) {
   count /= uColorScale;
   float[] t = uColorThresholds;
-
-  /*
-    using 5th order polynomial interpolation.
-    this is suuuper cool but sometimes numerically unstable,
-    i'm mixing it with simple lerp between points and this seems alright
-  */
-
-  // y0 here is just 0.0
-  // float l0 = (count - t[0]) * (count - t[1]) * (count - t[2]) * (count - t[3])
-  //          / (t[0] * t[1] * t[2] * t[3]);
-
-  float l1 = count * (count - t[1]) * (count - t[2]) * (count - t[3]) //* (count - 1.)
-           / (t[0] * (t[0] - t[1]) * (t[0] - t[2]) * (t[0] - t[3]) ); // * (t[0] - 1.));
-  float l2 = count * (count - t[0]) * (count - t[2]) * (count - t[3]) //* (count - 1.)
-           / (t[1] * (t[1] - t[0]) * (t[1] - t[2]) * (t[1] - t[3]) ); // * (t[1] - 1.));
-  float l3 = count * (count - t[0]) * (count - t[1]) * (count - t[3]) //* (count - 1.)
-           / (t[2] * (t[2] - t[0]) * (t[2] - t[1]) * (t[2] - t[3]) ); // * (t[2] - 1.));
-  float l4 = count * (count - t[0]) * (count - t[1]) * (count - t[2]) //* (count - 1.)
-           / (t[3] * (t[3] - t[0]) * (t[3] - t[1]) * (t[3] - t[2]) ); // * (t[3] - 1.));
-
-  // float l5 = count * (count - t[0]) * (count - t[1]) * (count - t[2]) * (count - t[3])
-  //          / (1. * (1. - t[0]) * (1. - t[1]) * (1. - t[2]) * (1. - t[3]));
-
-  float poly = clamp((0.2 * l1) + (0.4 * l2) + (0.6 * l3) + (0.8 * l4) * sign(l4), 0.0, 1.0);
-
-  float lerp = (
-    (t[0] <= 0. ? 1. : clamp( count         /  t[0]        , 0., 1.)) +
+  return (
+    (t[0] <= 0. ? 1. : clamp( count /  t[0], 0., 1.)) +
     clamp((count - t[0]) / (t[1] - t[0]), 0., 1.) +
     clamp((count - t[1]) / (t[2] - t[1]), 0., 1.) +
     clamp((count - t[2]) / (t[3] - t[2]), 0., 1.) +
     clamp((count - t[3]) / (t[4] - t[3]), 0., 1.)
   ) / 5.;
-
-  return mix(poly, lerp, 1.0);
 }
 
 ivec3 toIEEE(in vec3 v) {
@@ -311,21 +335,67 @@ void main() {
 
   mat3 pView = particleViewMatrix(vel, ori);
 
-  vec4 count = countNeighbors(pos, pView);
-  vec2 dtheta = deltaTheta(count);
-
+  Compare compare = compareNeighbors(index, pos, pView);
+  vec2 dtheta = deltaTheta(compare);
+  
   mat3 rot = transpose(pView) * rotate3d(dtheta) * pView;
   
   vel = normalize(rot * vel);
   ori = normalize(rot * ori);
   pos = integrate(pos, vel);
 
+  applyGroupVelocity(vel, ori, compare.groupVel);
+  // applyGroupOrientation(vel, ori, compare.groupOri);
+
   position = toIEEE(pos);
   velocity = toIEEE(vel);
   orientation = toIEEE(ori);
-  color = floatBitsToInt(getColor(count.x + count.y));
+  color = floatBitsToInt(getColor(compare.countX.x + compare.countY.y));
 }
 `;
 
 export const updateFragShader = (gl: WebGL2RenderingContext) =>
   new ShaderConfig(updateFragSrc, gl.FRAGMENT_SHADER, [], []);
+
+/*
+
+float getColor(in float count) {
+  count /= uColorScale;
+  float[] t = uColorThresholds;
+
+  
+  //  using 5th order polynomial interpolation.
+  //  this is suuuper cool but sometimes numerically unstable,
+  //  i'm mixing it with simple lerp between points and this seems alright
+  
+
+  // y0 here is just 0.0
+  // float l0 = (count - t[0]) * (count - t[1]) * (count - t[2]) * (count - t[3])
+  //          / (t[0] * t[1] * t[2] * t[3]);
+
+  float l1 = count * (count - t[1]) * (count - t[2]) * (count - t[3]) //* (count - 1.)
+           / (t[0] * (t[0] - t[1]) * (t[0] - t[2]) * (t[0] - t[3]) ); // * (t[0] - 1.));
+  float l2 = count * (count - t[0]) * (count - t[2]) * (count - t[3]) //* (count - 1.)
+           / (t[1] * (t[1] - t[0]) * (t[1] - t[2]) * (t[1] - t[3]) ); // * (t[1] - 1.));
+  float l3 = count * (count - t[0]) * (count - t[1]) * (count - t[3]) //* (count - 1.)
+           / (t[2] * (t[2] - t[0]) * (t[2] - t[1]) * (t[2] - t[3]) ); // * (t[2] - 1.));
+  float l4 = count * (count - t[0]) * (count - t[1]) * (count - t[2]) //* (count - 1.)
+           / (t[3] * (t[3] - t[0]) * (t[3] - t[1]) * (t[3] - t[2]) ); // * (t[3] - 1.));
+
+  // float l5 = count * (count - t[0]) * (count - t[1]) * (count - t[2]) * (count - t[3])
+  //          / (1. * (1. - t[0]) * (1. - t[1]) * (1. - t[2]) * (1. - t[3]));
+
+  float poly = clamp((0.2 * l1) + (0.4 * l2) + (0.6 * l3) + (0.8 * l4) * sign(l4), 0.0, 1.0);
+
+  float lerp = (
+    (t[0] <= 0. ? 1. : clamp( count         /  t[0]        , 0., 1.)) +
+    clamp((count - t[0]) / (t[1] - t[0]), 0., 1.) +
+    clamp((count - t[1]) / (t[2] - t[1]), 0., 1.) +
+    clamp((count - t[2]) / (t[3] - t[2]), 0., 1.) +
+    clamp((count - t[3]) / (t[4] - t[3]), 0., 1.)
+  ) / 5.;
+
+  return mix(poly, lerp, 1.0);
+}
+
+*/

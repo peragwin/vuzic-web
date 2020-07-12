@@ -19,6 +19,7 @@ export type PpsRenderParamKey =
   | "borderSharpness"
   | "borderIntensity"
   | "colorScale"
+  | "groupWeight"
   | "load";
 
 export type ParamsVersion = "v0.1" | "v0.2" | "v0.3" | undefined;
@@ -67,6 +68,8 @@ export const ppsRenderParamsReducer = (
       };
     case "colorScale":
       return { ...state, colorScale: action.value as number };
+    case "groupWeight":
+      return { ...state, groupWeight: action.value as number };
     case "all":
       return {
         ...state,
@@ -91,6 +94,7 @@ export interface ImportRenderParams {
   particleDensity?: number;
   borderSize?: BorderSize;
   colorScale?: number;
+  groupWeight?: number;
 }
 
 export const fromExportPpsSettings = (s: ExportPpsSettings) => {
@@ -117,6 +121,7 @@ export const fromExportPpsSettings = (s: ExportPpsSettings) => {
         intensity: v[10],
       };
       re.colorScale = v[11];
+      re.groupWeight = v[12];
     }
     return re;
   } else {
@@ -156,6 +161,7 @@ export class PpsController {
       params.particleDensity,
       ...fromBorderSize(params.borderSize),
       params.colorScale,
+      params.groupWeight,
     ];
   };
 
@@ -253,6 +259,13 @@ export class PpsController {
       max: 16,
       step: 0.01,
       update: this.updater("colorScale"),
+    },
+    {
+      title: "Group Velocity Cohesion",
+      min: -2,
+      max: 2,
+      step: 0.01,
+      update: this.updater("groupWeight"),
     },
   ];
 }

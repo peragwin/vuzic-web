@@ -38,6 +38,7 @@ export const defaultParams = {
   palette: "default",
   borderSize: { radius: 1, sharpness: 2, intensity: 1 },
   colorScale: 1,
+  groupWeight: 0,
   version: "v0.3" as ParamsVersion,
 };
 
@@ -53,6 +54,7 @@ export type RenderParams = {
   palette: string;
   borderSize: BorderSize;
   colorScale: number;
+  groupWeight: number;
   version: ParamsVersion;
 };
 
@@ -409,6 +411,7 @@ export class PPS {
     gfx.attachUniform("uVelocity", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uRadialDecay", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uColorScale", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniform("uGroupWeight", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniformBlock("uColorThresholdBlock", 0);
 
     this.textures.positions.forEach((p) =>
@@ -455,6 +458,7 @@ export class PPS {
           gfx.bindUniform("uVelocity", this.params.velocity);
           gfx.bindUniform("uRadialDecay", this.params.radialDecay);
           gfx.bindUniform("uColorScale", this.params.colorScale);
+          gfx.bindUniform("uGroupWeight", this.params.groupWeight);
           gfx.bindUniformBuffer("uColorThresholdBlock", this.uColorThresholds);
           let s = 1 - this.swap;
           gfx.bindTexture(this.textures.positions[s], 0);
