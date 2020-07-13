@@ -27,9 +27,9 @@ import { CameraController } from "../util/cameraController";
 const sRGBtoLin = (v: number) =>
   v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
 
-const sRGB = (vals: number[]) => vals.map(sRGBtoLin);
-
+// const sRGB = (vals: number[]) => vals.map(sRGBtoLin);
 // const sRGB = (vals: number[]) => vals.map((v) => v * v);
+const sRGB = (x: number[]) => x;
 
 const square = [
   // add degenerate triangle
@@ -67,7 +67,6 @@ interface GridSize {
 }
 
 const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-const Z_SCALE = 0.1;
 
 class Textures {
   readonly image: TextureObject;
@@ -110,7 +109,7 @@ class Textures {
 
     this.hsluv = new TextureObject(gl, {
       mode: gl.LINEAR,
-      internalFormat: gl.RGBA,
+      internalFormat: gl.SRGB8_ALPHA8,
       format: gl.RGBA,
       type: gl.UNSIGNED_BYTE,
       wrap: { s: gl.REPEAT, t: gl.CLAMP_TO_EDGE },
@@ -179,7 +178,7 @@ export class WarpGrid {
     this.gl = gl;
 
     this.camera = new Camera((45 * Math.PI) / 180, 1, -1, 1);
-    this.camera.location = vec3.fromValues(0, 0, -1);
+    this.camera.location = vec3.fromValues(0, 0, -2);
     this.camera.target = vec3.fromValues(0, 0, 0);
     this.uCameraMatrix = new UniformBuffer(
       gl,
@@ -344,7 +343,7 @@ export class WarpGrid {
         (_) => {
           gfx.bindUniform("warp", warp);
           gfx.bindUniform("scale", scale);
-          gfx.bindUniform("uzScale", Z_SCALE);
+          gfx.bindUniform("uzScale", this.params.zscale);
           gfx.bindTexture(this.textures.image, 0);
           gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
           return true;

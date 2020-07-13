@@ -44,8 +44,9 @@ out vec4 fragColor;
 void main() {
   vec2 p =  2. * gl_PointCoord.xy - 1.;
   float r = length(p);
-  // float a = 1. / (1. + r*r); ??
+  // float a = 1. / (1. + r*r);
   float a = 1. - pow(r, 3.);
+  // float a = step(r, 1.);
   fragColor = vec4(a * color.rgb, uAlpha);
 }
 `;
