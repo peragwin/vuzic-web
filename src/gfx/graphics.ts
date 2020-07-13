@@ -191,9 +191,9 @@ export class Texture3DObject {
 
   public update(image: ImageData, unit: number = 0) {
     return this.updateData(
-      this.cfg.width || 0,
-      this.cfg.height || 0,
-      this.cfg.depth || 0,
+      this.cfg.width || 1,
+      this.cfg.height || 1,
+      this.cfg.depth || 1,
       image.data,
       unit
     );

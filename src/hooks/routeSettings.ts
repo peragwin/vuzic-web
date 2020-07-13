@@ -68,7 +68,6 @@ export const useSettingsFromRoute = (
 ) => {
   useEffect(() => {
     const settings = getSettingsFromRoute(visual);
-    console.log("SETTINGS", settings);
     if (settings) {
       manager.update({
         visual,

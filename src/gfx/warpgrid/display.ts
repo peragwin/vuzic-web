@@ -24,8 +24,8 @@ import { CameraController } from "../util/cameraController";
 // const linTosRGB = (v: number) =>
 //   v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
 
-const sRGBtoLin = (v: number) =>
-  v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+// const sRGBtoLin = (v: number) =>
+//   v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
 
 // const sRGB = (vals: number[]) => vals.map(sRGBtoLin);
 // const sRGB = (vals: number[]) => vals.map((v) => v * v);

@@ -255,6 +255,7 @@ export const renderParamReducer = (
     case "all":
       return action.value as RenderParams;
     case "load":
+      if (!action.value) return state;
       const v = action.value as ImportRenderParams;
       return { ...state, ...v };
   }
@@ -296,7 +297,7 @@ export const fromExportWarpSettings = (
       scaleOffset: s[10],
       period: s[11],
       colorCycle: s[12],
-      zscale: s[13],
+      zscale: s[13] || 0,
     };
   } else {
     throw new Error(`could not load warp settings: unknown version ${version}`);

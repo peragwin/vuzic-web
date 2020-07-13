@@ -16,7 +16,7 @@ import {
   PPSMode,
 } from "./shaders";
 import { getPalette, ParamsVersion } from "./params";
-import { countingSort } from "./countingsort";
+import { countingSort, CountingSorter } from "./countingsort";
 import { GradientField, BorderSize } from "./gradientField";
 import { Debug } from "../debug";
 import { CountingSortComputer } from "./countingshader";
@@ -30,8 +30,8 @@ const TEX_WIDTH = 1024;
 export const defaultParams = {
   alpha: Math.PI,
   beta: (17.0 * Math.PI) / 180.0,
-  alphaMix: 45,
-  betaMix: 45,
+  alphaMix: (45.0 * Math.PI) / 180.0,
+  betaMix: (45.0 * Math.PI) / 180.0,
   radius: 0.05,
   velocity: 0.0067,
   radialDecay: 0,
@@ -223,7 +223,8 @@ class Textures {
       o.updateData(width, height, new Int32Array(obuf));
     });
 
-    const gcube = gridSize * gridSize * gridSize;
+    let gcube = gridSize * gridSize;
+    if (mode === "3D") gcube *= gridSize;
     const countData = new Int32Array(gcube * 4);
     for (let i = 0; i < countData.length; i++) {
       if (i % 4 === 0) countData[i] = particles / gcube;
@@ -287,7 +288,7 @@ export class PPS {
   private frameCount = 0;
   public paused = false;
 
-  private countingSort = countingSort(this.gridSize, 4);
+  private countingSort: CountingSorter;
   private params: RenderParams;
   private colors!: ColorParams;
 
@@ -297,6 +298,7 @@ export class PPS {
     private readonly mode: PPSMode = "2D"
   ) {
     this.gridSize = mode === "2D" ? 64 : 16;
+    this.countingSort = countingSort(this.gridSize, 4, mode);
 
     const cgl = canvas.getContext("webgl2-compute", {
       preserveDrawingBuffer: true,
@@ -617,9 +619,9 @@ export class PPS {
       this.updateColorThresholds(sort.count);
     }
 
-    if (this.frameCount % 640 === 0) {
-      console.log(sort);
-    }
+    // if (this.frameCount % 640 === 0) {
+    //   console.log(sort);
+    // }
   }
 
   private lastTime: number = 0;

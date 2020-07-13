@@ -1,6 +1,6 @@
-const fromSpace = (x: number) => (x + 1) / 2;
+import { PPSMode } from "./shaders";
 
-// const fixNaN = (x: number) => (Number.isNaN(x) ? 0 : x);
+const fromSpace = (x: number) => (x + 1) / 2;
 
 export type CountingSorter = (
   p: Float32Array
@@ -10,23 +10,36 @@ export type CountingSorter = (
 // @input is Float32Array of vec2(x,y) pairs normalized in the range [-1, 1].
 // @output is an Int32Array of ivec(count, startIndex+count) pairs and
 // the sorted Float32Array of vec2(x,y) pairs.
-export const countingSort = (size: number, stride: number = 4) => {
-  const index = (w: number, h: number, z: number) => {
+export const countingSort = (
+  size: number,
+  stride: number = 4,
+  mode: PPSMode = "2D"
+) => {
+  let index = (w: number, h: number, z: number) => {
     w = fromSpace(w);
     h = fromSpace(h);
-    z = fromSpace(z);
     w = Math.floor(w * size);
     h = Math.floor(h * size);
-    z = Math.floor(z * size);
-    return w + size * h + size * size * z;
+    return w + size * h;
   };
-  const k = size * size * size;
+  if (mode === "3D") {
+    index = (w: number, h: number, z: number) => {
+      w = fromSpace(w);
+      h = fromSpace(h);
+      z = fromSpace(z);
+      w = Math.floor(w * size);
+      h = Math.floor(h * size);
+      z = Math.floor(z * size);
+      return w + size * h + size * size * z;
+    };
+  }
+  const k = size * size * (mode === "2D" ? 1 : size);
 
   return (positions: Float32Array) => {
     const count = new Int32Array(stride * k);
 
     for (let i = 0; i < positions.length; i += stride) {
-      const p = positions.slice(i, i + 3); //.map(fixNaN);
+      const p = positions.slice(i, i + 3);
       count[stride * index(p[0], p[1], p[2])] += 1;
     }
 
@@ -40,7 +53,7 @@ export const countingSort = (size: number, stride: number = 4) => {
     const output = new Float32Array(positions.length);
 
     for (let i = 0; i < positions.length; i += stride) {
-      const p = positions.slice(i, i + 3); //.map(fixNaN);
+      const p = positions.slice(i, i + 3);
       const j = stride * index(p[0], p[1], p[2]) + 1;
       const x = count[j];
       output.set(p, stride * x);

@@ -82,6 +82,7 @@ export const ppsRenderParamsReducer = (
         ...(action.value as RenderParams),
       };
     case "load":
+      if (!action.value) return state;
       let params = action.value as ImportRenderParams;
       return { ...state, ...params };
   }
@@ -107,7 +108,7 @@ export interface ImportRenderParams {
 
 export const fromExportPpsSettings = (s: ExportPpsSettings) => {
   const version = s[0];
-  console.log("pps", version);
+  console.log("load pps", version);
   if (version === "v0.1" || version === "v0.2" || version === "v0.3") {
     const v = s.slice(1) as number[];
     const re: ImportRenderParams = {
@@ -128,10 +129,10 @@ export const fromExportPpsSettings = (s: ExportPpsSettings) => {
         sharpness: v[9],
         intensity: v[10],
       };
-      re.colorScale = v[11];
-      re.groupWeight = v[12];
-      if (v[13] !== undefined) re.alphaMix = toRadians(v[13]);
-      if (v[14] !== undefined) re.betaMix = toRadians(v[14]);
+      re.colorScale = v[11] === undefined ? 1 : v[11];
+      re.groupWeight = v[12] || 0;
+      re.alphaMix = toRadians(v[13] === undefined ? 45 : v[13]);
+      re.betaMix = toRadians(v[14] === undefined ? 45 : v[14]);
     }
     return re;
   } else {
