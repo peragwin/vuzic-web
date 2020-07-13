@@ -23,6 +23,7 @@ import { VisualOptions } from "../types/types";
 import { AudioParamKey, FilterParams } from "../audio/audio";
 import { ParamSlider, FilterParamSlider } from "./ParamSlider";
 import SaveMenu from "./SaveMenu";
+import { FPSInfo } from "./widgets/FPS";
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -103,7 +104,6 @@ export interface MenuPanelProps {
   visual: VisualOptions;
   manager: Manager;
   captureCanvas: () => string | null;
-  frameRate: number;
   children?: React.ReactNode;
 }
 
@@ -235,9 +235,7 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
                     onChange={c.update}
                   />
                 ))}
-                <Typography variant="overline">
-                  FPS: {props.frameRate}
-                </Typography>
+                <FPSInfo />
               </div>
             </Paper>
           </ClickAwayListener>

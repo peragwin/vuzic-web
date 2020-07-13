@@ -29,6 +29,13 @@ export const useStyles = makeStyles((theme) => ({
     marginTop: theme.spacing(5),
     textShadow: "0px 0px 2px #c8ceffe0",
   },
+  release: {
+    textAlign: "center",
+    fontFamily: "'Poiret One', cursive",
+    fontSize: "1.25rem",
+    marginTop: theme.spacing(1),
+    textShadow: "0px 0px 2px #c8ceffe0",
+  },
   button: {
     background: "linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)",
     border: 0,
@@ -152,12 +159,12 @@ const EntryPoint: React.FC<Props> = () => {
         <Typography className={classes.prefooter}>
           Vuzic requires a browser which supports WebGL 2.0. It will not work on
           iOS or Safari.
-          <p>
-            The current release is{" "}
-            <span style={{ fontFamily: "'Anonymous Pro', monospace" }}>
-              2020.7.12
-            </span>
-          </p>
+        </Typography>
+        <Typography className={classes.release}>
+          The current version is:{" "}
+          <span style={{ fontFamily: "'Anonymous Pro', monospace" }}>
+            2020.7.12
+          </span>
         </Typography>
       </div>
       <div className={classes.footer}>

@@ -5,6 +5,7 @@ import {
   Route,
   useRouteMatch,
 } from "react-router-dom";
+import { RecoilRoot, useSetRecoilState } from "recoil";
 
 import { makeStyles } from "@material-ui/core";
 import Paper from "@material-ui/core/Paper";
@@ -21,6 +22,7 @@ import Warp from "./components/visuals/Warp";
 import Particle from "./components/visuals/Particles";
 import { useSettingsFromRoute } from "./hooks/routeSettings";
 import { useSettingsManager, buckets, length } from "./hooks/settings";
+import { fpsState } from "./components/widgets/FPS";
 
 const useStyles = makeStyles({
   app: {
@@ -71,7 +73,7 @@ const App: React.FC = () => {
   useSettingsFromRoute(visual, manager);
 
   const [errorState, setErrorState] = useState<Error | null>(null);
-  const [frameRate, setFrameRate] = useState(0);
+  const setFrameRate = useSetRecoilState(fpsState);
 
   const classes = useStyles();
 
@@ -97,7 +99,6 @@ const App: React.FC = () => {
                 visual={visual}
                 manager={manager}
                 captureCanvas={captureCanvas}
-                frameRate={frameRate}
               />
               <canvas
                 ref={canvasRef}
@@ -156,7 +157,9 @@ const App: React.FC = () => {
 };
 
 export default () => (
-  <Router>
-    <App />
-  </Router>
+  <RecoilRoot>
+    <Router>
+      <App />
+    </Router>
+  </RecoilRoot>
 );
