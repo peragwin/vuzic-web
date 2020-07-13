@@ -42,6 +42,7 @@ export const defaultParams = {
   borderSize: { radius: 1, sharpness: 2, intensity: 1 },
   colorScale: 1,
   groupWeight: 0,
+  autoRotate: { x: 0, y: 0 },
   version: "v0.3" as ParamsVersion,
 };
 
@@ -60,6 +61,7 @@ export type RenderParams = {
   borderSize: BorderSize;
   colorScale: number;
   groupWeight: number;
+  autoRotate: { x: number; y: number };
   version: ParamsVersion;
 };
 
@@ -397,7 +399,7 @@ export class PPS {
         gfx.bindUniform("uStateSize", this.stateSize);
         gfx.bindUniform("uPointSize", this.params.size);
         gfx.bindUniform("uAlpha", this.params.particleDensity);
-        this.cameraController.update(updateCamera);
+        if (this.mode === "3D") this.cameraController.update(updateCamera);
         gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
         gfx.bindTexture(this.textures.positions[this.swap], 0);
         gfx.bindTexture(this.textures.colors, 1);
@@ -630,6 +632,9 @@ export class PPS {
     // if (this.frameCount++ < 60) {
     this.loopHandle = requestAnimationFrame(this.loop.bind(this));
     // }
+    const now = performance.now();
+
+    this.cameraController.increment(this.rotateIncrement(now - this.lastTime));
 
     this.onRender(this);
 
@@ -643,6 +648,7 @@ export class PPS {
     // this.debug.render();
 
     this.frameCount = (this.frameCount + 1) & 0xffff;
+    this.lastTime = now;
   }
 
   public stop() {
@@ -691,7 +697,12 @@ export class PPS {
   public getFrameRate(interval: number) {
     const fc = this.frameCount;
     this.frameCount = 0;
-    return Math.trunc((fc / interval) * 100000) / 100;
+    return Math.trunc((fc / interval) * 1000);
+  }
+
+  private rotateIncrement(time: number) {
+    const { x, y } = this.params.autoRotate;
+    return { x: (x * time) / 32, y: (y * time) / 32 };
   }
 }
 

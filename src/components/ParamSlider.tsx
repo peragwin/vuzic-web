@@ -32,6 +32,7 @@ export const ParamSlider: React.FC<ParamSliderProps> = (
 ) => {
   const { title, min, max, value, onChange, step } = props;
   const classes = useStyles();
+  const reset = (e: any) => onChange(e, (max + min) / 2);
   return (
     <div>
       <Typography id={`slider-${title}`} gutterBottom>
@@ -46,6 +47,7 @@ export const ParamSlider: React.FC<ParamSliderProps> = (
         value={value || 0}
         // @ts-ignore
         onChange={onChange}
+        onDoubleClick={reset}
         valueLabelDisplay="auto"
       />
     </div>

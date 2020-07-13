@@ -22,6 +22,8 @@ export type PpsRenderParamKey =
   | "groupWeight"
   | "alphaMix"
   | "betaMix"
+  | "autoRotateX"
+  | "autoRotateY"
   | "load";
 
 export type ParamsVersion = "v0.1" | "v0.2" | "v0.3" | undefined;
@@ -76,6 +78,22 @@ export const ppsRenderParamsReducer = (
       return { ...state, alphaMix: toRadians(action.value as number) };
     case "betaMix":
       return { ...state, betaMix: toRadians(action.value as number) };
+    case "autoRotateX":
+      return {
+        ...state,
+        autoRotate: {
+          ...state.autoRotate,
+          x: toRadians(action.value as number),
+        },
+      };
+    case "autoRotateY":
+      return {
+        ...state,
+        autoRotate: {
+          ...state.autoRotate,
+          y: toRadians(action.value as number),
+        },
+      };
     case "all":
       return {
         ...state,
@@ -104,6 +122,7 @@ export interface ImportRenderParams {
   groupWeight?: number;
   alphaMix?: number;
   betaMix?: number;
+  autoRotate?: { x: number; y: number };
 }
 
 export const fromExportPpsSettings = (s: ExportPpsSettings) => {
@@ -133,6 +152,10 @@ export const fromExportPpsSettings = (s: ExportPpsSettings) => {
       re.groupWeight = v[12] || 0;
       re.alphaMix = toRadians(v[13] === undefined ? 45 : v[13]);
       re.betaMix = toRadians(v[14] === undefined ? 45 : v[14]);
+      re.autoRotate = {
+        x: toRadians(v[15] || 0),
+        y: toRadians(v[16] || 0),
+      };
     }
     return re;
   } else {
@@ -175,6 +198,8 @@ export class PpsController {
       params.groupWeight,
       toDegrees(params.alphaMix),
       toDegrees(params.betaMix),
+      toDegrees(params.autoRotate.x),
+      toDegrees(params.autoRotate.y),
     ];
   };
 
@@ -293,6 +318,20 @@ export class PpsController {
       max: 180,
       step: 0.1,
       update: this.updater("betaMix"),
+    },
+    {
+      title: "Auto Rotate X",
+      min: -1,
+      max: 1,
+      step: 0.001,
+      update: this.updater("autoRotateX"),
+    },
+    {
+      title: "Auto Rotate Y",
+      min: -1,
+      max: 1,
+      step: 0.001,
+      update: this.updater("autoRotateY"),
     },
   ];
 }
