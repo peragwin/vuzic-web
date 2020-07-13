@@ -152,6 +152,12 @@ const EntryPoint: React.FC<Props> = () => {
         <Typography className={classes.prefooter}>
           Vuzic requires a browser which supports WebGL 2.0. It will not work on
           iOS or Safari.
+          <p>
+            The current release is{" "}
+            <span style={{ fontFamily: "'Anonymous Pro', monospace" }}>
+              2020.7.12
+            </span>
+          </p>
         </Typography>
       </div>
       <div className={classes.footer}>
