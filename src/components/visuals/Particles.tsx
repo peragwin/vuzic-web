@@ -2,9 +2,11 @@ import React, { useReducer, useEffect, useMemo } from "react";
 import { RouteProps } from "../../types/types";
 import { PpsController, ppsRenderParamsReducer } from "../../gfx/pps/params";
 import { RenderParams, PPS } from "../../gfx/pps/pps";
+import { PPSMode } from "../../gfx/pps/shaders";
 
 interface Props extends RouteProps {
   controller: React.RefObject<PpsController>;
+  mode?: PPSMode;
 }
 
 export const useController = (init: RenderParams) => {
@@ -13,7 +15,7 @@ export const useController = (init: RenderParams) => {
 };
 
 const Particle: React.FC<Props> = (props) => {
-  const { canvas, controller, setFrameRate, setErrorState } = props;
+  const { canvas, controller, setFrameRate, setErrorState, mode } = props;
 
   const isInit = Boolean(canvas.current);
 
@@ -21,12 +23,16 @@ const Particle: React.FC<Props> = (props) => {
     if (!canvas.current) return;
 
     try {
-      const pps = new PPS(canvas.current, (p: PPS) => {
-        if (!controller.current) return;
+      const pps = new PPS(
+        canvas.current,
+        (p: PPS) => {
+          if (!controller.current) return;
 
-        const params = controller.current.params;
-        p.setParams(params);
-      });
+          const params = controller.current.params;
+          p.setParams(params);
+        },
+        mode
+      );
 
       const intv = setInterval(() => {
         const fr = pps.getFrameRate(1000);

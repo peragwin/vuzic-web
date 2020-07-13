@@ -1,6 +1,6 @@
 import { AudioProcessor } from "../audio/audio";
 
-export type VisualOptions = "warp" | "pps";
+export type VisualOptions = "warp" | "pps" | "pps3";
 
 export interface RouteProps {
   canvas: React.RefObject<HTMLCanvasElement>;

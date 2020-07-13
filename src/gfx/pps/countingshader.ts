@@ -5,21 +5,28 @@ import {
   TextureObject,
   Texture3DObject,
 } from "../graphics";
+import { PPSMode } from "./shaders";
 
 const thresholdShader = (
   gl: WebGL2ComputeRenderingContext,
-  gridSize: number
+  gridSize: number,
+  mode: PPSMode
 ) => {
   const passes = Math.log2(gridSize);
   if (Math.floor(passes) !== passes)
     throw new Error("gridSize must be a power of 2");
+  let gridCount = gridSize * gridSize;
+  if (mode === "3D") gridCount *= gridSize;
   const source = `#version 310 es
 precision highp float;
 
 #define GRID_SIZE ${gridSize}
+#define GRID_COUNT ${gridCount}
+#define LOCAL_SIZE_Y ${mode === "2D" ? 1 : gridSize}
 #define PASSES ${passes}
+#define PPS_MODE_${mode}
 
-layout (local_size_x = GRID_SIZE, local_size_y = GRID_SIZE, local_size_z = 1) in;
+layout (local_size_x = GRID_SIZE, local_size_y = LOCAL_SIZE_Y, local_size_z = 1) in;
 
 uniform ivec2 uStateSize;
 uniform float uRadius;
@@ -50,7 +57,7 @@ void main() {
   int threadIndex = int(gl_LocalInvocationIndex);
 
   float nParticles = float(uStateSize.x * uStateSize.y);
-  float gridSize = float(GRID_SIZE * GRID_SIZE * GRID_SIZE);
+  float gridSize = float(GRID_COUNT);
   float mean = nParticles / gridSize;
 
   float s = 0.;
@@ -78,7 +85,10 @@ void main() {
     float std = sqrt(variance[varianceIndex(0, PASSES)]) / float(GRID_SIZE);
     
     float cellsInRadius = uRadius * float(GRID_SIZE);
-    float c3 = cellsInRadius * cellsInRadius * cellsInRadius;
+    float c3 = cellsInRadius * cellsInRadius;
+#ifdef PPS_MODE_3D
+    c3 = c3 * cellsInRadius;
+#endif
     float particlesInRadius = c3 * mean;
     float dev = c3 * std;
 
@@ -95,10 +105,15 @@ void main() {
 const countingShader = (
   gl: WebGL2ComputeRenderingContext,
   gridSize: number,
-  workGroupSize: number
+  workGroupSize: number,
+  mode: PPSMode
 ) => {
-  const gfull = gridSize * gridSize * gridSize;
+  let gfull = gridSize * gridSize;
+  if (mode === "3D") gfull *= gridSize;
   const countingShaderSrc = `#version 310 es
+
+#define PPS_MODE_${mode}
+
 precision highp float;
 precision highp int;
 precision highp iimage2D;
@@ -108,6 +123,7 @@ precision highp iimage3D;
 // or if workGroupSize does not divide uStateSize.x*uStateSize.y
 #define GROUP_SIZE ${workGroupSize}
 #define GRID_SIZE ${gridSize}
+#define GRID_COUNT ${gfull}
 
 layout (local_size_x = GROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
@@ -117,8 +133,8 @@ layout (rgba32i, binding = 0) uniform readonly iimage2D imgPosition;
 layout (rgba32i, binding = 1) uniform writeonly iimage2D imgSortedPosition;
 layout (rgba32i, binding = 2) uniform writeonly iimage3D imgPositionCount;
 
-shared int counts[${gfull}];
-shared int totals[${gfull}];
+shared int counts[GRID_COUNT];
+shared int totals[GRID_COUNT];
 shared int subTotals[GROUP_SIZE];
 
 void initSharedMemory(in ivec2 seg, in int threadIndex) {
@@ -141,7 +157,12 @@ int positionToIndex(in int index) {
   vec3 p = vec3(intBitsToFloat(pi.x), intBitsToFloat(pi.y), intBitsToFloat(pi.z));
   p = (p + 1.) / 2.;
   ivec3 gi = ivec3(floor(p * float(GRID_SIZE)));
-  return gi.x + int(GRID_SIZE) * gi.y + int(GRID_SIZE) * int(GRID_SIZE) * gi.z;
+  int rv = gi.x + int(GRID_SIZE) * gi.y;
+#ifdef PPS_MODE_3D
+  return rv + int(GRID_SIZE) * int(GRID_SIZE) * gi.z;
+#else
+  return rv;
+#endif
 }
 
 void countPositions(in ivec2 seg) {
@@ -184,12 +205,19 @@ void sortPositions(in ivec2 seg) {
   }
 }
 
-void writeCounts(in ivec2 seg, in int threadIndex) {
+ivec3 gridIndex(in int i) {
   int gridSize = int(GRID_SIZE);
+  int zindex = 0;
+#ifdef PPS_MODE_3D
+  zindex = i / (gridSize * gridSize);
+#endif
+  return ivec3(i % gridSize, (i / gridSize) % gridSize, zindex);
+}
+
+void writeCounts(in ivec2 seg, in int threadIndex) {
   for (int i = seg.s; i < seg.t; i++) {
-    ivec3 gridIndex = ivec3(i % gridSize, (i / gridSize) % gridSize, i / (gridSize * gridSize));
     ivec4 cval = ivec4(counts[i], totals[i], 69, 420);
-    imageStore(imgPositionCount, gridIndex, cval);
+    imageStore(imgPositionCount, gridIndex(i), cval);
   }
 }
 
@@ -202,7 +230,7 @@ ivec2 positionSegment(in int threadIndex) {
 }
 
 ivec2 gridSegment(in int threadIndex) {
-  int countSize = int(GRID_SIZE * GRID_SIZE * GRID_SIZE);
+  int countSize = int(GRID_COUNT);
   int workSize = countSize / int(GROUP_SIZE);
   int startIndex = threadIndex * workSize;
   int endIndex = startIndex + workSize;
@@ -277,7 +305,8 @@ export class CountingSortComputer {
     private textures: Textures,
     private threshold: Threshold,
     private stateSize: StateSize,
-    gridSize: number
+    gridSize: number,
+    mode: PPSMode
   ) {
     const workGroupSize = this.workGroupSize;
     const ss = stateSize.width * stateSize.height;
@@ -294,7 +323,7 @@ export class CountingSortComputer {
     }
 
     const tgt = new ComputeTarget();
-    let shaders = [countingShader(gl, gridSize, workGroupSize)];
+    let shaders = [countingShader(gl, gridSize, workGroupSize, mode)];
     let gfx = new Graphics(gl, tgt, shaders, this.onCompute.bind(this));
     this.gfx = gfx;
 
@@ -302,7 +331,7 @@ export class CountingSortComputer {
       gl.uniform2i(l, v.width, v.height)
     );
 
-    shaders = [thresholdShader(gl, gridSize)];
+    shaders = [thresholdShader(gl, gridSize, mode)];
     gfx = new Graphics(gl, tgt, shaders, this.onThresholds.bind(this));
     this.thresholdGfx = gfx;
 

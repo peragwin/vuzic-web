@@ -24,6 +24,7 @@ const useStyles = makeStyles({
 
 interface ProfileData {
   pps?: { params: any };
+  pps3?: { params: any };
   warp?: { params: any };
   audioParams: AudioProcessorParams;
   thumb?: string;

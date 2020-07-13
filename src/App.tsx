@@ -135,6 +135,19 @@ const App: React.FC = () => {
                 />
               )}
             />
+            <Route
+              path="/pps3"
+              render={() => (
+                <Particle
+                  canvas={canvasRef}
+                  audio={audioController.audio}
+                  controller={ppsController}
+                  setErrorState={setErrorState}
+                  setFrameRate={setFrameRate}
+                  mode={"3D"}
+                />
+              )}
+            />
           </Switch>
         </React.Fragment>
       )}

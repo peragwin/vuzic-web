@@ -13,6 +13,7 @@ import {
   drawFragShader,
   updateVertShader,
   updateFragShader,
+  PPSMode,
 } from "./shaders";
 import { getPalette, ParamsVersion } from "./params";
 import { countingSort } from "./countingsort";
@@ -80,7 +81,8 @@ class Textures {
   constructor(
     gl: WebGL2RenderingContext,
     gridSize: number,
-    computeEnabled: boolean
+    computeEnabled: boolean,
+    mode: PPSMode
   ) {
     // RGBA32I is required by compute shader
     this.positions = Array.from(Array(2)).map(
@@ -141,7 +143,7 @@ class Textures {
       immutable: computeEnabled,
       width: gridSize,
       height: gridSize,
-      depth: gridSize,
+      depth: mode === "3D" ? gridSize : 1,
     });
 
     this.palette = new TextureObject(gl, {
@@ -165,7 +167,8 @@ class Textures {
   public initState(
     stateSize: { width: number; height: number },
     gridSize: number,
-    palette: number[]
+    palette: number[],
+    mode: PPSMode
   ) {
     const { width, height } = stateSize;
     const particles = width * height;
@@ -174,7 +177,7 @@ class Textures {
     const pstate = new Float32Array(pbuf);
     pstate.forEach((_, i, data) => {
       data[i] = 2 * Math.random() - 1;
-      // if (i % 4 === 2) data[i] = 0;
+      if (mode === "2D" && i % 4 === 2) data[i] = 0;
     });
     this.positions.forEach((p) => {
       p.updateData(width, height, new Int32Array(pbuf));
@@ -187,6 +190,7 @@ class Textures {
     vstate.forEach((_, i, data) => {
       if (i % vecSize === 0) {
         const v = vec3.fromValues(Math.random(), Math.random(), Math.random());
+        if (mode === "2D") v[2] = 0;
         vec3.normalize(v, v);
         data.set(v, i);
       }
@@ -199,12 +203,18 @@ class Textures {
     const ostate = new Float32Array(obuf);
     ostate.forEach((_, i, data) => {
       if (i % vecSize === 0) {
-        const vel = vstate.slice(i, i + 3) as vec3;
-        const u = vec3.fromValues(Math.random(), Math.random(), Math.random());
-
         const ori = vec3.fromValues(0, 0, 1);
-        vec3.cross(ori, vel, u);
-        vec3.normalize(ori, ori);
+
+        if (mode === "3D") {
+          const vel = vstate.slice(i, i + 3) as vec3;
+          const u = vec3.fromValues(
+            Math.random(),
+            Math.random(),
+            Math.random()
+          );
+          vec3.cross(ori, vel, u);
+          vec3.normalize(ori, ori);
+        }
 
         data.set(ori, i);
       }
@@ -249,7 +259,8 @@ class Textures {
     gridSize: number
   ) {
     const { width, height } = stateSize;
-    this.countedPositions.updateData(gridSize, gridSize, gridSize, sort.count);
+    const depth = this.countedPositions.cfg.depth || 1;
+    this.countedPositions.updateData(gridSize, gridSize, depth, sort.count);
     this.sortedPositions.updateData(width, height, sort.output);
   }
 }
@@ -271,7 +282,7 @@ export class PPS {
   private frameBuffers!: FramebufferObject[];
 
   private stateSize!: { width: number; height: number };
-  private gridSize = 16;
+  private gridSize: number;
   private loopHandle!: number;
   private frameCount = 0;
   public paused = false;
@@ -282,8 +293,11 @@ export class PPS {
 
   constructor(
     private canvas: HTMLCanvasElement,
-    private onRender: (pps: PPS) => void
+    private onRender: (pps: PPS) => void,
+    private readonly mode: PPSMode = "2D"
   ) {
+    this.gridSize = mode === "2D" ? 64 : 16;
+
     const cgl = canvas.getContext("webgl2-compute", {
       preserveDrawingBuffer: true,
     });
@@ -301,7 +315,12 @@ export class PPS {
     this.stateSize = this.getStateSize();
 
     this.gradientField = new GradientField(this.gl);
-    this.textures = new Textures(this.gl, this.gridSize, this.computeEnabled);
+    this.textures = new Textures(
+      this.gl,
+      this.gridSize,
+      this.computeEnabled,
+      this.mode
+    );
     this.initState();
     this.initRender();
     this.initUpdate();
@@ -324,21 +343,27 @@ export class PPS {
     const gl = this.gl;
     const particles = this.params.particles;
 
-    const canvas = new CanvasObject(gl, ({ width, height }) =>
-      this.cameraController.setAspect(width / height)
-    );
+    const canvas = new CanvasObject(gl, ({ width, height }) => {
+      // if (this.mode === "3D") this.cameraController.setAspect(width / height);
+    });
     const shaderConfigs = [drawFragShader(gl), drawVertShader(gl)];
     const gfx = new Graphics(gl, canvas, shaderConfigs, this.render.bind(this));
     this.renderGfx = gfx;
 
     this.camera = new Camera((45 * Math.PI) / 180, 1, -1, 1);
-    this.camera.location = vec3.fromValues(0, 0, -2);
+    const initRadius = 3.5;
+    this.camera.orientation = vec3.fromValues(0, 1, 0);
+    this.camera.location = vec3.fromValues(0, 0, initRadius);
     this.camera.target = vec3.fromValues(0, 0, 0);
-    this.uCameraMatrix = new UniformBuffer(
-      gl,
-      new Float32Array(this.camera.matrix)
+    const cameraMatrix =
+      this.mode === "3D" ? this.camera.matrix : mat4.create();
+    this.uCameraMatrix = new UniformBuffer(gl, new Float32Array(cameraMatrix));
+    this.cameraController = new CameraController(
+      this.camera,
+      this.canvas,
+      this.mode === "3D",
+      initRadius
     );
-    this.cameraController = new CameraController(this.camera, this.canvas);
 
     this.textures.positions.map((p) => gfx.attachTexture(p, "texPositions"));
 
@@ -398,7 +423,7 @@ export class PPS {
     const gfx = new Graphics(
       gl,
       this.frameBuffers[0],
-      [updateVertShader(gl), updateFragShader(gl)],
+      [updateVertShader(gl), updateFragShader(gl, this.mode)],
       this.update.bind(this)
     );
     this.updateGfx = gfx;
@@ -424,9 +449,11 @@ export class PPS {
     this.textures.velocities.forEach((p) =>
       gfx.attachTexture(p, "texVelocities")
     );
-    this.textures.orientations.forEach((p) =>
-      gfx.attachTexture(p, "texOrientations")
-    );
+    if (this.mode === "3D") {
+      this.textures.orientations.forEach((p) =>
+        gfx.attachTexture(p, "texOrientations")
+      );
+    }
     gfx.attachTexture(this.textures.sortedPositions, "texSortedPositions");
     gfx.attachTexture(this.textures.countedPositions, "texCountedPositions");
     // gfx.attachTexture(this.gradientField.gradientField(), "texGradientField");
@@ -467,7 +494,8 @@ export class PPS {
           let s = 1 - this.swap;
           gfx.bindTexture(this.textures.positions[s], 0);
           gfx.bindTexture(this.textures.velocities[s], 1);
-          gfx.bindTexture(this.textures.orientations[s], 2);
+          if (this.mode === "3D")
+            gfx.bindTexture(this.textures.orientations[s], 2);
           gfx.bindTexture(this.textures.sortedPositions, 3);
           gfx.bindTexture(this.textures.countedPositions, 4);
           // gfx.bindTexture(this.gradientField.gradientField(), 5);
@@ -492,7 +520,8 @@ export class PPS {
         buffer: this.uColorThresholds.buffer,
       },
       this.stateSize,
-      this.gridSize
+      this.gridSize,
+      this.mode
     );
   }
 
@@ -512,7 +541,7 @@ export class PPS {
       thresholds: [10, 15, 30, 50],
     };
 
-    this.textures.initState(this.stateSize, this.gridSize, palette);
+    this.textures.initState(this.stateSize, this.gridSize, palette, this.mode);
   }
 
   private render(g: Graphics) {
@@ -633,7 +662,12 @@ export class PPS {
       this.params = params;
 
       this.stateSize = this.getStateSize();
-      this.textures = new Textures(this.gl, this.gridSize, this.computeEnabled);
+      this.textures = new Textures(
+        this.gl,
+        this.gridSize,
+        this.computeEnabled,
+        this.mode
+      );
       this.initState();
       this.initRender();
       this.initUpdate();

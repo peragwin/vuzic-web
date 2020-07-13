@@ -92,6 +92,7 @@ export const useSettingsManager = (
     new Manager(audio, [
       { visual: "warp", rc: warpController },
       { visual: "pps", rc: ppsController },
+      { visual: "pps3", rc: ppsController },
     ]),
   ];
 };

@@ -69,7 +69,13 @@ void main() {
 export const updateVertShader = (gl: WebGL2RenderingContext) =>
   new ShaderConfig(quadVertSrc, gl.VERTEX_SHADER);
 
-const updateFragSrc = `#version 300 es
+export type PPSMode = "2D" | "3D";
+
+export const updateFragShader = (gl: WebGL2RenderingContext, mode: PPSMode) => {
+  const updateFragSrc = `#version 300 es
+
+#define PPS_MODE_${mode}
+
 precision highp float;
 precision highp int;
 precision highp isampler2D;
@@ -120,6 +126,9 @@ vec3 fetch(in isampler2D tex, in ivec2 index) {
 }
 
 Bucket fetchCount(in isampler3D tex, in ivec3 cell) {
+#ifdef PPS_MODE_2D
+  cell.z = 0;
+#endif
   ivec2 count = texelFetch(tex, cell, 0).xy;
   Bucket b;
   b.count = count.x;
@@ -135,7 +144,11 @@ Bucket fetchCount(in isampler3D tex, in ivec3 cell) {
 
 ivec3 cellCoord(in vec3 pos, float gridSize) {
   vec3 ipos = floor((pos + 1.) / 2. * gridSize);
+#ifdef PPS_MODE_3D
   return ivec3(ipos);
+#else
+  return ivec3(ipos.xy, 0);
+#endif
 }
 
 ivec3 wrap(in ivec3 coord, int gridSize) {
@@ -175,7 +188,9 @@ void compareNeighbor(in vec3 r, in float radius, in vec3 bVel, in vec3 bOri, ino
 
   // head-twisty logic for (r > 0 && lenght(r) <= radius) && (ang < 0 ? (1, 0) : (0, 1))
   compare.countX += s * (vec2(1., -1) * sign(r.x) + 1.) / 2.;
+#ifdef PPS_MODE_3D
   compare.countY += s * (vec2(1., -1) * sign(r.y) + 1.) / 2.;
+#endif
 
   compare.groupVel += s * bVel;
   compare.groupOri += s * bOri;
@@ -208,7 +223,11 @@ Compare compareNeighbors(in ivec2 index, in vec3 aPos, in mat3 pView) {
   // apparently this can be a lot better if its using a lut to avoid branching
   for (int x = -gridRadius; x <= gridRadius; x++) {
     for (int y = -gridRadius; y <= gridRadius; y++) {
+#ifdef PPS_MODE_3D
       for (int z = -gridRadius; z <= gridRadius; z++) {
+#else
+        int z = 0;
+#endif
 
         bCell = wrap(aCell + ivec3(x, y, z), uGridSize);
         bucket = fetchCount(texCountedPositions, bCell);
@@ -224,16 +243,18 @@ Compare compareNeighbors(in ivec2 index, in vec3 aPos, in mat3 pView) {
           r = pView * r;
 
           bVel = fetchIndex(texVelocities, bIndex);
+#ifdef PPS_MODE_3D
           bOri = fetchIndex(texOrientations, bIndex);
+#endif
 
           // increment left or right counts and groupVel if B is within uRadius of A
           compareNeighbor(r, uRadius, bVel, bOri, compare);
+#ifdef PPS_MODE_3D
         }
+#endif
       }
     }
   }
-
-
 
   return compare;
 }
@@ -248,7 +269,14 @@ vec2 deltaTheta(in Compare compare) {
   vec4 count = vec4(compare.countX, compare.countY);
   vec2 sum = vec2(count.x + count.y, count.z + count.w);
   vec2 diff = vec2(count.y - count.x, count.w - count.z);
-  return fromPolar(uAlpha) + fromPolar(uBeta) * sum * sign(diff);
+#ifdef PPS_MODE_3D
+  vec2 a = fromPolar(uAlpha);
+  vec2 b = fromPolar(uBeta);
+#else
+  float a = uAlpha.s;
+  float b = uBeta.s;
+#endif
+  return a + b * sum * sign(diff);
 }
 
 void applyGroupVelocity(inout vec3 vel, inout vec3 ori, in vec3 groupVel) {
@@ -269,7 +297,7 @@ void applyGroupVelocity(inout vec3 vel, inout vec3 ori, in vec3 groupVel) {
 
 void applyGroupOrientation(in vec3 vel, inout vec3 ori, in vec3 groupOri) {
   vec3 newOri = ori + uGroupWeight * groupOri;
-  // project newOri onto the plane orthoganal to vel by subtracting the component in line with vel
+  // project newOri onto the plane orthogonal to vel by subtracting the component in line with vel
   ori = newOri - dot(newOri, vel) * vel;
 }
 
@@ -332,23 +360,28 @@ void main() {
   vec3 vel = fetch(texVelocities, index);
   vec3 ori = fetch(texOrientations, index);
 
-  fixNaN(pos, gl_FragCoord.xyz / vec3(uStateSize, 1.));
-  if (isnanv(vel) || isnanv(ori)) {
-    fixNaN(vel, vec3(1., 0., 0.));
-    fixNaN(ori, vec3(0., 1., 0.));
-    ori = normalize(cross(vel, ori));
-  }
+#ifdef PPS_MODE_2D
+  ori = vec3(0., 0., 1.);
+#endif
 
-  // pos = vec3(pos.xy, 0.);
-  // ori = normalize(vec3(0., 0., ori.z));
+  vec3 fix = gl_FragCoord.xyz / vec3(uStateSize, 1.);
+  fixNaN(pos, fix);
+  if (isnanv(vel) || isnanv(ori)) {
+    vel = normalize(vec3(fix.xy, 0.));
+    ori = vec3(0., 0., 1.);
+  }
 
   mat3 pView = particleViewMatrix(vel, ori);
 
   Compare compare = compareNeighbors(index, pos, pView);
   vec2 dtheta = deltaTheta(compare);
   
+#ifdef PPS_MODE_3D
   mat3 rot = transpose(pView) * rotate3d(dtheta) * pView;
-  
+#else
+  mat3 rot = mat3(rotate2d(dtheta.s));
+#endif
+
   vel = normalize(rot * vel);
   ori = normalize(rot * ori);
   pos = integrate(pos, vel);
@@ -359,12 +392,11 @@ void main() {
   position = toIEEE(pos);
   velocity = toIEEE(vel);
   orientation = toIEEE(ori);
-  color = floatBitsToInt(getColor(compare.countX.x + compare.countY.y));
+  color = floatBitsToInt(getColor(compare.countX.x + compare.countX.y));
 }
 `;
-
-export const updateFragShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(updateFragSrc, gl.FRAGMENT_SHADER, [], []);
+  return new ShaderConfig(updateFragSrc, gl.FRAGMENT_SHADER);
+};
 
 /*
 

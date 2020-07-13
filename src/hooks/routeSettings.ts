@@ -37,6 +37,7 @@ function decodeSettings<T extends ExportSettings>(enc: string) {
 const fromVisualSettings = (visual: VisualOptions, dec: ExportSettings) => {
   switch (visual) {
     case "pps":
+    case "pps3":
       return fromExportPpsSettings(dec as ExportPpsSettings);
     case "warp":
       return fromExportWarpSettings(dec as ExportWarpSettings);
@@ -67,6 +68,7 @@ export const useSettingsFromRoute = (
 ) => {
   useEffect(() => {
     const settings = getSettingsFromRoute(visual);
+    console.log("SETTINGS", settings);
     if (settings) {
       manager.update({
         visual,
