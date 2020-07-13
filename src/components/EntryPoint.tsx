@@ -12,12 +12,22 @@ import IconButton from "@material-ui/core/IconButton";
 export const useStyles = makeStyles((theme) => ({
   title: {
     margin: "auto",
+    marginBottom: theme.spacing(4),
     textAlign: "center",
     fontFamily: "'Iceland', cursive",
+    textShadow: "0px 2px 8px #a0abffb3",
   },
   footer: {
     textAlign: "center",
-    marginTop: theme.spacing(8),
+    marginTop: theme.spacing(4),
+    textShadow: "0px 0px 5px #c8ceffe0",
+  },
+  prefooter: {
+    textAlign: "center",
+    fontFamily: "'Poiret One', cursive",
+    fontSize: "1.25rem",
+    marginTop: theme.spacing(5),
+    textShadow: "0px 0px 2px #c8ceffe0",
   },
   button: {
     background: "linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)",
@@ -30,6 +40,7 @@ export const useStyles = makeStyles((theme) => ({
     margin: "1.5em",
     maxWidth: "400px",
     width: "100vw",
+    textShadow: "0px 0px 2px #FFF",
   },
   root: {
     display: "flex",
@@ -39,12 +50,16 @@ export const useStyles = makeStyles((theme) => ({
     },
   },
   paper: {
-    width: theme.spacing(64),
-    height: theme.spacing(64),
+    overflowX: "hidden",
+    flexGrow: 1,
+    maxWidth: theme.spacing(64),
+    minHeight: theme.spacing(72),
     padding: theme.spacing(4),
     textAlign: "center",
     background: "linear-gradient(225deg, #ff22e48c -30%, #bf9bff94 100%)",
     color: "#FFFFFF",
+    textShadow: "0px 1px 4px #c8ceffe0",
+    boxShadow: "0 3px 7px 1px rgb(187 113 255 / 45%)",
     margin: theme.spacing(2),
   },
   cardHeading: {
@@ -101,6 +116,18 @@ const EntryPoint: React.FC<Props> = () => {
             >
               3D Particle System
             </Button>
+            <Typography className={classes.cardInfo}>
+              For better performance, it's possible to enable WebGL support for
+              compute shaders in Chromium based browsers on Windows and Linux.
+              This easily doubles the frame rate! Some good{" "}
+              <a
+                style={{ color: "white" }}
+                href="https://github.com/9ballsyndrome/WebGL_Compute_shader"
+              >
+                instructions
+              </a>{" "}
+              are here.
+            </Typography>
           </Paper>
         </div>
         <div>
@@ -121,7 +148,12 @@ const EntryPoint: React.FC<Props> = () => {
           </Paper>
         </div>
       </div>
-      {/* <div style={{ height: "auto" }}></div> */}
+      <div>
+        <Typography className={classes.prefooter}>
+          Vuzic requires a browser which supports WebGL 2.0. It will not work on
+          iOS or Safari.
+        </Typography>
+      </div>
       <div className={classes.footer}>
         <IconButton>
           <a style={{ color: "white" }} href="https://github.com/peragwin">
