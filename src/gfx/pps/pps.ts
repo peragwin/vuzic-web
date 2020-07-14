@@ -318,7 +318,7 @@ export class PPS {
     this.params = { ...defaultParams };
     this.stateSize = this.getStateSize();
 
-    this.gradientField = new GradientField(this.gl);
+    this.gradientField = new GradientField(this.gl, this.mode);
     this.textures = new Textures(
       this.gl,
       this.gridSize,
@@ -445,6 +445,9 @@ export class PPS {
     gfx.attachUniform("uRadialDecay", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uColorScale", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniform("uGroupWeight", (l, v) => gl.uniform1f(l, v));
+    gfx.attachUniform("uGradientFieldSize", (l, v) =>
+      gl.uniform2f(l, v[0], v[1])
+    );
     gfx.attachUniformBlock("uColorThresholdBlock", 0);
 
     this.textures.positions.forEach((p) =>
@@ -460,7 +463,7 @@ export class PPS {
     }
     gfx.attachTexture(this.textures.sortedPositions, "texSortedPositions");
     gfx.attachTexture(this.textures.countedPositions, "texCountedPositions");
-    // gfx.attachTexture(this.gradientField.gradientField(), "texGradientField");
+    gfx.attachTexture(this.gradientField.gradientField(), "texGradientField");
 
     this.frameBuffers.forEach((fb, i) => {
       fb.attach(this.textures.positions[i], 0);
@@ -494,6 +497,10 @@ export class PPS {
           gfx.bindUniform("uRadialDecay", this.params.radialDecay);
           gfx.bindUniform("uColorScale", this.params.colorScale);
           gfx.bindUniform("uGroupWeight", this.params.groupWeight);
+          gfx.bindUniform(
+            "uGradientFieldSize",
+            this.gradientField.getVirtualSize()
+          );
           gfx.bindUniformBuffer("uColorThresholdBlock", this.uColorThresholds);
           let s = 1 - this.swap;
           gfx.bindTexture(this.textures.positions[s], 0);
@@ -502,7 +509,7 @@ export class PPS {
             gfx.bindTexture(this.textures.orientations[s], 2);
           gfx.bindTexture(this.textures.sortedPositions, 3);
           gfx.bindTexture(this.textures.countedPositions, 4);
-          // gfx.bindTexture(this.gradientField.gradientField(), 5);
+          gfx.bindTexture(this.gradientField.gradientField(), 5);
           return true;
         }
       )
@@ -638,7 +645,7 @@ export class PPS {
 
     this.onRender(this);
 
-    // this.gradientField.update();
+    this.gradientField.update();
 
     this.calculateSortedPositions(this.swap);
 

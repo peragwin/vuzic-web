@@ -2,7 +2,7 @@ import {
   Graphics,
   ShaderConfig,
   CanvasObject,
-  TextureObject,
+  Texture,
   BufferConfig,
   VertexArrayObject,
 } from "./graphics";
@@ -19,11 +19,32 @@ uniform vec2 uResolution;
 
 out vec4 fragColor;
 
+vec3 fetchGradientValue(in vec3 xyz) {
+  vec3 s = 0.5 * (xyz + 1.);
+  float gfSize = 512.;//uGradientFieldSize.x;
+  // fuck this is so annoying. note that the floor(s * gfSize) step is specifically required
+  // or rounding issues will completely mess up the arithmetic.
+  ivec3 si = ivec3(floor(s * gfSize));
+  int index = si.x + si.y * int(gfSize);
+#ifdef PPS_MODE_3D
+  index = index + si.z * int(gfSize * gfSize);
+#endif
+
+  int vSize = 512;//uGradientFieldSize.y;
+  ivec2 uv = ivec2(index % vSize, index / vSize);
+  // ivec2 uv = ivec2(s.xy * vSize);
+
+  ivec3 di = texelFetch(tex, uv, 0).xyz;
+  return vec3(intBitsToFloat(di.x), intBitsToFloat(di.y), intBitsToFloat(di.z));
+}
+
 void main() {
   vec2 uv = gl_FragCoord.xy / uResolution;
 
-  ivec2 c = texture(tex, uv).rg;
-  vec2 color = vec2(intBitsToFloat(c.r), intBitsToFloat(c.g));
+  // ivec2 c = texture(tex, uv).rg;
+  // vec2 color = vec2(intBitsToFloat(c.r), intBitsToFloat(c.g));
+  vec2 color = fetchGradientValue(vec3(2. * uv - 1., 0.)).xy;
+
   color = 0.5 * (5.*color + 1.);
 
   float c1 = intBitsToFloat(texture(tex1, uv).r);
@@ -38,8 +59,8 @@ export class Debug {
 
   constructor(
     canvas: HTMLCanvasElement,
-    private tex: TextureObject,
-    private tex1: TextureObject
+    private tex: Texture,
+    private tex1: Texture
   ) {
     const cgl = canvas.getContext("webgl2-compute", {
       preserveDrawingBuffer: true,

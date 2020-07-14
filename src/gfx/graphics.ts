@@ -9,6 +9,13 @@ export interface TextureConfig {
   height?: number;
   depth?: number;
 }
+
+export interface Texture {
+  tex: WebGLTexture;
+  cfg: TextureConfig;
+  bind: (unit: number) => void;
+}
+
 export class TextureObject {
   readonly tex: WebGLTexture;
 
@@ -189,12 +196,12 @@ export class Texture3DObject {
     }
   }
 
-  public update(image: ImageData, unit: number = 0) {
+  public update(data: ArrayBufferView, unit: number = 0) {
     return this.updateData(
       this.cfg.width || 1,
       this.cfg.height || 1,
       this.cfg.depth || 1,
-      image.data,
+      data,
       unit
     );
   }
@@ -239,7 +246,7 @@ export class Texture3DObject {
   }
 }
 
-type UniformAssignable = TextureObject | Texture3DObject | string;
+type UniformAssignable = Texture | string;
 
 class Uniform {
   private uloc: WebGLUniformLocation;
@@ -342,7 +349,7 @@ export class FramebufferObject extends RenderTarget {
     this.frameBuffer = fb;
   }
 
-  public attach(tex: TextureObject, id: number) {
+  public attach(tex: Texture, id: number) {
     const findex = this.textures.findIndex((v) => v.id === id);
     if (findex !== -1) this.textures[findex] = { id, tex: tex.tex };
     else this.textures.push({ id, tex: tex.tex });
@@ -597,7 +604,7 @@ export class Graphics {
   }
 
   // associates the texture with the uniform of the given name
-  public attachTexture(tex: TextureObject | Texture3DObject, uname: string) {
+  public attachTexture(tex: Texture, uname: string) {
     this.uniforms.set(
       tex,
       new Uniform(this.gl, this.program, uname, (l, v: number) => {
@@ -607,7 +614,7 @@ export class Graphics {
     );
   }
 
-  public bindTexture(tex: TextureObject | Texture3DObject, unit: number) {
+  public bindTexture(tex: Texture, unit: number) {
     const u = this.uniforms.get(tex);
     if (!u) throw new Error(`texture ${tex} is not attached to any uniform`);
     u.bind(unit);

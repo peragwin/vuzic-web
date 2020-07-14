@@ -6,14 +6,18 @@ import {
   BufferConfig,
   VertexArrayObject,
 } from "../graphics";
-import { updateVertShader } from "./shaders";
+import { updateVertShader, PPSMode } from "./shaders";
 import { QUAD2, RenderParams } from "./pps";
 
 const GRADIENT_DETAIL = 512;
+const gradientDetail = (mode: PPSMode) => {
+  return mode === "3D" ? GRADIENT_DETAIL / 2 : GRADIENT_DETAIL;
+};
 
 interface Size {
   width: number;
   height: number;
+  depth: number;
 }
 
 export interface BorderSize {
@@ -25,89 +29,143 @@ export interface BorderSize {
 const fieldFragShader = `#version 300 es
 
 precision mediump float;
-precision highp isampler2D;
 precision highp int;
 
-// normalize to screen resolution
-uniform vec2 uResolution;
+// normalize to texture resolution
+uniform vec3 uResolution;
 
-// .X is radius from border, .Y is sharpness (using pow)
+// .X is radius from border, .Y is sharpness (using pow), .Z is magnitude
 uniform vec3 uBorderSize;
-
-uniform isampler2D texFieldValue;
 
 layout(location = 0) out int outFieldValue;
 
-// vec2 fetchFieldValue(vec2 uv) {
-//   return float(texture(texGradientField, uv).rg) / 32768.;
-//   // return intBitsToFloat(texelFetch(texGradientField, index, 0).r);
-// }
-
-float borderValue(vec2 uv) {
-  vec2 xy = 2. * uv - 1.;
-  vec2 g = uBorderSize.z * pow(abs(xy) * uBorderSize.x, vec2(uBorderSize.y));
-  // vec2 g = uBorderSize.xy * uv;
+float borderValue(vec3 uvw) {
+  vec3 xyz = 2. * uvw - 1.;
+  vec3 g = uBorderSize.z * pow(abs(xyz) * uBorderSize.x, vec3(uBorderSize.y));
   return length(g);
 }
 
-void main () {
-  vec2 uv = gl_FragCoord.xy / 512. + uResolution/32768.;
+vec3 getUVW(in vec2 xy) {
+  float s = sqrt(uResolution.z);
+  float width = uResolution.x * s;
+  float index = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * width;
+  vec3 uvw = vec3(
+    mod(index, uResolution.x),
+    mod(index / uResolution.x, uResolution.y),
+    index / (uResolution.x * uResolution.y));
+  return uvw / uResolution;
+}
 
-  float bv = borderValue(uv);
+void main () {
+  vec3 uvw = getUVW(gl_FragCoord.xy);
+
+  float bv = borderValue(uvw);
 
   outFieldValue = floatBitsToInt(bv);
 }
 `;
 
-const gradientFragShader = `#version 300 es
+const gradientFragShader = (gl: WebGL2RenderingContext, mode: PPSMode) => {
+  const source = `#version 300 es
+
+#define PPS_MODE_${mode}
 
 precision mediump float;
 precision highp isampler2D;
 precision highp int;
 
-// normalize to screen resolution
-// uniform vec2 uResolution;
+// normalize to texture resolution
+uniform vec3 uResolution;
 
 uniform isampler2D texFieldValue;
 
-layout(location = 0) out ivec2 outGradientField;
+layout(location = 0) out ivec3 outGradientField;
+
+ivec2 fromUVW(in ivec3 uvw) {
+  uvw = clamp(uvw, ivec3(0), ivec3(uResolution));
+  float s = sqrt(uResolution.z);
+  int width = int(uResolution.x * s);
+  int index = uvw.x + uvw.y * int(uResolution.x) + uvw.z * int(uResolution.x * uResolution.y);
+  return ivec2(index % width, index / width);
+}
 
 float fetchFieldValue(ivec2 uv) {
   return intBitsToFloat(texelFetch(texFieldValue, uv, 0).r);
 }
 
-vec2 gradient(in ivec2 uv) {
-  ivec2 h = ivec2(1, 0);
-  float dx = (fetchFieldValue(uv + h) - fetchFieldValue(uv - h)) / 2.;
-  h = ivec2(0, 1);
-  float dy = (fetchFieldValue(uv + h) - fetchFieldValue(uv - h)) / 2.;
-  return vec2(-dx, -dy);
+vec3 gradient(in ivec3 uvw) {
+  ivec3 h = ivec3(1, 0, 0);
+  ivec2 u = fromUVW(uvw + h);
+  ivec2 v = fromUVW(uvw - h);
+  float dx = (fetchFieldValue(u) - fetchFieldValue(v)) / 2.;
+  
+  h = ivec3(0, 1, 0);
+  u = fromUVW(uvw + h);
+  v = fromUVW(uvw - h);
+  float dy = (fetchFieldValue(u) - fetchFieldValue(v)) / 2.;
+
+  float dz = 0.;
+#ifdef PPS_MODE_3D
+  h = ivec3(0, 0, 1);
+  u = fromUVW(uvw + h);
+  v = fromUVW(uvw - h);
+  dz = (fetchFieldValue(u) - fetchFieldValue(v)) / 2.;
+#endif
+
+  return vec3(-dx, -dy, -dz);
+}
+
+vec3 getUVW(in vec2 xy) {
+  float s = sqrt(uResolution.z);
+  float width = uResolution.x * s;
+  float index = floor(gl_FragCoord.x) + floor(gl_FragCoord.y) * width;
+  vec3 uvw = vec3(
+    mod(index, uResolution.x),
+    mod(index / uResolution.x, uResolution.y),
+    index / (uResolution.x * uResolution.y));
+  return uvw;
 }
 
 void main () {
-  ivec2 uv = ivec2(gl_FragCoord.xy);
+  ivec3 uvw = ivec3(getUVW(gl_FragCoord.xy));
 
-  vec2 d = gradient(uv);
+  vec3 g = gradient(uvw);
+  // g += vec3(1., 1., 1.);
 
-  outGradientField = ivec2(floatBitsToInt(d.x), floatBitsToInt(d.y));
+  outGradientField = ivec3(floatBitsToInt(g.x), floatBitsToInt(g.y), floatBitsToInt(g.z));
 }
 `;
+  return new ShaderConfig(source, gl.FRAGMENT_SHADER);
+};
 
 export class GradientField {
-  private texFieldValue: TextureObject[];
+  private texFieldValue: TextureObject;
   private texGradientField: TextureObject;
   private frameBuffer: FramebufferObject;
   private updateField: Graphics;
   private updateGradient: Graphics;
 
-  private swap = 0;
-  private size: Size = { width: GRADIENT_DETAIL, height: GRADIENT_DETAIL };
+  private readonly detail: number;
+  private size: Size;
+  private storageSize: { width: number; height: number };
   private borderSize: BorderSize = { radius: 1, sharpness: 2, intensity: 1 };
 
   private hasUpdate = true;
 
-  constructor(readonly gl: WebGL2RenderingContext) {
-    this.frameBuffer = new FramebufferObject(gl, this.size);
+  constructor(readonly gl: WebGL2RenderingContext, private mode: PPSMode) {
+    this.detail = gradientDetail(mode);
+    this.size = {
+      width: this.detail,
+      height: this.detail,
+      depth: this.mode === "3D" ? this.detail : 1,
+    };
+    const s = Math.sqrt(this.size.depth);
+    this.storageSize = {
+      width: this.detail * s,
+      height: this.detail * s,
+    };
+
+    this.frameBuffer = new FramebufferObject(gl, this.storageSize);
 
     const { texFieldValue, texGradientField } = this.initTextures();
     this.texFieldValue = texFieldValue;
@@ -119,27 +177,33 @@ export class GradientField {
 
   private initTextures() {
     const gl = this.gl;
-    const texFieldValue = Array.from(Array(2)).map((_) => {
-      const tex = new TextureObject(gl, {
-        mode: gl.NEAREST,
-        internalFormat: gl.R32I,
-        format: gl.RED_INTEGER,
-        type: gl.INT,
-      });
-      const fbuf = new Int32Array(GRADIENT_DETAIL * GRADIENT_DETAIL);
-      tex.updateData(GRADIENT_DETAIL, GRADIENT_DETAIL, fbuf);
-      return tex;
+    const texWidth = this.storageSize.width;
+    const texHeight = this.storageSize.height;
+    const size = texWidth * texHeight;
+
+    const texFieldValue = new TextureObject(gl, {
+      mode: gl.NEAREST,
+      internalFormat: gl.R32I,
+      format: gl.RED_INTEGER,
+      type: gl.INT,
+      width: texWidth,
+      height: texHeight,
+      wrap: { s: gl.REPEAT, t: gl.REPEAT },
     });
+    const fbuf = new Int32Array(size);
+    texFieldValue.updateData(texWidth, texHeight, fbuf);
 
     const texGradientField = new TextureObject(gl, {
       mode: gl.NEAREST,
-      internalFormat: gl.RG32I,
-      format: gl.RG_INTEGER,
+      internalFormat: gl.RGBA32I,
+      format: gl.RGBA_INTEGER,
       type: gl.INT,
-      // wrap: {s: gl.REPEAT, t: gl.REPEAT} // clamp for now
+      width: texWidth,
+      height: texHeight,
+      wrap: { s: gl.REPEAT, t: gl.REPEAT }, // clamp for now
     });
-    const gbuf = new Int32Array(GRADIENT_DETAIL * GRADIENT_DETAIL * 2);
-    texGradientField.updateData(GRADIENT_DETAIL, GRADIENT_DETAIL, gbuf);
+    const gbuf = new Int32Array(size * 4);
+    texGradientField.updateData(texWidth, texHeight, gbuf);
 
     return { texFieldValue, texGradientField };
   }
@@ -157,13 +221,13 @@ export class GradientField {
     );
 
     gfx.attachUniform("uResolution", (l, v: Size) =>
-      gl.uniform2f(l, v.width, v.height)
+      gl.uniform3f(l, v.width, v.height, v.depth)
     );
     gfx.attachUniform("uBorderSize", (l, v: BorderSize) =>
       gl.uniform3f(l, v.radius, v.sharpness, v.intensity)
     );
 
-    this.frameBuffer.attach(this.texFieldValue[0], 0);
+    this.frameBuffer.attach(this.texFieldValue, 0);
     this.frameBuffer.bind();
     this.frameBuffer.checkStatus();
 
@@ -181,11 +245,8 @@ export class GradientField {
         QUAD2.length / 2,
         gl.TRIANGLE_STRIP,
         (gfx) => {
-          // gl.clearColor(0, 0, 0, 0);
-          // gl.clear(gl.COLOR_BUFFER_BIT);
           gfx.bindUniform("uResolution", this.size);
           gfx.bindUniform("uBorderSize", this.borderSize);
-          // gfx.bindTexture(this.texFieldValue[1 - this.swap], 0);
           return true;
         }
       )
@@ -198,14 +259,14 @@ export class GradientField {
     const gl = this.gl;
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_COLOR, gl.DST_COLOR);
-    this.frameBuffer.attach(this.texFieldValue[this.swap], 0);
+    this.frameBuffer.attach(this.texFieldValue, 0);
   }
 
   private initUpdateGradient() {
     const gl = this.gl;
 
     const vertexShader = updateVertShader(gl);
-    const fragShader = new ShaderConfig(gradientFragShader, gl.FRAGMENT_SHADER);
+    const fragShader = gradientFragShader(gl, this.mode);
     const gfx = new Graphics(
       gl,
       this.frameBuffer,
@@ -213,12 +274,11 @@ export class GradientField {
       this.onUpdateGradient.bind(this)
     );
 
-    // gfx.attachUniform("uResolution", (l, v: Size) =>
-    //   gl.uniform2f(l, v.width, v.height)
-    // );
-    this.texFieldValue.forEach((tex) =>
-      gfx.attachTexture(tex, "texFieldValue")
-    );
+    gfx.attachUniform("uResolution", (l, v: Size) => {
+      gl.uniform3f(l, v.width, v.height, v.depth);
+    });
+
+    gfx.attachTexture(this.texFieldValue, "texFieldValue");
 
     this.frameBuffer.attach(this.texGradientField, 0);
     this.frameBuffer.bind();
@@ -238,10 +298,8 @@ export class GradientField {
         QUAD2.length / 2,
         gl.TRIANGLE_STRIP,
         (gfx) => {
-          // gl.clearColor(0, 0, 0, 0);
-          // gl.clear(gl.COLOR_BUFFER_BIT);
-          // gfx.bindUniform("uResolution", this.size);
-          gfx.bindTexture(this.texFieldValue[this.swap], 0);
+          gfx.bindUniform("uResolution", this.size);
+          gfx.bindTexture(this.texFieldValue, 0);
           return true;
         }
       )
@@ -258,7 +316,6 @@ export class GradientField {
 
   public update(force = false) {
     if (this.hasUpdate || force) {
-      console.log("update gfield");
       this.hasUpdate = false;
       this.updateField.render(false);
       this.updateGradient.render(false);
@@ -270,12 +327,17 @@ export class GradientField {
   }
 
   public fieldValue() {
-    return this.texFieldValue[this.swap];
+    return this.texFieldValue;
   }
 
   public setParams(params: RenderParams) {
     const { borderSize } = params;
     this.borderSize = borderSize;
     this.hasUpdate = true;
+  }
+
+  // this kind of assumes the texture is a square
+  public getVirtualSize() {
+    return [this.size.width, this.storageSize.width];
   }
 }

@@ -21,12 +21,20 @@ void main() {
   ivec2 index = ivec2(gl_VertexID % w, gl_VertexID / w);
   ivec3 ipos = texelFetch(texPositions, index, 0).xyz;
   vec3 position = vec3(intBitsToFloat(ipos.x), intBitsToFloat(ipos.y), intBitsToFloat(ipos.z));
-  gl_Position = uvpMatrix * vec4(position, 1.);
+  vec4 p = uvpMatrix * vec4(position, 1.);
+
+  // vec4 q = uvpMatrix * vec4(position + vec3(0.001, 0.001, 0.001), 1.);
+  // float zscale = length(p.xyz - vec3(0., 0., -4.)) / 6. ; //1000. * length(p - q) / 2.;
+  // vec3 z0 = uvpMatrix * vec3(0., 0., -1.);
+  // float z = p.z * zscale - 1.;
 
   float cval = intBitsToFloat(texelFetch(texColors, index, 0).r);
-  color = texture(texPalette, vec2(cval, 0.0));
+  vec4 c = texture(texPalette, vec2(cval, 0.0));
+  // c.a = c.a * (zscale - 2.);
 
-  gl_PointSize = uPointSize;
+  gl_Position = p;
+  gl_PointSize = uPointSize; // * (2. - zscale);
+  color = c;
 }
 `;
 
@@ -88,10 +96,13 @@ uniform isampler2D texVelocities;
 uniform isampler2D texOrientations;
 uniform isampler2D texSortedPositions;
 uniform isampler3D texCountedPositions;
-// uniform isampler3D texGradientField;
+uniform isampler2D texGradientField;
 
 uniform ivec2 uStateSize;
 uniform int uGridSize;
+// x is virtual width, y is storage width
+uniform vec2 uGradientFieldSize;
+
 uniform vec2 uAlpha;
 uniform vec2 uBeta;
 uniform float uRadius;
@@ -137,11 +148,25 @@ Bucket fetchCount(in isampler3D tex, in ivec3 cell) {
   return b;
 }
 
-// vec3 fetchGradientValue(in vec3 xyz) {
-//   vec3 uvw = 0.5 * (xyz + 1.);
-//   ivec3 di = texture(texGradientField, uvw).xyz;
-//   return vec3(intBitsToFloat(di.x), intBitsToFloat(di.y), intBitsToFloat(di.z));
-// }
+vec3 fetchGradientValue(in vec3 xyz) {
+  vec3 s = 0.5 * (xyz + 1.);
+  float gfSize = uGradientFieldSize.x;
+
+  // fuck this is so annoying. note that this step is specifically required
+  // or rounding issues will completely mess up the arithmetic.
+  ivec3 si = ivec3(floor(s * gfSize));
+  int index = si.x + si.y * int(gfSize);
+
+#ifdef PPS_MODE_3D
+  index = index + si.z * int(gfSize * gfSize);
+#endif
+
+  int vSize = int(uGradientFieldSize.y);
+  ivec2 uv = ivec2(index % vSize, index / vSize);
+
+  ivec3 di = texelFetch(texGradientField, uv, 0).xyz;
+  return vec3(intBitsToFloat(di.x), intBitsToFloat(di.y), intBitsToFloat(di.z));
+}
 
 ivec3 cellCoord(in vec3 pos, float gridSize) {
   vec3 ipos = floor((pos + 1.) / 2. * gridSize);
@@ -320,7 +345,8 @@ mat3 rotate3d(vec2 angle) {
 }
 
 vec3 integrate(in vec3 pos, in vec3 vel) {
-  vec3 avel = vel; // + fetchGradientValue(pos);
+  vec3 force = fetchGradientValue(pos);
+  vec3 avel = vel + force;
   pos += avel * uVelocity;
   // return pos;
   vec3 apos = pos + 1.0;
