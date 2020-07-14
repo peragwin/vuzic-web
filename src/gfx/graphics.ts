@@ -435,7 +435,8 @@ export class CanvasObject extends RenderTarget {
 
   constructor(
     private gl: WebGL2RenderingContext,
-    private onResize?: (size: { width: number; height: number }) => void
+    private onResize?: (size: { width: number; height: number }) => void,
+    private clearing: boolean = true
   ) {
     super();
     this.canvas = gl.canvas;
@@ -461,8 +462,10 @@ export class CanvasObject extends RenderTarget {
     this.resize(gl.canvas);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-    gl.clearColor(0, 0, 0, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (this.clearing) {
+      gl.clearColor(0, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    }
   }
 }
 

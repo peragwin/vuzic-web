@@ -332,8 +332,10 @@ export class PPS {
 
     this.debug = new Debug(
       canvas,
+      this.gradientField.fieldValue(),
       this.gradientField.gradientField(),
-      this.gradientField.fieldValue()
+      this.gradientField.getVirtualSize(),
+      this.mode
     );
 
     this.loop();
@@ -645,14 +647,14 @@ export class PPS {
 
     this.onRender(this);
 
-    this.gradientField.update();
+    this.gradientField.update(true);
 
     this.calculateSortedPositions(this.swap);
 
     this.updateGfx.render(false);
     this.renderGfx.render(false);
 
-    // this.debug.render();
+    this.debug.render();
 
     this.frameCount = (this.frameCount + 1) & 0xffff;
     this.lastTime = now;

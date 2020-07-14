@@ -37,12 +37,19 @@ uniform vec3 uResolution;
 // .X is radius from border, .Y is sharpness (using pow), .Z is magnitude
 uniform vec3 uBorderSize;
 
+uniform float uTime;
+
 layout(location = 0) out int outFieldValue;
 
-float borderValue(vec3 uvw) {
-  vec3 xyz = 2. * uvw - 1.;
+float borderValue(vec3 xyz) {
   vec3 g = uBorderSize.z * pow(abs(xyz) * uBorderSize.x, vec3(uBorderSize.y));
   return length(g);
+}
+
+float centerBall(vec3 xyz) {
+  float r = 0.5;
+  float s = step(length(xyz), r) * pow(1. - length(xyz) / r, 2.); //1. / (1. + 4. * dot(xyz, xyz));
+  return cos(uTime) * uBorderSize.z * smoothstep(0., 1., s); //clamp(s, 0., 1.); //
 }
 
 vec3 getUVW(in vec2 xy) {
@@ -58,8 +65,9 @@ vec3 getUVW(in vec2 xy) {
 
 void main () {
   vec3 uvw = getUVW(gl_FragCoord.xy);
+  vec3 xyz = 2. * uvw - 1.;
 
-  float bv = borderValue(uvw);
+  float bv = borderValue(xyz) + centerBall(xyz);
 
   outFieldValue = floatBitsToInt(bv);
 }
@@ -226,6 +234,7 @@ export class GradientField {
     gfx.attachUniform("uBorderSize", (l, v: BorderSize) =>
       gl.uniform3f(l, v.radius, v.sharpness, v.intensity)
     );
+    gfx.attachUniform("uTime", (l, v) => gl.uniform1f(l, v));
 
     this.frameBuffer.attach(this.texFieldValue, 0);
     this.frameBuffer.bind();
@@ -247,6 +256,7 @@ export class GradientField {
         (gfx) => {
           gfx.bindUniform("uResolution", this.size);
           gfx.bindUniform("uBorderSize", this.borderSize);
+          gfx.bindUniform("uTime", performance.now() / 100);
           return true;
         }
       )

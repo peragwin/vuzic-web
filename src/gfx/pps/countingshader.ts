@@ -45,10 +45,7 @@ float getCount(in int x, in int y, in int z) {
 }
 
 int varianceIndex(in int index, in int level) {
-  int offset = 0;
-  for (int i = 0; i < level; i++) {
-    offset += 1 << (PASSES-i);
-  }
+  int offset = (1 << level) - 1;
   return index + offset;
 }
 

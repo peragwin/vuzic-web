@@ -6,23 +6,26 @@ import {
   BufferConfig,
   VertexArrayObject,
 } from "./graphics";
-import { updateVertShader } from "./pps/shaders";
+import { updateVertShader, PPSMode } from "./pps/shaders";
 import { QUAD2 } from "./pps/pps";
 
-const fragShader = `#version 300 es
+const fragShader = (gl: WebGL2RenderingContext, mode: PPSMode) => {
+  const source = `#version 300 es
+#define PPS_MODE_${mode}
 precision mediump float;
 precision highp isampler2D;
 
-uniform isampler2D tex;
-uniform isampler2D tex1;
+uniform isampler2D texField;
+uniform isampler2D texGradient;
 uniform vec2 uResolution;
+uniform vec2 uTexSize;
 
 out vec4 fragColor;
 
-vec3 fetchGradientValue(in vec3 xyz) {
+vec3 fetchFieldValue(in isampler2D tex, in vec3 xyz) {
   vec3 s = 0.5 * (xyz + 1.);
-  float gfSize = 512.;//uGradientFieldSize.x;
-  // fuck this is so annoying. note that the floor(s * gfSize) step is specifically required
+  float gfSize = uTexSize.x;
+  // fuck this is so annoying. note that this step is specifically required
   // or rounding issues will completely mess up the arithmetic.
   ivec3 si = ivec3(floor(s * gfSize));
   int index = si.x + si.y * int(gfSize);
@@ -30,7 +33,7 @@ vec3 fetchGradientValue(in vec3 xyz) {
   index = index + si.z * int(gfSize * gfSize);
 #endif
 
-  int vSize = 512;//uGradientFieldSize.y;
+  int vSize = int(uTexSize.y);
   ivec2 uv = ivec2(index % vSize, index / vSize);
   // ivec2 uv = ivec2(s.xy * vSize);
 
@@ -40,18 +43,21 @@ vec3 fetchGradientValue(in vec3 xyz) {
 
 void main() {
   vec2 uv = gl_FragCoord.xy / uResolution;
+  vec3 xyz = vec3(2. * uv - 1., 0.);
 
   // ivec2 c = texture(tex, uv).rg;
   // vec2 color = vec2(intBitsToFloat(c.r), intBitsToFloat(c.g));
-  vec2 color = fetchGradientValue(vec3(2. * uv - 1., 0.)).xy;
+  vec2 color = fetchFieldValue(texGradient, xyz).xy;
 
   color = 0.5 * (5.*color + 1.);
 
-  float c1 = intBitsToFloat(texture(tex1, uv).r);
+  float c1 = fetchFieldValue(texField, xyz).r;
 
-  fragColor = vec4(color, c1, 1.);
+  fragColor = vec4(color, c1, 0.9);
 }
 `;
+  return new ShaderConfig(source, gl.FRAGMENT_SHADER);
+};
 
 export class Debug {
   private gl: WebGL2RenderingContext | WebGL2ComputeRenderingContext;
@@ -59,8 +65,10 @@ export class Debug {
 
   constructor(
     canvas: HTMLCanvasElement,
-    private tex: Texture,
-    private tex1: Texture
+    private texField: Texture,
+    private texGradient: Texture,
+    texSize: number[],
+    mode: PPSMode
   ) {
     const cgl = canvas.getContext("webgl2-compute", {
       preserveDrawingBuffer: true,
@@ -77,17 +85,21 @@ export class Debug {
 
     const gfx = new Graphics(
       this.gl,
-      new CanvasObject(gl),
-      [updateVertShader(gl), new ShaderConfig(fragShader, gl.FRAGMENT_SHADER)],
-      () => true
+      new CanvasObject(gl, () => {}, false),
+      [updateVertShader(gl), fragShader(gl, mode)],
+      () => {
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.DST_ALPHA);
+      }
     );
     this.gfx = gfx;
 
     gfx.attachUniform("uResolution", (l, v) => {
       gl.uniform2f(l, canvas.clientWidth, canvas.clientHeight);
     });
-    gfx.attachTexture(tex, "tex");
-    gfx.attachTexture(tex1, "tex1");
+    gfx.attachUniform("uTexSize", (l, v) => gl.uniform2f(l, v[0], v[1]));
+    gfx.attachTexture(texField, "texField");
+    gfx.attachTexture(texGradient, "texGradient");
 
     const buf = gfx.newBufferObject(
       new BufferConfig(
@@ -104,8 +116,9 @@ export class Debug {
         gl.TRIANGLE_STRIP,
         (gfx) => {
           gfx.bindUniform("uResolution", null);
-          gfx.bindTexture(tex, 0);
-          gfx.bindTexture(tex1, 1);
+          gfx.bindUniform("uTexSize", texSize);
+          gfx.bindTexture(texField, 0);
+          gfx.bindTexture(texGradient, 1);
           return true;
         }
       )
