@@ -256,7 +256,7 @@ export class GradientField {
         (gfx) => {
           gfx.bindUniform("uResolution", this.size);
           gfx.bindUniform("uBorderSize", this.borderSize);
-          gfx.bindUniform("uTime", performance.now() / 100);
+          gfx.bindUniform("uTime", performance.now() / 400);
           return true;
         }
       )

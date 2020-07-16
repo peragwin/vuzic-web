@@ -346,9 +346,7 @@ mat3 rotate3d(vec2 angle) {
 
 vec3 integrate(in vec3 pos, in vec3 vel) {
   vec3 force = fetchGradientValue(pos);
-  vec3 avel = vel + force;
-  pos += avel * uVelocity;
-  // return pos;
+  pos += vel * uVelocity + force;
   vec3 apos = pos + 1.0;
   return mod(apos, 2.0) - 1.0;
 }
@@ -409,7 +407,7 @@ void main() {
   mat3 rot = mat3(rotate2d(dtheta.s));
 #endif
 
-  vel = normalize(rot * vel);
+  vel = rot * vel;
   ori = normalize(rot * ori);
   pos = integrate(pos, vel);
 

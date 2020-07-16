@@ -463,6 +463,8 @@ class FrequencyProcessor {
     );
   }
 
+  private _hasUpdate = false;
+
   public process(input: Float32Array) {
     this.applyPreemphasis(input);
     this.applyGainControl(input);
@@ -470,6 +472,7 @@ class FrequencyProcessor {
     this.applyEffects();
     this.applySync();
     this.applyValueScaling();
+    this._hasUpdate = true;
     return this.drivers;
   }
 
@@ -604,8 +607,10 @@ class FrequencyProcessor {
     }
   }
 
-  public getDrivers() {
-    return this.drivers;
+  public getDrivers(): [Drivers, boolean] {
+    const hasUpdate = this._hasUpdate;
+    this._hasUpdate = false;
+    return [this.drivers, hasUpdate];
   }
 
   public setParams(params: AudioProcessorParams) {

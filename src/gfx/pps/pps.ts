@@ -23,6 +23,7 @@ import { CountingSortComputer } from "./countingshader";
 import { Camera } from "../util/camera";
 import { vec3, mat4 } from "gl-matrix";
 import { CameraController } from "../util/cameraController";
+import { Drivers } from "../../audio/audio";
 
 export const QUAD2 = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 const TEX_WIDTH = 1024;
@@ -654,7 +655,7 @@ export class PPS {
     this.updateGfx.render(false);
     this.renderGfx.render(false);
 
-    this.debug.render();
+    // this.debug.render();
 
     this.frameCount = (this.frameCount + 1) & 0xffff;
     this.lastTime = now;
@@ -712,6 +713,10 @@ export class PPS {
   private rotateIncrement(time: number) {
     const { x, y } = this.params.autoRotate;
     return { x: (x * time) / 32, y: (y * time) / 32 };
+  }
+
+  public setAudioDrivers(drivers: Drivers) {
+    return;
   }
 }
 

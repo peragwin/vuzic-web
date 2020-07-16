@@ -46,7 +46,7 @@ const Warp: React.FC<Props> = (props) => {
         if (!audio.current) return;
 
         const params = controller.current.params;
-        const drivers = audio.current.getDrivers();
+        const [drivers, hasUpdate] = audio.current.getDrivers();
 
         w.setParams(params);
         w.updateFromDrivers(drivers);

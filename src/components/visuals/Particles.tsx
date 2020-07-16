@@ -15,18 +15,31 @@ export const useController = (init: RenderParams) => {
 };
 
 const Particle: React.FC<Props> = (props) => {
-  const { canvas, controller, setFrameRate, setErrorState, mode } = props;
+  const {
+    canvas,
+    controller,
+    setFrameRate,
+    setErrorState,
+    mode,
+    audio,
+  } = props;
 
   const isInit = Boolean(canvas.current);
 
   useEffect(() => {
-    if (!canvas.current) return;
+    if (!canvas.current || !audio.current) return;
+
+    audio.current.start(
+      (ready) =>
+        // fixme: set some warning state in the app
+        !ready && console.error("Vuzic requires acess to your microphone!")
+    );
 
     try {
       const pps = new PPS(
         canvas.current,
         (p: PPS) => {
-          if (!controller.current) return;
+          if (!controller.current || !audio.current) return;
 
           const params = controller.current.params;
           p.setParams(params);
