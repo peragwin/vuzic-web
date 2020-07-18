@@ -273,6 +273,7 @@ void main () {
 
 class ComputeTarget extends RenderTarget {
   public use() {}
+  public setViewport(_: number) {}
 }
 
 interface StateSize {

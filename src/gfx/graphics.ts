@@ -333,6 +333,8 @@ export class VertexArrayObject {
 
 export abstract class RenderTarget {
   abstract use(): void;
+  abstract setViewport(layer: number): void;
+  public layers = 1;
 }
 
 export class FramebufferObject extends RenderTarget {
@@ -372,10 +374,13 @@ export class FramebufferObject extends RenderTarget {
 
   public use() {
     const gl = this.gl;
-    gl.viewport(0, 0, this.dims.width, this.dims.height);
     this.bind();
     gl.drawBuffers(this.textures.map(({ id }) => gl.COLOR_ATTACHMENT0 + id));
     this.textures = [];
+  }
+
+  public setViewport(layer: number) {
+    this.gl.viewport(0, 0, this.dims.width, this.dims.height);
   }
 
   public readData(
@@ -432,14 +437,17 @@ export class FramebufferObject extends RenderTarget {
 
 export class CanvasObject extends RenderTarget {
   private canvas: HTMLCanvasElement | OffscreenCanvas;
+  public layers: 1 | 2;
 
   constructor(
     private gl: WebGL2RenderingContext,
     private onResize?: (size: { width: number; height: number }) => void,
-    private clearing: boolean = true
+    private clearing = true,
+    private stereo = false
   ) {
     super();
     this.canvas = gl.canvas;
+    this.layers = stereo ? 2 : 1;
   }
 
   private resize(canvas: HTMLCanvasElement | OffscreenCanvas) {
@@ -461,11 +469,18 @@ export class CanvasObject extends RenderTarget {
     const gl = this.gl;
     this.resize(gl.canvas);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     if (this.clearing) {
       gl.clearColor(0, 0, 0, 1);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     }
+  }
+
+  public setViewport(layer: 0 | 1) {
+    let width = this.canvas.width;
+    let offset = 0;
+    if (layer === 1) offset = this.canvas.width / 2;
+    if (this.stereo) width /= 2;
+    this.gl.viewport(offset, 0, width, this.canvas.height);
   }
 }
 
@@ -489,7 +504,8 @@ export class Graphics {
     readonly gl: WebGL2RenderingContext,
     private target: RenderTarget,
     shaders: Array<ShaderConfig>,
-    public onRender: (g: Graphics) => void
+    public onRender: (g: Graphics) => void,
+    public onSetCamera?: (layer: number) => void
   ) {
     const program = gl.createProgram();
     if (program === null) throw new Error("could not create gl program");
@@ -669,17 +685,21 @@ export class Graphics {
     this.onRender(this);
 
     this.target.use();
+    for (let l = 0; l < this.target.layers; l++) {
+      this.target.setViewport(l);
+      if (this.onSetCamera) this.onSetCamera(l);
 
-    let lastBuf: BufferObject | null = null;
-    this.vaos.forEach((v) => {
-      if (v.buffer !== lastBuf) {
-        lastBuf = v.buffer;
-        if (v.buffer) {
-          v.buffer.bindBuffer(gl);
+      let lastBuf: BufferObject | null = null;
+      this.vaos.forEach((v) => {
+        if (v.buffer !== lastBuf) {
+          lastBuf = v.buffer;
+          if (v.buffer) {
+            v.buffer.bindBuffer(gl);
+          }
         }
-      }
-      v.draw(this);
-    });
+        v.draw(this);
+      });
+    }
 
     gl.flush();
 

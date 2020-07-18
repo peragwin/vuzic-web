@@ -196,8 +196,18 @@ export class WarpGrid {
       new ShaderConfig(vertexSrc, gl.VERTEX_SHADER, [], []),
       new ShaderConfig(fragmenShaderSource, gl.FRAGMENT_SHADER, [], []),
     ];
-    const cv = new CanvasObject(gl);
-    let gfx = new Graphics(gl, cv, shaderConfigs, this.render.bind(this));
+    const cv = new CanvasObject(gl, undefined, true, true);
+    let gfx = new Graphics(
+      gl,
+      cv,
+      shaderConfigs,
+      this.render.bind(this),
+      (layer: number) => {
+        this.cameraController.increment({ x: (layer * 2 - 1) * 0.02, y: 0 });
+        this.cameraController.update(this.updateCamera);
+        gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
+      }
+    );
     this.renderGfx = gfx;
 
     gfx.attachTexture(this.textures.image, "texImage");
@@ -206,7 +216,7 @@ export class WarpGrid {
     gfx.attachUniform("uzScale", (l, v) => gl.uniform1f(l, v));
     gfx.attachUniformBlock("uCameraMatrix", 0);
 
-    this.createCells(gfx);
+    this.createCells(gfx, this.onDraw.bind(this));
 
     const fbo = new FramebufferObject(gl, { width: columns, height: rows });
     fbo.attach(this.textures.image, 0);
@@ -273,7 +283,7 @@ export class WarpGrid {
     this.loop();
   }
 
-  private createCells(gfx: Graphics) {
+  private createCells(gfx: Graphics, onDraw: (_: any) => boolean) {
     const density = 2;
     const { aspect } = this.params;
     const { columns, rows } = this.gridSize;
@@ -291,9 +301,6 @@ export class WarpGrid {
 
     const uscale = mat3.create();
     mat3.fromScaling(uscale, vec2.fromValues(texsx, texsy));
-
-    const warp = this.warp;
-    const scale = this.scale;
 
     const stride = 7;
     const verts = new Float32Array(stride * square.length * rows * columns);
@@ -340,14 +347,7 @@ export class WarpGrid {
           { name: "texPos", size: 2, offset: 3 },
           { name: "uvPos", size: 2, offset: 5 },
         ],
-        (_) => {
-          gfx.bindUniform("warp", warp);
-          gfx.bindUniform("scale", scale);
-          gfx.bindUniform("uzScale", this.params.zscale);
-          gfx.bindTexture(this.textures.image, 0);
-          gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
-          return true;
-        }
+        onDraw
       )
     );
 
@@ -371,9 +371,9 @@ export class WarpGrid {
     this.buffer.attach(this.textures.image, 0);
   }
 
-  private updateCamera(cameraMatrix: mat4) {
+  private updateCamera = (cameraMatrix: mat4) => {
     this.uCameraMatrix.update(new Float32Array(cameraMatrix));
-  }
+  };
 
   private loopHandle: number | null = null;
 
@@ -383,12 +383,22 @@ export class WarpGrid {
     // }
     this.loopHandle = requestAnimationFrame(this.loop.bind(this));
     this.onUpdate(this);
-    this.cameraController.update(this.updateCamera.bind(this));
+    this.cameraController.update(this.updateCamera);
 
     this.updateGfx.render(false);
     this.renderGfx.render(false);
 
     this.frameCount = (this.frameCount + 1) & 0xffff;
+  }
+
+  private onDraw(_: any) {
+    const gfx = this.renderGfx;
+    gfx.bindUniform("warp", this.warp);
+    gfx.bindUniform("scale", this.scale);
+    gfx.bindUniform("uzScale", this.params.zscale);
+    gfx.bindTexture(this.textures.image, 0);
+    gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
+    return true;
   }
 
   private frameCount = 0;
@@ -421,7 +431,7 @@ export class WarpGrid {
       this.params = params;
       this.gridSize = { rows: 2 * params.rows, columns: 2 * params.columns };
       this.textures = new Textures(this.gl, this.params);
-      this.createCells(this.renderGfx);
+      this.createCells(this.renderGfx, this.onDraw.bind(this));
 
       const fbo = new FramebufferObject(this.gl, {
         width: params.columns,
