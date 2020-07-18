@@ -290,6 +290,30 @@ export class UniformBuffer {
   }
 }
 
+export class ShaderStorageBuffer {
+  private buffer: WebGLBuffer;
+
+  constructor(
+    private readonly gl: WebGL2ComputeRenderingContext,
+    data: ArrayBufferView,
+    mode = gl.DYNAMIC_DRAW
+  ) {
+    const buffer = gl.createBuffer();
+    if (!buffer) {
+      throw new Error("failed to create shader buffer");
+    }
+    this.buffer = buffer;
+
+    gl.bindBuffer(gl.SHADER_STORAGE_BUFFER, buffer);
+    gl.bufferData(gl.SHADER_STORAGE_BUFFER, data, mode);
+    gl.bindBuffer(gl.SHADER_STORAGE_BUFFER, null);
+  }
+
+  public bind(id: number) {
+    this.gl.bindBufferBase(this.gl.SHADER_STORAGE_BUFFER, id, this.buffer);
+  }
+}
+
 export class BufferObject {
   constructor(
     readonly buffer: WebGLBuffer,
@@ -559,7 +583,6 @@ export class Graphics {
       });
       console.log(errInfo.join("\n"));
     }
-    console.log(s.source);
     this.gl.deleteShader(shader);
     return null;
   }

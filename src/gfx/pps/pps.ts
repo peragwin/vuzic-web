@@ -307,6 +307,7 @@ export class PPS {
       preserveDrawingBuffer: true,
     });
     if (!cgl) {
+      console.info("webgl2-compute is not supported");
       const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
       if (!gl) throw new Error("webgl2 is required");
       this.gl = gl;
@@ -314,6 +315,21 @@ export class PPS {
       console.info("webgl2-compute is supported");
       this.computeEnabled = true;
       this.gl = cgl;
+
+      console.log(
+        "max WG invoc=" +
+          // @ts-ignore
+          cgl.getParameter(cgl.MAX_COMPUTE_WORK_GROUP_INVOCATIONS) +
+          " size=" +
+          // @ts-ignore
+          cgl.getIndexedParameter(cgl.MAX_COMPUTE_WORK_GROUP_SIZE, 0)
+      );
+      // @ts-ignore
+      var mem = cgl.getParameter(cgl.MAX_COMPUTE_SHARED_MEMORY_SIZE);
+      console.log("Shared mem=" + mem);
+      if (mem < 32000) {
+        alert("no shared memory");
+      }
     }
 
     this.params = { ...defaultParams };
