@@ -286,7 +286,7 @@ export class PpsController {
     },
     {
       title: "Border Force",
-      min: 1,
+      min: 0,
       max: 100,
       step: 0.1,
       update: this.updater("borderIntensity"),

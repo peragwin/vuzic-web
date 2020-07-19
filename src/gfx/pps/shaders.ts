@@ -209,13 +209,14 @@ void compareNeighbor(in vec3 r, in float radius, in vec3 bVel, in vec3 bOri, ino
   float rl = dot(r, r);
   float r2 = radius*radius;
 
-  float damp = 1. / (1. + rl * uRadialDecay* uRadialDecay);
-  float s = damp * step(rl, r2);
+  if (rl > r2) return;
+
+  float s = 1. / (1. + rl * uRadialDecay* uRadialDecay);
 
   // head-twisty logic for (r > 0 && lenght(r) <= radius) && (ang < 0 ? (1, 0) : (0, 1))
-  compare.countX += s * (vec2(1., -1) * sign(r.x) + 1.) / 2.;
+  compare.countX += s * (vec2(0.5, -0.5) * sign(r.x) + 0.5);
 #ifdef PPS_MODE_3D
-  compare.countY += s * (vec2(1., -1) * sign(r.y) + 1.) / 2.;
+  compare.countY += s * (vec2(0.5, -0.5) * sign(r.y) + 0.5);
 #endif
 
   compare.groupVel += s * bVel;

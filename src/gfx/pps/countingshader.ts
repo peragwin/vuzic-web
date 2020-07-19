@@ -16,14 +16,30 @@ const thresholdShader = (
   const passes = Math.log2(gridSize);
   if (Math.floor(passes) !== passes)
     throw new Error("gridSize must be a power of 2");
+
   let gridCount = gridSize * gridSize;
-  if (mode === "3D") gridCount *= gridSize;
+  let zIterations = 1;
+  let localSizeY = 1;
+
+  if (mode === "3D") {
+    gridCount *= gridSize;
+    localSizeY = gridSize;
+
+    if (gridSize * gridSize > 1024) {
+      zIterations = (gridSize * gridSize) / 1024;
+      // don't actually think this is needed since gridsize here is >= 2^6
+      if (Math.floor(zIterations) != zIterations)
+        throw new Error("gridSize*gridSize must be multiple of 1024");
+    }
+  }
+
   const source = `#version 310 es
 precision highp float;
 
 #define GRID_SIZE ${gridSize}
 #define GRID_COUNT ${gridCount}
-#define LOCAL_SIZE_Y ${mode === "2D" ? 1 : gridSize}
+#define LOCAL_SIZE_Y ${localSizeY / zIterations}
+#define Z_ITERATIONS ${zIterations}
 #define PASSES ${passes}
 #define PPS_MODE_${mode}
 
@@ -59,9 +75,12 @@ void main() {
   float mean = nParticles / gridSize;
 
   float s = 0.;
-  for (int i = 0; i < GRID_SIZE; i++) {
-    float dev = getCount(i, threadID.x, threadID.y) - mean;
-    s += dev * dev;
+  for (int j = 0; j < Z_ITERATIONS; j++) {
+    int z = int(LOCAL_SIZE_Y) * j; 
+    for (int i = 0; i < GRID_SIZE; i++) {
+      float dev = getCount(i, threadID.x, threadID.y + z) - mean;
+      s += dev * dev;
+    }
   }
   variance[varianceIndex(threadIndex, 0)] = s;
 
@@ -117,6 +136,15 @@ const countingShader = (
         `adjusting workGroupSize to ${gfull}..`
     );
     workGroupSize = gfull;
+  }
+
+  if (gfull * 2 + workGroupSize > 32768) {
+    console.error(
+      "cannot allocate more than 32kib in compute shader",
+      gfull,
+      workGroupSize
+    );
+    throw new Error("cannot allocate more than 32kib in compute shader");
   }
 
   const countingShaderSrc = `#version 310 es
@@ -451,6 +479,7 @@ export class CountingSortComputer {
     gridSize: number,
     private mode: PPSMode
   ) {
+    this.workGroupSize = 16 * gridSize;
     const workGroupSize = this.workGroupSize;
     const ss = stateSize.width * stateSize.height;
     if (ss % workGroupSize !== 0) {
