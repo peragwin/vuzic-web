@@ -28,7 +28,7 @@ const thresholdShader = (
     if (gridSize * gridSize > 1024) {
       zIterations = (gridSize * gridSize) / 1024;
       // don't actually think this is needed since gridsize here is >= 2^6
-      if (Math.floor(zIterations) != zIterations)
+      if (Math.floor(zIterations) !== zIterations)
         throw new Error("gridSize*gridSize must be multiple of 1024");
     }
   }

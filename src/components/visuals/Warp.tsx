@@ -49,7 +49,7 @@ const Warp: React.FC<Props> = (props) => {
         const [drivers, hasUpdate] = audio.current.getDrivers();
 
         w.setParams(params);
-        w.updateFromDrivers(drivers);
+        if (hasUpdate) w.updateFromDrivers(drivers);
       });
 
       const intv = setInterval(() => {
