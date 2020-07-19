@@ -42,7 +42,10 @@ const Particle: React.FC<Props> = (props) => {
           if (!controller.current || !audio.current) return;
 
           const params = controller.current.params;
+          const [drivers, hasUpdate] = audio.current.getDrivers();
+
           p.setParams(params);
+          if (hasUpdate) p.updateAudioDrivers(drivers);
         },
         mode
       );

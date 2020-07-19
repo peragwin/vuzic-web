@@ -713,6 +713,8 @@ export class PPS {
     }
   }
 
+  public updateAudioDrivers(drivers: Drivers) {}
+
   async updateColorThresholds(count: Int32Array) {
     const [mean, std] = getCountStatistics(count, this.gridSize);
     const cellsInRadius = Math.ceil(this.params.radius * this.gridSize);
