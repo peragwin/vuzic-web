@@ -6,8 +6,8 @@ import {
   BufferConfig,
   VertexArrayObject,
 } from "./graphics";
-import { updateVertShader, PPSMode } from "./pps/shaders";
-import { QUAD2 } from "./pps/pps";
+import { updateVertShader } from "./pps/shaders";
+import { QUAD2, PPSMode } from "./pps/pps";
 
 const fragShader = (gl: WebGL2RenderingContext, mode: PPSMode) => {
   const source = `#version 300 es

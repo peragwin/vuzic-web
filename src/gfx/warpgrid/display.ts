@@ -20,6 +20,7 @@ import { RenderParams } from "./render";
 import { Drivers } from "../../audio/audio";
 import { Camera } from "../util/camera";
 import { CameraController } from "../util/cameraController";
+import { RenderView, XRRenderTarget } from "../xr/renderer";
 
 // const linTosRGB = (v: number) =>
 //   v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
@@ -154,7 +155,7 @@ export class WarpGrid {
   private gridSize: GridSize;
   private buffer: FramebufferObject;
   private camera: Camera;
-  private cameraController: CameraController;
+  private _cameraController: CameraController;
   private uCameraMatrix: UniformBuffer;
 
   public onFrameRate = (f: number) => {};
@@ -180,11 +181,12 @@ export class WarpGrid {
     this.camera = new Camera((45 * Math.PI) / 180, 1, -1, 1);
     this.camera.location = vec3.fromValues(0, 0, -2);
     this.camera.target = vec3.fromValues(0, 0, 0);
-    this.uCameraMatrix = new UniformBuffer(
-      gl,
-      new Float32Array(this.camera.matrix)
-    );
-    this.cameraController = new CameraController(this.camera, canvas);
+    this.uCameraMatrix = new UniformBuffer(gl, [
+      new Float32Array(this.camera.matrix),
+      new Float32Array(mat4.create()),
+      new Float32Array(this.camera.projectionMatrix),
+    ]);
+    this._cameraController = new CameraController(this.camera, canvas);
 
     this.textures = new Textures(gl, this.params);
 
@@ -196,18 +198,8 @@ export class WarpGrid {
       new ShaderConfig(vertexSrc, gl.VERTEX_SHADER, [], []),
       new ShaderConfig(fragmenShaderSource, gl.FRAGMENT_SHADER, [], []),
     ];
-    const cv = new CanvasObject(gl, undefined, true, true);
-    let gfx = new Graphics(
-      gl,
-      cv,
-      shaderConfigs,
-      this.render.bind(this),
-      (layer: number) => {
-        this.cameraController.increment({ x: (layer * 2 - 1) * 0.02, y: 0 });
-        this.cameraController.update(this.updateCamera);
-        gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
-      }
-    );
+    const cv = new CanvasObject(gl, undefined, true, false, this.updateView);
+    let gfx = new Graphics(gl, cv, shaderConfigs, this.render.bind(this));
     this.renderGfx = gfx;
 
     gfx.attachTexture(this.textures.image, "texImage");
@@ -281,6 +273,10 @@ export class WarpGrid {
     );
 
     this.loop();
+  }
+
+  public get cameraController() {
+    return this._cameraController;
   }
 
   private createCells(gfx: Graphics, onDraw: (_: any) => boolean) {
@@ -371,8 +367,13 @@ export class WarpGrid {
     this.buffer.attach(this.textures.image, 0);
   }
 
-  private updateCamera = (cameraMatrix: mat4) => {
-    this.uCameraMatrix.update(new Float32Array(cameraMatrix));
+  private updateCamera = () => {
+    // this.uCameraMatrix.update([new Float32Array(cameraMatrix)]);
+    this.uCameraMatrix.update([
+      new Float32Array(this.camera.matrix),
+      new Float32Array(mat4.create()),
+      new Float32Array(this.camera.projectionMatrix),
+    ]);
   };
 
   private loopHandle: number | null = null;
@@ -383,7 +384,9 @@ export class WarpGrid {
     // }
     this.loopHandle = requestAnimationFrame(this.loop.bind(this));
     this.onUpdate(this);
-    this.cameraController.update(this.updateCamera);
+    if (this.cameraController.update()) {
+      this.updateCamera();
+    }
 
     this.updateGfx.render(false);
     this.renderGfx.render(false);
@@ -488,5 +491,43 @@ export class WarpGrid {
       const ss = 1 - (columns - i / 2) / columns;
       this.scale[i] = scaleScale * ss * s + scaleOffset;
     }
+  }
+
+  private xrRenderTarget?: XRRenderTarget;
+
+  private updateView = (view: RenderView) => {
+    const gfx = this.renderGfx;
+    this.uCameraMatrix.update(
+      [
+        new Float32Array(view.transform.matrix),
+        new Float32Array(view.projection),
+      ],
+      64
+    );
+    gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
+    // gfx.bindUniform("uTransform", view.transform.matrix);
+    // gfx.bindUniform("uProjection", view.projection);
+    // if (view.eye !== "none") {
+    //   gfx.bindUniformBuffer("uCameraMatrix", )
+    // }
+    // gfx.bindUniform("uEye", xrEyeValue(view.eye));
+  };
+
+  public onEnterXR(refSpace: XRReferenceSpace) {
+    this.cameraController.initReferenceSpace(refSpace);
+    this.xrRenderTarget = new XRRenderTarget(
+      this.renderGfx,
+      refSpace,
+      this.updateView
+    );
+  }
+
+  public drawXRFrame(t: number, frame: XRFrame) {
+    if (!this.xrRenderTarget) return;
+    this.xrRenderTarget.updateReferenceSpace(
+      this.cameraController.referenceSpace
+    );
+    this.xrRenderTarget.onXRFrame(t, frame);
+    this.renderGfx.render(false, this.xrRenderTarget);
   }
 }

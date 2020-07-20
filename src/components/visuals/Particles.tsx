@@ -2,7 +2,10 @@ import React, { useReducer, useEffect, useMemo } from "react";
 import { RouteProps } from "../../types/types";
 import { PpsController, ppsRenderParamsReducer } from "../../gfx/pps/params";
 import { RenderParams, PPS } from "../../gfx/pps/pps";
-import { PPSMode } from "../../gfx/pps/shaders";
+import { PPSMode } from "../../gfx/pps/pps";
+import { XRManager } from "../../gfx/xr/manager";
+import { useSetRecoilState } from "recoil";
+import { xrManagerState } from "../XRButton";
 
 interface Props extends RouteProps {
   controller: React.RefObject<PpsController>;
@@ -23,6 +26,8 @@ const Particle: React.FC<Props> = (props) => {
     mode,
     audio,
   } = props;
+
+  const setXRManager = useSetRecoilState(xrManagerState);
 
   const isInit = Boolean(canvas.current);
 
@@ -50,6 +55,9 @@ const Particle: React.FC<Props> = (props) => {
         mode
       );
 
+      const xrManager = new XRManager(pps, {});
+      setXRManager(xrManager);
+
       const intv = setInterval(() => {
         const fr = pps.getFrameRate(1000);
         setFrameRate(fr);
@@ -62,6 +70,7 @@ const Particle: React.FC<Props> = (props) => {
     } catch (e) {
       console.error(e);
       setErrorState(e);
+      throw e;
     }
     // run once to initialize PPS
     // eslint-disable-next-line react-hooks/exhaustive-deps

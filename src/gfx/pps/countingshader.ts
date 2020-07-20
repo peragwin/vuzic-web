@@ -6,7 +6,8 @@ import {
   Texture3DObject,
   ShaderStorageBuffer,
 } from "../graphics";
-import { PPSMode } from "./shaders";
+import { PPSMode } from "./pps";
+import { TEX_WIDTH } from "./state";
 
 const thresholdShader = (
   gl: WebGL2ComputeRenderingContext,
@@ -441,7 +442,7 @@ void main () {
 
 class ComputeTarget extends RenderTarget {
   public use() {}
-  public setViewport() {}
+  public setView() {}
 }
 
 interface StateSize {
@@ -499,7 +500,7 @@ export class CountingSortComputer {
     this.fpGridSize = fpGridSize;
 
     // the gl.STATIC_COPY hint means write once, then its gpu internal
-    let data = new Int32Array(4 * ss);
+    let data = new Int32Array(4 * TEX_WIDTH * TEX_WIDTH);
     this.ssboSortedPositions = new ShaderStorageBuffer(
       gl,
       data,

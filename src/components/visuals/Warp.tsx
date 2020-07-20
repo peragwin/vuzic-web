@@ -8,6 +8,9 @@ import {
 } from "../../gfx/warpgrid/render";
 import { WarpGrid } from "../../gfx/warpgrid/display";
 import { RouteProps } from "../../types/types";
+import { useSetRecoilState } from "recoil";
+import { xrManagerState } from "../XRButton";
+import { XRManager } from "../../gfx/xr/manager";
 
 interface Props extends RouteProps {
   controller: React.RefObject<WarpController>;
@@ -20,6 +23,8 @@ export const useController = (init: RenderParams) => {
 
 const Warp: React.FC<Props> = (props) => {
   const { canvas, audio, controller, setFrameRate, setErrorState } = props;
+
+  const setXRManager = useSetRecoilState(xrManagerState);
 
   const isInit = Boolean(canvas.current && audio.current);
 
@@ -51,6 +56,9 @@ const Warp: React.FC<Props> = (props) => {
         w.setParams(params);
         if (hasUpdate) w.updateFromDrivers(drivers);
       });
+
+      const xrManager = new XRManager(wg, {});
+      setXRManager(xrManager);
 
       const intv = setInterval(() => {
         const fr = wg.getFrameRate(1000);

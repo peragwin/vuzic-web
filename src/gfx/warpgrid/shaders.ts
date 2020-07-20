@@ -96,7 +96,9 @@ uniform float warp[{0}]; // for y rows
 uniform float scale[{1}]; // for x cols
 uniform float uzScale;
 layout (std140) uniform uCameraMatrix {
-  mat4 uvpMatrix;
+  mat4 uView;
+  mat4 uTransform;
+  mat4 uProjection;
 };
 
 const vec2 gridSize = vec2({1}, {0});
@@ -144,7 +146,7 @@ void main() {
   fragTexPos = abs(2.*texPos-1.);
   vec4 pos = vec4(elev * x, elev * y, z, 1.0);
 
-  gl_Position = uvpMatrix * pos;
+  gl_Position = uProjection * uTransform * uView * pos;
 }`;
 
 export const fragmenShaderSource = `#version 300 es

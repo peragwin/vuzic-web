@@ -6,8 +6,8 @@ import {
   BufferConfig,
   VertexArrayObject,
 } from "../graphics";
-import { updateVertShader, PPSMode } from "./shaders";
-import { QUAD2, RenderParams } from "./pps";
+import { updateVertShader } from "./shaders";
+import { QUAD2, RenderParams, PPSMode } from "./pps";
 
 const GRADIENT_DETAIL = 512;
 const gradientDetail = (mode: PPSMode) => {

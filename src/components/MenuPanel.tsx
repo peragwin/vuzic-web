@@ -24,6 +24,7 @@ import { AudioParamKey, FilterParams } from "../audio/audio";
 import { ParamSlider, FilterParamSlider } from "./ParamSlider";
 import SaveMenu from "./SaveMenu";
 import { FPSInfo } from "./widgets/FPS";
+import { XRButton } from "./XRButton";
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -208,6 +209,7 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
               >
                 Audio
               </Typography>
+              <XRButton className={classes.root} />
               <SaveMenu {...props} setShowImportExport={setShowImportExport} />
             </Toolbar>
           </AppBar>

@@ -1,66 +1,5 @@
 import { ShaderConfig } from "../graphics";
-
-const drawVertSrc = `#version 300 es
-precision mediump float;
-precision mediump usampler2D;
-precision mediump isampler2D;
-
-uniform isampler2D texPositions;
-uniform isampler2D texColors;
-uniform sampler2D texPalette;
-uniform ivec2 uStateSize;
-uniform float uPointSize;
-layout (std140) uniform uCameraMatrix {
-  mat4 uvpMatrix;
-};
-
-out vec4 color;
-
-void main() {
-  int w = uStateSize.x;
-  ivec2 index = ivec2(gl_VertexID % w, gl_VertexID / w);
-  ivec3 ipos = texelFetch(texPositions, index, 0).xyz;
-  vec3 position = vec3(intBitsToFloat(ipos.x), intBitsToFloat(ipos.y), intBitsToFloat(ipos.z));
-  vec4 p = uvpMatrix * vec4(position, 1.);
-
-  // vec4 q = uvpMatrix * vec4(position + vec3(0.001, 0.001, 0.001), 1.);
-  // float zscale = length(p.xyz - vec3(0., 0., -4.)) / 6. ; //1000. * length(p - q) / 2.;
-  // vec3 z0 = uvpMatrix * vec3(0., 0., -1.);
-  // float z = p.z * zscale - 1.;
-
-  float cval = intBitsToFloat(texelFetch(texColors, index, 0).r);
-  vec4 c = texture(texPalette, vec2(cval, 0.0));
-  // c.a = c.a * (zscale - 2.);
-
-  gl_Position = p;
-  gl_PointSize = uPointSize; // * (2. - zscale);
-  color = c;
-}
-`;
-
-export const drawVertShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(drawVertSrc, gl.VERTEX_SHADER, [], []);
-
-const drawFragSrc = `#version 300 es
-precision mediump float;
-
-uniform float uAlpha;
-
-in vec4 color;
-out vec4 fragColor;
-
-void main() {
-  vec2 p =  2. * gl_PointCoord.xy - 1.;
-  float r = length(p);
-  // float a = 1. / (1. + r*r);
-  float a = 1. - pow(r, 3.);
-  // float a = step(r, 1.);
-  fragColor = vec4(a * color.rgb, uAlpha);
-}
-`;
-
-export const drawFragShader = (gl: WebGL2RenderingContext) =>
-  new ShaderConfig(drawFragSrc, gl.FRAGMENT_SHADER);
+import { PPSMode } from "./pps";
 
 const quadVertSrc = `#version 300 es
 precision highp float;
@@ -77,8 +16,6 @@ void main() {
 
 export const updateVertShader = (gl: WebGL2RenderingContext) =>
   new ShaderConfig(quadVertSrc, gl.VERTEX_SHADER);
-
-export type PPSMode = "2D" | "3D";
 
 export const updateFragShader = (gl: WebGL2RenderingContext, mode: PPSMode) => {
   const updateFragSrc = `#version 300 es

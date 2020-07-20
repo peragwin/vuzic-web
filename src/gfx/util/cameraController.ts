@@ -1,27 +1,19 @@
-import { vec3, mat4, mat3 } from "gl-matrix";
+import { vec3, quat } from "gl-matrix";
 import { Camera } from "./camera";
-
-interface XY {
-  x: number;
-  y: number;
-}
-
-function mousePosition(e: MouseEvent) {
-  return { x: e.clientX, y: e.clientY };
-}
 
 const MOUSE_SCALE = 0.005;
 
 export class CameraController {
-  private isMouseDown = false;
+  private phi = 0;
+  private theta = 0;
+  private radius = 2;
+  private scale = 1;
+  private origin = vec3.fromValues(0, 0, 0);
+
   private needsUpdate = false;
 
-  private lastEventPosition = { x: 0, y: 0 };
-  private moveEventAccumulator = { x: 0, y: 0 };
-
-  private theta = 0;
-  private phi = 0;
-  private radius = 2;
+  private refSpace?: XRReferenceSpace;
+  private baseRefSpace?: XRReferenceSpace;
 
   constructor(
     readonly camera: Camera,
@@ -31,158 +23,129 @@ export class CameraController {
   ) {
     if (radius !== undefined) this.radius = radius;
     if (!enabled) return;
+
+    // canvas.style.cursor = "grab";
+
     this.addEventListeners();
   }
 
-  private addEventListeners() {
-    document.addEventListener("mouseup", this.mouseUpHandler.bind(this));
-    this.canvas.addEventListener("mousedown", this.mouseDownHandler.bind(this));
-    this.canvas.addEventListener("mousemove", this.mouseMoveHandler.bind(this));
-    // @ts-ignore
-    this.canvas.addEventListener("mousewheel", this.wheelHandler.bind(this));
+  public initReferenceSpace(r: XRReferenceSpace) {
+    this.refSpace = r;
+    this.baseRefSpace = r;
   }
 
-  private mouseUpHandler() {
-    this.isMouseDown = false;
-  }
-
-  private mouseDownHandler(e: MouseEvent) {
-    this.isMouseDown = true;
-    this.lastEventPosition = mousePosition(e);
-  }
-
-  private mouseMoveHandler(e: MouseEvent) {
-    if (!this.isMouseDown) return;
-    this.handleMovement(mousePosition(e));
-  }
-
-  private handleMovement(p: XY) {
-    this.needsUpdate = true;
-    const old = this.lastEventPosition;
-    this.theta -= (p.x - old.x) * MOUSE_SCALE;
-    this.phi -= (p.y - old.y) * MOUSE_SCALE;
-    // this.moveEventAccumulator.x += (p.x - old.x) * MOUSE_SCALE;
-    // this.moveEventAccumulator.y += (p.y - old.y) * MOUSE_SCALE;
-    this.lastEventPosition = p;
-  }
-
-  private wheelHandler(e: WheelEvent) {
-    e.preventDefault();
-    if (e.deltaY > 0) {
-      this.radius *= 1.1;
-    } else {
-      this.radius *= 0.9;
-    }
+  public rotateView(dx: number, dy: number) {
+    this.theta += dx * MOUSE_SCALE;
+    this.phi += dy * MOUSE_SCALE;
     this.needsUpdate = true;
   }
 
-  public increment(inc: { x: number; y: number }) {
-    this.theta -= inc.x;
-    this.phi -= inc.y;
-    // this.moveEventAccumulator.x += inc.x;
-    // this.moveEventAccumulator.y += inc.y;
-    this.needsUpdate = true;
+  public reset() {
+    this.phi = 0;
+    this.theta = 0;
+    this.refSpace = this.baseRefSpace;
+    this.needsUpdate = false;
   }
 
-  // TODO: update by rotating on the axis orthogonal to the accumulated {x,y}
-  // vector in the x,y plane.
-
-  public update(cb: (mat: mat4) => void) {
-    if (!this.needsUpdate) return;
+  public update() {
+    if (!this.needsUpdate) return false;
     this.needsUpdate = false;
 
-    let s, c, r, o;
-    const U = mat3.create();
-    const V = mat3.create();
+    const rot = quat.create();
+    quat.rotateX(rot, rot, -this.phi);
+    quat.rotateY(rot, rot, -this.theta);
 
-    s = Math.sin(this.phi);
-    c = Math.cos(this.phi);
-    mat3.set(V, 1, 0, 0, 0, c, -s, 0, s, c);
+    this.updateReferenceSpace(rot);
 
-    s = Math.sin(this.theta);
-    c = Math.cos(this.theta);
-    mat3.set(U, c, 0, -s, 0, 1, 0, s, 0, c);
+    const loc = vec3.fromValues(0, 0, this.radius);
+    const orient = vec3.fromValues(0, 1, 0);
 
-    r = vec3.fromValues(0, 0, this.radius);
-    o = vec3.fromValues(0, 1, 0);
+    vec3.transformQuat(loc, loc, rot);
+    vec3.transformQuat(orient, orient, rot);
+    vec3.add(loc, loc, this.origin);
 
-    vec3.transformMat3(r, r, U);
-    vec3.transformMat3(o, o, U);
-    vec3.transformMat3(r, r, V);
-    vec3.transformMat3(o, o, V);
+    this.camera.location = loc;
+    this.camera.orientation = orient;
 
-    this.camera.location = r;
-    this.camera.orientation = o;
-
-    cb(this.camera.matrix);
+    return true;
   }
 
-  public setAspect(aspect: number) {
-    this.camera.aspect = aspect;
-    this.needsUpdate = true;
+  public get referenceSpace() {
+    if (!this.refSpace || !this.baseRefSpace)
+      throw new Error("camera controller has no referenceSpace");
+    return this.refSpace;
+  }
+
+  private updateReferenceSpace(rot: quat) {
+    if (this.refSpace && this.baseRefSpace) {
+      let xform = new XRRigidTransform(
+        {},
+        { x: rot[0], y: rot[1], z: rot[2], w: rot[3] }
+      );
+      const rs = this.baseRefSpace.getOffsetReferenceSpace(xform);
+
+      const or = this.origin;
+      xform = new XRRigidTransform({ x: -or[0], y: -or[1], z: -or[2] });
+      this.refSpace = rs.getOffsetReferenceSpace(xform);
+    }
+  }
+
+  private addEventListeners() {
+    this.canvas.addEventListener("mousemove", (e) => {
+      if (e.buttons & 1) {
+        this.rotateView(e.movementX, e.movementY);
+      }
+    });
+
+    let prevTouch: Touch | undefined = undefined;
+
+    this.canvas.addEventListener("touchstart", (e) => {
+      if (prevTouch === undefined) {
+        prevTouch = e.changedTouches[0];
+      }
+    });
+
+    this.canvas.addEventListener("touchend", (e) => {
+      for (let touch of Array.from(e.changedTouches)) {
+        if (prevTouch && prevTouch.identifier === touch.identifier) {
+          this.rotateView(
+            touch.pageX - prevTouch.pageX,
+            touch.pageY - prevTouch.pageY
+          );
+          prevTouch = undefined;
+        }
+      }
+    });
+
+    this.canvas.addEventListener("touchcancel", (e) => {
+      for (let touch of Array.from(e.changedTouches)) {
+        if (prevTouch && prevTouch.identifier === touch.identifier) {
+          prevTouch = undefined;
+        }
+      }
+    });
+
+    this.canvas.addEventListener("touchmove", (e) => {
+      for (let touch of Array.from(e.changedTouches)) {
+        if (prevTouch && prevTouch.identifier === touch.identifier) {
+          this.rotateView(
+            touch.pageX - prevTouch.pageX,
+            touch.pageY - prevTouch.pageY
+          );
+          prevTouch = touch;
+        }
+      }
+    });
+
+    // @ts-ignore
+    this.canvas.addEventListener("mousewheel", (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.deltaY > 0) {
+        this.scale *= 1.1;
+      } else {
+        this.scale *= 0.9;
+      }
+      this.camera.scale = this.scale;
+    });
   }
 }
-
-/*
-Failed attempts at getting better camera control. The goal is so that
-no matter what the current camera orientation is, rotation is on the X
-and Y axes in clip space.
-
-function normalize(out: vec3, x: vec3) {
-  const n = Math.sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
-  console.log(x[0] * x[0], x[1] * x[1], x[2] * x[2]);
-  out[0] = x[0] / n;
-  out[1] = x[1] / n;
-  out[2] = x[2] / n;
-  console.log({ out, x, n });
-}
-
-let { x, y } = this.moveEventAccumulator;
-this.moveEventAccumulator = { x: 0, y: 0 };
-const n = Math.sqrt(x * x + y * y);
-
-if (n > 0) {
-  r = this.camera.location;
-  o = this.camera.orientation;
-
-  // const u = vec3.fromValues(0, 0, 0);
-  // const v = vec3.fromValues(0, 0, 0);
-  // const w = vec3.fromValues(0, 0, 0);
-
-  // normalize(v, o);
-  // normalize(w, r);
-  // vec3.cross(u, r, o);
-  // normalize(u, u);
-  // console.log("dot", vec3.dot(r, o));
-  // console.log({ u, v, w });
-
-  // // prettier-ignore
-  // const P = mat3.fromValues(u[0], u[1], u[2], v[0], v[1], v[2], w[0], w[1], w[2]);
-  // const Q = mat3.create();
-  // mat3.transpose(Q, P);
-
-  s = Math.sin(n);
-  c = Math.cos(n);
-  const W = mat3.fromValues(1, 0, 0, 0, c, -s, 0, s, c);
-
-  s = -x / n;
-  c = y / n;
-  mat3.set(V, c, s, 0, -s, c, 0, 0, 0, 1);
-  mat3.transpose(U, V);
-
-  mat3.multiply(W, W, V);
-  mat3.multiply(W, U, W);
-  // mat3.multiply(W, W, Q);
-  // mat3.multiply(W, P, W);
-
-  vec3.transformMat3(r, r, W);
-  vec3.transformMat3(o, o, W);
-
-  // console.log({ U, V, W, P, Q, u, v, w });
-
-  // vec3.sub(o, o, vec3.scale(vec3.create(), r, vec3.dot(r, o)));
-  // normalize(o, o);
-  this.camera.location = r;
-  this.camera.orientation = o;
-}
-*/

@@ -260,7 +260,7 @@ export class PpsController {
       title: "Particle Size",
       min: 1,
       max: 48,
-      step: 1,
+      step: 0.01,
       update: this.updater("size"),
     },
     {

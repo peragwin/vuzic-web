@@ -1,3 +1,6 @@
+import { RenderView } from "./xr/renderer";
+import { mat4 } from "gl-matrix";
+
 export interface TextureConfig {
   mode: number;
   internalFormat: number;
@@ -270,7 +273,7 @@ class Uniform {
 export class UniformBuffer {
   buffer: WebGLBuffer;
 
-  constructor(private gl: WebGL2RenderingContext, data: ArrayBufferView) {
+  constructor(private gl: WebGL2RenderingContext, data: ArrayBufferView[]) {
     const buffer = gl.createBuffer();
     if (!buffer) {
       throw new Error("failed to create uniform buffer");
@@ -278,14 +281,26 @@ export class UniformBuffer {
     this.buffer = buffer;
 
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
-    gl.bufferData(gl.UNIFORM_BUFFER, data, gl.STATIC_COPY);
+    gl.bufferData(
+      gl.UNIFORM_BUFFER,
+      data.reduce((p, n) => p + n.byteLength, 0),
+      gl.DYNAMIC_DRAW
+    );
+    let offset = 0;
+    for (let d of data) {
+      gl.bufferSubData(gl.UNIFORM_BUFFER, offset, d);
+      offset += d.byteLength;
+    }
     gl.bindBuffer(gl.UNIFORM_BUFFER, null);
   }
 
-  update(data: ArrayBufferView, offset: number = 0) {
+  update(data: ArrayBufferView[], offset: number = 0) {
     const gl = this.gl;
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
-    gl.bufferSubData(gl.UNIFORM_BUFFER, offset, data);
+    for (let d of data) {
+      gl.bufferSubData(gl.UNIFORM_BUFFER, offset, d);
+      offset += d.byteLength;
+    }
     gl.bindBuffer(gl.UNIFORM_BUFFER, null);
   }
 }
@@ -357,8 +372,10 @@ export class VertexArrayObject {
 
 export abstract class RenderTarget {
   abstract use(): void;
-  abstract setViewport(layer: number): void;
-  public layers = 1;
+  abstract setView(layer: number): void;
+  get layers() {
+    return 1;
+  }
 }
 
 export class FramebufferObject extends RenderTarget {
@@ -403,7 +420,7 @@ export class FramebufferObject extends RenderTarget {
     this.textures = [];
   }
 
-  public setViewport(layer: number) {
+  public setView(layer: number) {
     this.gl.viewport(0, 0, this.dims.width, this.dims.height);
   }
 
@@ -461,17 +478,32 @@ export class FramebufferObject extends RenderTarget {
 
 export class CanvasObject extends RenderTarget {
   private canvas: HTMLCanvasElement | OffscreenCanvas;
-  public layers: 1 | 2;
+  private views: RenderView[];
 
   constructor(
     private gl: WebGL2RenderingContext,
     private onResize?: (size: { width: number; height: number }) => void,
     private clearing = true,
-    private stereo = false
+    private stereo = false,
+    private onSetView?: (view: RenderView) => void
   ) {
     super();
     this.canvas = gl.canvas;
-    this.layers = stereo ? 2 : 1;
+    this.views = [
+      {
+        eye: "none",
+        projection: mat4.create(),
+        transform: new XRRigidTransform(),
+        viewport: {
+          x: 0,
+          y: 0,
+          width: this.canvas.width,
+          height: this.canvas.height,
+        },
+      },
+    ];
+    // FIXME: this isnt right but also dont care atm
+    if (stereo) this.views.push(this.views[0]);
   }
 
   private resize(canvas: HTMLCanvasElement | OffscreenCanvas) {
@@ -499,12 +531,13 @@ export class CanvasObject extends RenderTarget {
     }
   }
 
-  public setViewport(layer: 0 | 1) {
+  public setView(layer: 0 | 1) {
     let width = this.canvas.width;
     let offset = 0;
     if (layer === 1) offset = this.canvas.width / 2;
     if (this.stereo) width /= 2;
     this.gl.viewport(offset, 0, width, this.canvas.height);
+    if (this.onSetView) this.onSetView(this.views[layer]);
   }
 }
 
@@ -528,8 +561,7 @@ export class Graphics {
     readonly gl: WebGL2RenderingContext,
     private target: RenderTarget,
     shaders: Array<ShaderConfig>,
-    public onRender: (g: Graphics) => void,
-    public onSetCamera?: (layer: number) => void
+    public onRender: (g: Graphics) => void
   ) {
     const program = gl.createProgram();
     if (program === null) throw new Error("could not create gl program");
@@ -697,20 +729,20 @@ export class Graphics {
   public start() {
     this.gl.useProgram(this.program);
 
-    requestAnimationFrame(this.render.bind(this, true));
+    requestAnimationFrame(this.render.bind(this, true, undefined));
   }
 
-  public render(loop: boolean = true) {
+  public render(loop: boolean = true, target?: RenderTarget) {
     const gl = this.gl;
+    target = target || this.target;
 
     gl.useProgram(this.program);
 
     this.onRender(this);
 
-    this.target.use();
-    for (let l = 0; l < this.target.layers; l++) {
-      this.target.setViewport(l);
-      if (this.onSetCamera) this.onSetCamera(l);
+    target.use();
+    for (let l = 0; l < target.layers; l++) {
+      target.setView(l);
 
       let lastBuf: BufferObject | null = null;
       this.vaos.forEach((v) => {
@@ -727,7 +759,7 @@ export class Graphics {
     gl.flush();
 
     if (loop) {
-      requestAnimationFrame(this.render.bind(this, loop));
+      requestAnimationFrame(this.render.bind(this, loop, undefined));
     }
   }
 
