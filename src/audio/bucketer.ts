@@ -47,10 +47,9 @@ export class Bucketer {
     return 2 ** x + 1;
   }
 
-  public bucket(input: Float32Array) {
+  public bucket(input: Float32Array, output: Float32Array) {
     // const input = e.inputBuffer.getChannelData(0)
     // const output = e.outputBuffer.getChannelData(0)
-    const output = new Float32Array(this.buckets);
 
     for (let i = 0; i < this.buckets; i++) {
       let start = i === 0 ? 0 : this.indices[i - 1];

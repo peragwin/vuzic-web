@@ -68,8 +68,17 @@ export class AudioProcessor {
     const source = ctx.createMediaStreamSource(stream);
 
     this.analyzer = ctx.createAnalyser();
-    this.analyzer!.fftSize = this.blockSize;
-    this.analyzer!.smoothingTimeConstant = 0;
+    if (!this.analyzer) throw new Error("could not create analyser node");
+
+    this.analyzer.fftSize = this.blockSize;
+    this.analyzer.smoothingTimeConstant = 0;
+    this.frame = new Float32Array(this.blockSize / 2);
+
+    // this.analyzer.fftSize = this.size;
+    // this.frame = new Float32Array(this.analyzer.frequencyBinCount);
+
+    this.freqBins = new Float32Array(this.buckets);
+
     source.connect(this.analyzer);
 
     this.processHandle = window.setInterval(
@@ -83,15 +92,21 @@ export class AudioProcessor {
     // FIXME: clean up other stuff
   }
 
+  private frame: Float32Array | null = null;
+  private freqBins: Float32Array | null = null;
+
   public process() {
     if (!this.analyzer) return;
 
-    const frame = new Float32Array(this.blockSize);
-    this.analyzer.getFloatTimeDomainData(frame);
+    this.analyzer.getFloatTimeDomainData(this.frame!);
 
-    const fft = this.fft.process(frame);
+    // this returns -Infinity if the input is silent.. well that's complete 🗑
+    // this.analyzer.getFloatFrequencyData(this.frame!);
 
-    const bucketed = this.bucketer.bucket(fft); // frame
+    const fft = this.fft.process(this.frame!);
+    const bucketed = this.bucketer.bucket(fft, this.freqBins!);
+
+    // const bucketed = this.bucketer.bucket(this.frame!, this.freqBins!);
 
     return this.fs.process(bucketed);
   }

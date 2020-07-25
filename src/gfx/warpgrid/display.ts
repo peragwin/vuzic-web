@@ -182,11 +182,11 @@ export class WarpGrid {
     this.camera.location = vec3.fromValues(0, 0, -2);
     this.camera.target = vec3.fromValues(0, 0, 0);
     this.uCameraMatrix = new UniformBuffer(gl, [
-      new Float32Array(this.camera.matrix),
-      new Float32Array(mat4.create()),
-      new Float32Array(this.camera.projectionMatrix),
+      mat4.create() as Float32Array,
+      mat4.create() as Float32Array,
+      mat4.create() as Float32Array,
     ]);
-    this._cameraController = new CameraController(this.camera, canvas);
+    this._cameraController = new CameraController(this.camera, canvas, false);
 
     this.textures = new Textures(gl, this.params);
 
