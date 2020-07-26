@@ -13,7 +13,7 @@ export class XRRenderTarget extends RenderTarget {
   private framebuffer?: WebGLFramebuffer;
 
   constructor(
-    private gfx: Graphics,
+    private gl: WebGL2RenderingContext,
     private referenceSpace: XRReferenceSpace,
     private onSetView: (view: RenderView) => void,
     private clearing = true
@@ -42,7 +42,7 @@ export class XRRenderTarget extends RenderTarget {
 
   public use() {
     if (!this.framebuffer) return;
-    const gl = this.gfx.gl;
+    const gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
     if (this.clearing) {
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -54,7 +54,7 @@ export class XRRenderTarget extends RenderTarget {
   }
 
   public setView(l: number) {
-    const gl = this.gfx.gl;
+    const gl = this.gl;
     const v = this.views[l];
     if (!v) return;
     const vp = v.viewport;

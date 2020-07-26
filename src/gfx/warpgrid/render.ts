@@ -4,14 +4,21 @@ import {
   ProgramType,
   makeConfig,
 } from "../program";
+import { VertexArrayObject, UniformBuffer } from "../buffers";
+import { Texture } from "../textures";
+import { Dims } from "../types";
+import { RenderTarget, drawWithProgram } from "../graphics";
 
-const shaders: ShaderSourceConfig[] = [
+const shaders = (size: Dims): ShaderSourceConfig[] => [
   {
     type: "vertex",
+    // warp controls the zoom in the center of the display
+    // scale controls the vertical scaling factor
     source: `#version 300 es
-
-uniform float warp[{0}]; // for y rows
-uniform float scale[{1}]; // for x cols
+#define WIDTH ${size.width}
+#define HEIGHT ${size.height}
+uniform float warp[HEIGHT]; // for y rows
+uniform float scale[WIDTH]; // for x cols
 uniform float uzScale;
 layout (std140) uniform uCameraMatrix {
   mat4 uView;
@@ -19,7 +26,7 @@ layout (std140) uniform uCameraMatrix {
   mat4 uProjection;
 };
 
-const vec2 gridSize = vec2({1}, {0});
+const vec2 gridSize = vec2(WIDTH, HEIGHT);
 
 in vec3 vertPos;
 in vec2 texPos;
@@ -36,8 +43,6 @@ void main() {
 
   ivec2 index = ivec2(gridSize * abs(vertPos.xy));
 
-  // sv = scale[int((x+1.)*float({1})/2.)];
-  // wv = warp[int((y+1.)*float({0})/2.)];
   sv = scale[index.x];
   wv = warp[index.y];
   float elev = wv + sv;
@@ -104,9 +109,23 @@ const uniform1f = (
   gl.uniform1f(l, v);
 };
 
+interface Input {
+  warp: Float32Array;
+  scale: Float32Array;
+  zScale: number;
+  cameraMatrix: UniformBuffer;
+  image: Texture;
+  vaos: VertexArrayObject[];
+}
+
 export class RenderPass {
   static config = makeConfig({
-    sources: shaders,
+    sources: [], // placeholder
+    attributes: {
+      vertPos: {},
+      texPos: {},
+      uvPos: {},
+    },
     textures: {
       texImage: { binding: 0 },
     },
@@ -119,15 +138,27 @@ export class RenderPass {
       uCameraMatrix: { location: 0 },
     },
   });
-  private program: ProgramType<typeof RenderPass.config>;
 
-  constructor(gl: WebGL2RenderingContext) {
-    const program = new Program(gl, RenderPass.config);
+  public readonly program: ProgramType<typeof RenderPass.config>;
+
+  constructor(gl: WebGL2RenderingContext, size: Dims) {
+    const config = { ...RenderPass.config, sources: shaders(size) };
+    const program = new Program(gl, config);
     this.program = program;
+  }
 
-    program.uniforms.scale.bind(new Float32Array(4));
-    // program.uniforms.uzScale.bind();
-    // program.uniforms.uzScale.
-    // this.program.uniforms.warp.bind();
+  public render(input: Input, target: RenderTarget) {
+    drawWithProgram(
+      this.program,
+      () => {
+        this.program.uniforms.warp.bind(input.warp);
+        this.program.uniforms.scale.bind(input.scale);
+        this.program.uniforms.uzScale.bind(input.zScale);
+        this.program.textures.texImage.bind(input.image);
+        this.program.uniformBuffers.uCameraMatrix.bind(input.cameraMatrix);
+      },
+      target,
+      input.vaos
+    );
   }
 }

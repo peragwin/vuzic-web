@@ -70,7 +70,6 @@ class TextureAttachment {
   ) {}
 
   public bind(tex: Texture) {
-    console.log("bound texture", this.name);
     tex.bind(this.binding);
     this.gl.uniform1i(this.location, this.binding);
   }
@@ -136,12 +135,16 @@ export type ProgramType<P> = P extends ProgramConfig<
     >
   : never;
 
+export interface ProgramBase {
+  use(): void;
+}
+
 export class Program<
   TexturesT extends ProgramTextureConfig<TexturesT>,
   AttrsT extends ProgramAttributeConfig<AttrsT>,
   UniformsT extends ProgramUniformConfig<UniformsT>,
   UBuffersT extends ProgramUniformBufferConfig<UBuffersT>
-> {
+> implements ProgramBase {
   public attributes: AttributeAttachements<AttrsT>;
   public textures: TextureAttachments<TexturesT>;
   public uniforms: UniformAttachments<UniformsT>;
@@ -212,6 +215,10 @@ export class Program<
     }
   }
 
+  public use() {
+    this.gl.useProgram(this.program);
+  }
+
   // look up an attribute location. conf is not used for now.
   private attributeAttachment(name: string, conf: AttributeConfig) {
     const index = this.gl.getAttribLocation(this.program, name);
@@ -237,7 +244,7 @@ export class Program<
   // associates the uniform buffer with a provided binding index
   private uniformBufferAttachment(name: string, conf: UniformBufferConfig) {
     const index = this.gl.getUniformBlockIndex(this.program, name);
-    if (index == this.gl.INVALID_INDEX)
+    if (index === this.gl.INVALID_INDEX)
       throw new Error(`uniform block index not found for ${name}`);
 
     this.gl.uniformBlockBinding(this.program, index, conf.location);

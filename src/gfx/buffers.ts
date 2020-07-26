@@ -29,11 +29,38 @@ export class ArrayBuffer {
 
   public bind() {
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffer);
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      this.config.data,
+      glBufferMode(this.gl, this.config.mode)
+    );
+  }
+}
+
+export type DrawMode =
+  | "triangles"
+  | "triangle_strip"
+  | "triangle_fan"
+  | "points";
+
+function glDrawMode(gl: WebGL2RenderingContext, mode: DrawMode) {
+  switch (mode) {
+    case "triangles":
+      return gl.TRIANGLES;
+    case "triangle_strip":
+      return gl.TRIANGLE_STRIP;
+    case "triangle_fan":
+      return gl.TRIANGLE_FAN;
+    case "points":
+      return gl.POINTS;
   }
 }
 
 export interface VertexArrayObjectConfig {
-  buffer: ArrayBuffer;
+  buffer: ArrayBufferConfig;
+  offset: number;
+  length: number;
+  drawMode: DrawMode;
   attriutes: {
     attr: AttributeAttachment;
     size: 0 | 1 | 2 | 3 | 4;
@@ -46,11 +73,13 @@ export interface VertexArrayObjectConfig {
 }
 
 export class VertexArrayObject {
+  private buffer: ArrayBuffer;
   private vao: WebGLVertexArrayObject;
 
   constructor(
-    gl: WebGL2RenderingContext,
-    readonly config: VertexArrayObjectConfig[]
+    private gl: WebGL2RenderingContext,
+    readonly config: VertexArrayObjectConfig,
+    private onDraw?: () => void
   ) {
     const vao = gl.createVertexArray();
     if (vao === null)
@@ -59,41 +88,60 @@ export class VertexArrayObject {
 
     gl.bindVertexArray(vao);
 
-    for (let c of config) {
-      c.buffer.bind();
-      const [type, dsize] = glTypeInfo(gl, c.buffer.config.type);
-
-      for (let a of c.attriutes) {
-        if (a.size > 0) {
-          gl.enableVertexAttribArray(a.attr.index);
-          if (a.astype === "int") {
-            gl.vertexAttribIPointer(
-              a.attr.index,
-              a.size,
-              type,
-              a.stride,
-              a.offset * dsize
-            );
-          } else {
-            gl.vertexAttribPointer(
-              a.attr.index,
-              a.size,
-              type,
-              a.normalized || false,
-              a.stride,
-              a.offset
-            );
-          }
-        } else {
-          gl.disableVertexAttribArray(a.attr.index);
-        }
-        if (a.default !== undefined) {
-          a.default(gl);
-        }
-      }
-    }
+    this.buffer = new ArrayBuffer(gl, config.buffer);
+    this.execute(config);
 
     gl.bindVertexArray(null);
+  }
+
+  private execute(config: VertexArrayObjectConfig) {
+    const gl = this.gl;
+    // for (let c of config) {
+
+    this.buffer.bind();
+    const [type, dsize] = glTypeInfo(gl, config.buffer.type);
+
+    for (let a of config.attriutes) {
+      if (a.size > 0) {
+        if (a.astype === "int") {
+          gl.vertexAttribIPointer(
+            a.attr.index,
+            a.size,
+            type,
+            a.stride * dsize,
+            a.offset * dsize
+          );
+        } else {
+          gl.vertexAttribPointer(
+            a.attr.index,
+            a.size,
+            type,
+            a.normalized || false,
+            a.stride * dsize,
+            a.offset * dsize
+          );
+        }
+        gl.enableVertexAttribArray(a.attr.index);
+      } else {
+        gl.disableVertexAttribArray(a.attr.index);
+      }
+      if (a.default !== undefined) {
+        a.default(gl);
+      }
+    }
+    // }
+  }
+
+  public draw() {
+    this.gl.bindVertexArray(this.vao);
+
+    if (this.onDraw) this.onDraw();
+
+    const mode = glDrawMode(this.gl, this.config.drawMode);
+    this.gl.drawArrays(mode, this.config.offset, this.config.length);
+
+    // important to unbind this or gl doesn't actually execute anything..
+    this.gl.bindVertexArray(null);
   }
 }
 

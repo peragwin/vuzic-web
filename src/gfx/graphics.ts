@@ -2,7 +2,11 @@ import { RenderView } from "./xr/renderer";
 import { mat4 } from "gl-matrix";
 import { Dims } from "./types";
 import { Texture } from "./textures";
-import { UniformBuffer } from "./buffers";
+import {
+  UniformBuffer,
+  VertexArrayObject as VertexArrayObjectNew,
+} from "./buffers";
+import { ProgramBase } from "./program";
 
 export type UniformAssignable = Texture | string;
 
@@ -218,10 +222,6 @@ export class CanvasObject extends RenderTarget {
     const gl = this.gl;
     this.resize(gl.canvas);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    if (this.clearing) {
-      gl.clearColor(0, 0, 0, 1);
-      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    }
   }
 
   public setView(layer: 0 | 1) {
@@ -230,6 +230,10 @@ export class CanvasObject extends RenderTarget {
     if (layer === 1) offset = this.canvas.width / 2;
     if (this.stereo) width /= 2;
     this.gl.viewport(offset, 0, width, this.canvas.height);
+    if (this.clearing) {
+      this.gl.clearColor(0, 0, 0, 1);
+      this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+    }
     if (this.onSetView) this.onSetView(this.views[layer]);
   }
 }
@@ -458,5 +462,24 @@ export class Graphics {
 
   public swapTarget(target: RenderTarget) {
     this.target = target;
+  }
+}
+
+export function drawWithProgram(
+  program: ProgramBase,
+  bindInput: () => void,
+  target: RenderTarget,
+  vaos: VertexArrayObjectNew[]
+) {
+  program.use();
+
+  bindInput();
+
+  target.use();
+  for (let l = 0; l < target.layers; l++) {
+    target.setView(l);
+    for (let v of vaos) {
+      v.draw();
+    }
   }
 }

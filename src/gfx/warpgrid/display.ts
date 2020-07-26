@@ -2,18 +2,13 @@ import { vec2, vec3, vec4, mat4, mat3 } from "gl-matrix";
 import { hsluvToRgb } from "hsluv";
 import {
   Graphics,
-  ShaderConfig,
   BufferConfig,
-  VertexArrayObject,
   CanvasObject,
   FramebufferObject,
+  VertexArrayObject as VertexArrayObjectOld,
+  RenderTarget,
 } from "../graphics";
-import {
-  updateVertShader,
-  updateFragShader,
-  vertexShaderSource,
-  fragmenShaderSource,
-} from "./shaders";
+import { updateVertShader, updateFragShader } from "./shaders";
 import { RenderParams } from "./params";
 import { Drivers } from "../../audio/audio";
 import { Camera } from "../util/camera";
@@ -22,7 +17,8 @@ import { RenderView, XRRenderTarget } from "../xr/renderer";
 
 import { Program } from "../program";
 import { TextureObject } from "../textures";
-import { UniformBuffer } from "../buffers";
+import { UniformBuffer, ArrayBuffer, VertexArrayObject } from "../buffers";
+import { RenderPass } from "./render";
 
 // const linTosRGB = (v: number) =>
 //   v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
@@ -152,7 +148,9 @@ export class WarpGrid {
   private warp: Float32Array;
   private scale: Float32Array;
   private updateGfx: Graphics;
-  private renderGfx: Graphics;
+  private renderPass: RenderPass;
+  private renderVaos: VertexArrayObject[];
+  private canvasTarget: CanvasObject;
   private textures: Textures;
   private gridSize: GridSize;
   private buffer: FramebufferObject;
@@ -169,6 +167,7 @@ export class WarpGrid {
   ) {
     const { columns, rows } = params;
     this.gridSize = { columns: 2 * columns, rows: 2 * rows };
+    const dims = { width: columns, height: rows };
 
     this.warp = new Float32Array(rows);
     for (let i = 0; i < this.warp.length; i++) this.warp[i] = 1;
@@ -180,12 +179,7 @@ export class WarpGrid {
     if (!gl) throw new Error("canvas does not support webgl");
     this.gl = gl;
 
-    // const p = new Program(gl, {
-    //   sources: [],
-    //   attributes: { foo: { attr: "one" } },
-    // });
-    // console.log(p);
-    // if (p.attributes) console.log(p.attributes.foo.attr);
+    this.canvasTarget = new CanvasObject(gl, undefined, true);
 
     this.camera = new Camera((45 * Math.PI) / 180, 1, -1, 1);
     this.camera.location = vec3.fromValues(0, 0, -2);
@@ -199,27 +193,10 @@ export class WarpGrid {
 
     this.textures = new Textures(gl, this.params);
 
-    const vertexSrc = vertexShaderSource
-      .replace(/\{0\}/g, rows.toString())
-      .replace(/\{1\}/g, columns.toString());
+    this.renderPass = new RenderPass(gl, dims);
+    this.renderVaos = [this.createGridVao()];
 
-    const shaderConfigs = [
-      new ShaderConfig(vertexSrc, gl.VERTEX_SHADER, [], []),
-      new ShaderConfig(fragmenShaderSource, gl.FRAGMENT_SHADER, [], []),
-    ];
-    const cv = new CanvasObject(gl, undefined, true, false, this.updateView);
-    let gfx = new Graphics(gl, cv, shaderConfigs, this.render.bind(this));
-    this.renderGfx = gfx;
-
-    gfx.attachTexture(this.textures.image, "texImage");
-    gfx.attachUniform("warp", gfx.gl.uniform1fv.bind(gfx.gl));
-    gfx.attachUniform("scale", gfx.gl.uniform1fv.bind(gfx.gl));
-    gfx.attachUniform("uzScale", (l, v) => gl.uniform1f(l, v));
-    gfx.attachUniformBlock("uCameraMatrix", 0);
-
-    this.createCells(gfx, this.onDraw.bind(this));
-
-    const fbo = new FramebufferObject(gl, { width: columns, height: rows });
+    const fbo = new FramebufferObject(gl, dims);
     fbo.attach(this.textures.image, 0);
     fbo.bind();
     fbo.checkStatus();
@@ -260,7 +237,7 @@ export class WarpGrid {
       )
     );
     ugfx.addVertexArrayObject(
-      new VertexArrayObject(
+      new VertexArrayObjectOld(
         buf,
         0,
         QUAD2.length / 2,
@@ -288,7 +265,7 @@ export class WarpGrid {
     return this._cameraController;
   }
 
-  private createCells(gfx: Graphics, onDraw: (_: any) => boolean) {
+  private createGridVao() {
     const density = 2;
     const { aspect } = this.params;
     const { columns, rows } = this.gridSize;
@@ -344,31 +321,56 @@ export class WarpGrid {
       }
     }
 
-    const buffer = gfx.newBufferObject(
-      new BufferConfig(
-        verts,
-        [
-          { name: "vertPos", size: 3, offset: 0 },
-          { name: "texPos", size: 2, offset: 3 },
-          { name: "uvPos", size: 2, offset: 5 },
-        ],
-        onDraw
-      )
-    );
+    const vao = new VertexArrayObject(this.gl, {
+      buffer: {
+        mode: "static_draw",
+        type: "float",
+        data: verts,
+      },
+      offset: 0,
+      length: square.length * rows * columns,
+      drawMode: "triangle_strip",
+      attriutes: [
+        {
+          attr: this.renderPass.program.attributes.vertPos,
+          size: 3,
+          offset: 0,
+          stride: 7,
+        },
+        {
+          attr: this.renderPass.program.attributes.texPos,
+          size: 2,
+          offset: 3,
+          stride: 7,
+        },
+        {
+          attr: this.renderPass.program.attributes.uvPos,
+          size: 2,
+          offset: 5,
+          stride: 7,
+        },
+      ],
+    });
 
-    const vao = new VertexArrayObject(
-      buffer,
-      0,
-      square.length * rows * columns,
-      gfx.gl.TRIANGLE_STRIP
-    );
-    gfx.addVertexArrayObject(vao);
+    return vao;
   }
 
-  private render(g: Graphics) {
-    const gl = g.gl;
+  private render(target: RenderTarget) {
+    const gl = this.gl;
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.DST_ALPHA);
+    this.renderPass.render(
+      {
+        warp: this.warp,
+        scale: this.scale,
+        zScale: this.params.zscale,
+        cameraMatrix: this.uCameraMatrix,
+        image: this.textures.image,
+        vaos: this.renderVaos,
+      },
+      target
+    );
+    gl.flush();
   }
 
   private update(g: Graphics) {
@@ -377,7 +379,6 @@ export class WarpGrid {
   }
 
   private updateCamera = () => {
-    // this.uCameraMatrix.update([new Float32Array(cameraMatrix)]);
     this.uCameraMatrix.update([
       new Float32Array(this.camera.matrix),
       new Float32Array(mat4.create()),
@@ -398,19 +399,9 @@ export class WarpGrid {
     }
 
     this.updateGfx.render(false);
-    this.renderGfx.render(false);
+    this.render(this.canvasTarget);
 
     this.frameCount = (this.frameCount + 1) & 0xffff;
-  }
-
-  private onDraw(_: any) {
-    const gfx = this.renderGfx;
-    gfx.bindUniform("warp", this.warp);
-    gfx.bindUniform("scale", this.scale);
-    gfx.bindUniform("uzScale", this.params.zscale);
-    gfx.bindTexture(this.textures.image, 0);
-    gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
-    return true;
   }
 
   private frameCount = 0;
@@ -443,7 +434,7 @@ export class WarpGrid {
       this.params = params;
       this.gridSize = { rows: 2 * params.rows, columns: 2 * params.columns };
       this.textures = new Textures(this.gl, this.params);
-      this.createCells(this.renderGfx, this.onDraw.bind(this));
+      this.renderVaos = [this.createGridVao()];
 
       const fbo = new FramebufferObject(this.gl, {
         width: params.columns,
@@ -505,7 +496,6 @@ export class WarpGrid {
   private xrRenderTarget?: XRRenderTarget;
 
   private updateView = (view: RenderView) => {
-    const gfx = this.renderGfx;
     this.uCameraMatrix.update(
       [
         new Float32Array(view.transform.matrix),
@@ -513,19 +503,15 @@ export class WarpGrid {
       ],
       64
     );
-    gfx.bindUniformBuffer("uCameraMatrix", this.uCameraMatrix);
-    // gfx.bindUniform("uTransform", view.transform.matrix);
-    // gfx.bindUniform("uProjection", view.projection);
-    // if (view.eye !== "none") {
-    //   gfx.bindUniformBuffer("uCameraMatrix", )
-    // }
-    // gfx.bindUniform("uEye", xrEyeValue(view.eye));
+    this.renderPass.program.uniformBuffers.uCameraMatrix.bind(
+      this.uCameraMatrix
+    );
   };
 
   public onEnterXR(refSpace: XRReferenceSpace) {
     this.cameraController.initReferenceSpace(refSpace);
     this.xrRenderTarget = new XRRenderTarget(
-      this.renderGfx,
+      this.gl,
       refSpace,
       this.updateView
     );
@@ -537,6 +523,6 @@ export class WarpGrid {
       this.cameraController.referenceSpace
     );
     this.xrRenderTarget.onXRFrame(t, frame);
-    this.renderGfx.render(false, this.xrRenderTarget);
+    this.render(this.xrRenderTarget);
   }
 }

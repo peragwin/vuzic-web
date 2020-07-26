@@ -289,11 +289,7 @@ export class PPS {
       ]);
     };
     this.xrCameraController.initReferenceSpace(refSpace);
-    this.xrRenderTarget = new XRRenderTarget(
-      this.draw.gfx,
-      refSpace,
-      updateView
-    );
+    this.xrRenderTarget = new XRRenderTarget(this.gl, refSpace, updateView);
   }
 
   public drawXRFrame(t: number, frame: XRFrame) {
