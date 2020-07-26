@@ -22,6 +22,8 @@ import { Camera } from "../util/camera";
 import { CameraController } from "../util/cameraController";
 import { RenderView, XRRenderTarget } from "../xr/renderer";
 
+import { Program } from "../program";
+
 // const linTosRGB = (v: number) =>
 //   v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
 
@@ -177,6 +179,13 @@ export class WarpGrid {
     const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
     if (!gl) throw new Error("canvas does not support webgl");
     this.gl = gl;
+
+    // const p = new Program(gl, {
+    //   sources: [],
+    //   attributes: { foo: { attr: "one" } },
+    // });
+    // console.log(p);
+    // if (p.attributes) console.log(p.attributes.foo.attr);
 
     this.camera = new Camera((45 * Math.PI) / 180, 1, -1, 1);
     this.camera.location = vec3.fromValues(0, 0, -2);

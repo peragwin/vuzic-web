@@ -1,5 +1,6 @@
 import { RenderView } from "./xr/renderer";
 import { mat4 } from "gl-matrix";
+import { Dims } from "./types";
 
 export interface TextureConfig {
   mode: number;
@@ -249,9 +250,9 @@ export class Texture3DObject {
   }
 }
 
-type UniformAssignable = Texture | string;
+export type UniformAssignable = Texture | string;
 
-class Uniform {
+export class Uniform {
   private uloc: WebGLUniformLocation;
 
   constructor(
@@ -382,10 +383,7 @@ export class FramebufferObject extends RenderTarget {
   private frameBuffer: WebGLFramebuffer;
   private textures: Array<{ id: number; tex: WebGLTexture }> = [];
 
-  constructor(
-    private gl: WebGL2RenderingContext,
-    private dims: { width: number; height: number }
-  ) {
+  constructor(private gl: WebGL2RenderingContext, private dims: Dims) {
     super();
     const fb = gl.createFramebuffer();
     if (!fb) throw new Error("failed to create frameBuffer");
