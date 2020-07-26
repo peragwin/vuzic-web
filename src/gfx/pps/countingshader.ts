@@ -1,13 +1,8 @@
-import {
-  ShaderConfig,
-  Graphics,
-  RenderTarget,
-  TextureObject,
-  Texture3DObject,
-  ShaderStorageBuffer,
-} from "../graphics";
+import { ShaderConfig, Graphics, RenderTarget } from "../graphics";
 import { PPSMode } from "./pps";
 import { TEX_WIDTH } from "./state";
+import { ShaderStorageBuffer } from "../buffers";
+import { TextureObject, Texture3DObject } from "../textures";
 
 const thresholdShader = (
   gl: WebGL2ComputeRenderingContext,

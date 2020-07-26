@@ -1,5 +1,6 @@
-import { Texture, UniformAssignable, Uniform, BufferObject } from "./graphics";
+import { Texture } from "./textures";
 import { Dims, AttributeAttachment } from "./types";
+import { UniformBuffer } from "./buffers";
 
 type ShaderType = "vertex" | "fragment" | "compute";
 interface ShaderSourceConfig {
@@ -29,7 +30,9 @@ interface UniformConfig<T> {
   ): void;
 }
 
-interface UniformBufferConfig {}
+interface UniformBufferConfig {
+  location: number;
+}
 
 type ProgramAttributeConfig<T> = Record<keyof T, AttributeConfig>;
 type ProgramTextureConfig<T> = Record<keyof T, TextureConfig>;
@@ -92,6 +95,23 @@ type AttributeAttachements<T extends ProgramAttributeConfig<T>> = Record<
   AttributeAttachment
 >;
 
+class UniformBufferAttachment {
+  constructor(
+    private gl: WebGL2RenderingContext,
+    private name: string,
+    private binding: number
+  ) {}
+
+  public bind(ubo: UniformBuffer) {
+    this.gl.bindBufferBase(this.gl.UNIFORM_BUFFER, this.binding, ubo.buffer);
+  }
+}
+
+type UniformBufferAttachments<T extends ProgramUniformBufferConfig<T>> = Record<
+  keyof T,
+  UniformBufferAttachment
+>;
+
 export class Program<
   TexturesT extends ProgramTextureConfig<TexturesT>,
   AttrsT extends ProgramAttributeConfig<AttrsT>,
@@ -101,6 +121,7 @@ export class Program<
   public attributes: AttributeAttachements<AttrsT>;
   public textures: TextureAttachments<TexturesT>;
   public uniforms: UniformAttachments<UniformsT>;
+  public uniformBuffers: UniformBufferAttachments<UBuffersT>;
 
   private program: WebGLProgram;
   private shaders: WebGLShader[];
@@ -153,12 +174,23 @@ export class Program<
         );
       }
     }
+
+    this.uniformBuffers = {} as UniformBufferAttachments<UBuffersT>;
+    if (config.uniformBuffers) {
+      for (let ubo in config.uniformBuffers) {
+        this.uniformBuffers[ubo] = this.uniformBufferAttachment(
+          ubo,
+          config.uniformBuffers[ubo]
+        );
+      }
+    }
   }
 
   // look up an attribute location. conf is not used for now.
   private attributeAttachment(name: string, conf: AttributeConfig) {
     const index = this.gl.getAttribLocation(this.program, name);
-    if (index === -1) throw new Error(`attribute index not found for ${name}`);
+    if (index === -1 || index === this.gl.INVALID_INDEX)
+      throw new Error(`attribute index not found for ${name}`);
     return { name, index };
   }
 
@@ -174,6 +206,16 @@ export class Program<
     const loc = this.gl.getUniformLocation(this.program, name);
     if (loc === null) throw new Error(`uniform location not found for ${name}`);
     return new TextureAttachment(this.gl, name, loc, conf.binding);
+  }
+
+  // associates the uniform buffer with a provided binding index
+  private uniformBufferAttachment(name: string, conf: UniformBufferConfig) {
+    const index = this.gl.getUniformBlockIndex(this.program, name);
+    if (index == this.gl.INVALID_INDEX)
+      throw new Error(`uniform block index not found for ${name}`);
+
+    this.gl.uniformBlockBinding(this.program, index, conf.location);
+    return new UniformBufferAttachment(this.gl, name, conf.location);
   }
 
   private compileShader(type: ShaderType, source: string) {

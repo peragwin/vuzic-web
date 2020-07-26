@@ -96,3 +96,68 @@ export class VertexArrayObject {
     gl.bindVertexArray(null);
   }
 }
+
+export class UniformBuffer {
+  buffer: WebGLBuffer;
+
+  constructor(
+    private gl: WebGL2RenderingContext,
+    data: ArrayBufferView[],
+    mode?: BufferMode
+  ) {
+    const buffer = gl.createBuffer();
+    if (!buffer) {
+      throw new Error("failed to create uniform buffer");
+    }
+    this.buffer = buffer;
+
+    const glMode = glBufferMode(gl, mode || "dynamic_draw");
+
+    gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
+    gl.bufferData(
+      gl.UNIFORM_BUFFER,
+      data.reduce((p, n) => p + n.byteLength, 0),
+      glMode
+    );
+    let offset = 0;
+    for (let d of data) {
+      gl.bufferSubData(gl.UNIFORM_BUFFER, offset, d);
+      offset += d.byteLength;
+    }
+    gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+  }
+
+  update(data: ArrayBufferView[], offset: number = 0) {
+    const gl = this.gl;
+    gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
+    for (let d of data) {
+      gl.bufferSubData(gl.UNIFORM_BUFFER, offset, d);
+      offset += d.byteLength;
+    }
+    gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+  }
+}
+
+export class ShaderStorageBuffer {
+  private buffer: WebGLBuffer;
+
+  constructor(
+    private readonly gl: WebGL2ComputeRenderingContext,
+    data: ArrayBufferView,
+    mode = gl.DYNAMIC_DRAW
+  ) {
+    const buffer = gl.createBuffer();
+    if (!buffer) {
+      throw new Error("failed to create shader buffer");
+    }
+    this.buffer = buffer;
+
+    gl.bindBuffer(gl.SHADER_STORAGE_BUFFER, buffer);
+    gl.bufferData(gl.SHADER_STORAGE_BUFFER, data, mode);
+    gl.bindBuffer(gl.SHADER_STORAGE_BUFFER, null);
+  }
+
+  public bind(id: number) {
+    this.gl.bindBufferBase(this.gl.SHADER_STORAGE_BUFFER, id, this.buffer);
+  }
+}

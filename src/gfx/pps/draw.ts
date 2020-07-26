@@ -2,7 +2,6 @@ import { WebGL2Context, PPS } from "./pps";
 import { Camera } from "../util/camera";
 import { vec3, mat4 } from "gl-matrix";
 import {
-  UniformBuffer,
   ShaderConfig,
   Graphics,
   VertexArrayObject,

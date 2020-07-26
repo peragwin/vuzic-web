@@ -2,12 +2,12 @@ import {
   Graphics,
   ShaderConfig,
   CanvasObject,
-  Texture,
   BufferConfig,
   VertexArrayObject,
 } from "./graphics";
 import { updateVertShader } from "./pps/shaders";
 import { QUAD2, PPSMode } from "./pps/pps";
+import { Texture } from "./textures";
 
 const fragShader = (gl: WebGL2RenderingContext, mode: PPSMode) => {
   const source = `#version 300 es

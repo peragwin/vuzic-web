@@ -1,5 +1,4 @@
 import {
-  TextureObject,
   ShaderConfig,
   FramebufferObject,
   Graphics,
@@ -8,6 +7,7 @@ import {
 } from "../graphics";
 import { updateVertShader } from "./shaders";
 import { QUAD2, RenderParams, PPSMode } from "./pps";
+import { TextureObject } from "../textures";
 
 const GRADIENT_DETAIL = 512;
 const gradientDetail = (mode: PPSMode) => {

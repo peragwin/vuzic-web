@@ -1,12 +1,9 @@
 import { vec3, mat4 } from "gl-matrix";
 
-import {
-  TextureObject,
-  Texture3DObject,
-  UniformBuffer,
-  FramebufferObject,
-} from "../graphics";
+import { FramebufferObject } from "../graphics";
 import { PPSMode } from "./pps";
+import { TextureObject, Texture3DObject } from "../textures";
+import { UniformBuffer } from "../buffers";
 
 export const TEX_WIDTH = 1024;
 

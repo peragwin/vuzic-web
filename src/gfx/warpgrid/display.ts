@@ -3,12 +3,10 @@ import { hsluvToRgb } from "hsluv";
 import {
   Graphics,
   ShaderConfig,
-  TextureObject,
   BufferConfig,
   VertexArrayObject,
   CanvasObject,
   FramebufferObject,
-  UniformBuffer,
 } from "../graphics";
 import {
   updateVertShader,
@@ -23,6 +21,8 @@ import { CameraController } from "../util/cameraController";
 import { RenderView, XRRenderTarget } from "../xr/renderer";
 
 import { Program } from "../program";
+import { TextureObject } from "../textures";
+import { UniformBuffer } from "../buffers";
 
 // const linTosRGB = (v: number) =>
 //   v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
