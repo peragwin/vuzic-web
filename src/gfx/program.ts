@@ -1,18 +1,18 @@
 import { Texture } from "./textures";
-import { Dims, AttributeAttachment } from "./types";
+import { AttributeAttachment } from "./types";
 import { UniformBuffer } from "./buffers";
 
-type ShaderType = "vertex" | "fragment" | "compute";
-interface ShaderSourceConfig {
+export type ShaderType = "vertex" | "fragment" | "compute";
+export interface ShaderSourceConfig {
   type: ShaderType;
   source: string;
 }
 
-interface TextureConfig {
+export interface TextureConfig {
   binding: number;
 }
 
-interface AttributeConfig {
+export interface AttributeConfig {
   // Techincally opengl lets you specify a binding before you link the program, but
   // in webgl2 is probably way smarter to specify the location= in the shader..
   // binding: number;
@@ -22,31 +22,43 @@ interface AttributeConfig {
   // size: 1 | 2 | 3 | 4;
 }
 
-interface UniformConfig<T> {
-  bind(
-    gl: WebGL2RenderingContext,
-    location: WebGLUniformLocation,
-    value: T
-  ): void;
+type UniformBindingFunc<T> = (
+  gl: WebGL2RenderingContext,
+  location: WebGLUniformLocation,
+  value: T
+) => void;
+
+export interface UniformConfig<T> {
+  bindFunc: UniformBindingFunc<T>;
 }
 
-interface UniformBufferConfig {
+export interface UniformBufferConfig {
   location: number;
 }
 
 type ProgramAttributeConfig<T> = Record<keyof T, AttributeConfig>;
 type ProgramTextureConfig<T> = Record<keyof T, TextureConfig>;
 type ProgramUniformConfig<T> = {
-  [P in keyof T]: T[P] extends UniformConfig<any> ? T[P] : never;
+  [P in keyof T]: T[P] extends UniformConfig<infer U> ? T[P] : never;
 };
 type ProgramUniformBufferConfig<T> = Record<keyof T, UniformBufferConfig>;
 
+// export interface ProgramConfig<
+//   TexturesT = any,
+//   AttrsT = any,
+//   UniformsT = {},
+//   UBuffersT = any
+// > {
 export interface ProgramConfig<TexturesT, AttrsT, UniformsT, UBuffersT> {
   sources: ShaderSourceConfig[];
   textures?: ProgramTextureConfig<TexturesT>;
   attributes?: ProgramAttributeConfig<AttrsT>;
   uniforms?: ProgramUniformConfig<UniformsT>;
   uniformBuffers?: ProgramUniformBufferConfig<UBuffersT>;
+}
+
+export function makeConfig<T, U, V, W>(config: ProgramConfig<T, U, V, W>) {
+  return config;
 }
 
 class TextureAttachment {
@@ -74,20 +86,18 @@ class UniformAttachment<T> {
     private gl: WebGL2RenderingContext,
     private name: string,
     private location: WebGLUniformLocation,
-    private binding: (
-      gl: WebGL2RenderingContext,
-      l: WebGLUniformLocation,
-      v: T
-    ) => void
+    private bindFunc: UniformBindingFunc<T>
   ) {}
 
   public bind(v: T) {
-    this.binding(this.gl, this.location, v);
+    this.bindFunc(this.gl, this.location, v);
   }
 }
 
 type UniformAttachments<T extends ProgramUniformConfig<T>> = {
-  [P in keyof T]: UniformAttachment<T[P]>;
+  [P in keyof T]: T[P] extends UniformConfig<infer U>
+    ? UniformAttachment<U>
+    : never;
 };
 
 type AttributeAttachements<T extends ProgramAttributeConfig<T>> = Record<
@@ -111,6 +121,20 @@ type UniformBufferAttachments<T extends ProgramUniformBufferConfig<T>> = Record<
   keyof T,
   UniformBufferAttachment
 >;
+
+export type ProgramType<P> = P extends ProgramConfig<
+  infer T,
+  infer U,
+  infer V,
+  infer W
+>
+  ? Program<
+      ProgramTextureConfig<T>,
+      ProgramAttributeConfig<U>,
+      ProgramUniformConfig<V>,
+      ProgramUniformBufferConfig<W>
+    >
+  : never;
 
 export class Program<
   TexturesT extends ProgramTextureConfig<TexturesT>,
@@ -154,6 +178,8 @@ export class Program<
     this.uniforms = {} as UniformAttachments<UniformsT>;
     if (config.uniforms) {
       for (let uni in config.uniforms) {
+        // Really don't know here since the public type seems to work..
+        // @ts-ignore
         this.uniforms[uni] = this.uniformAttachment(uni, config.uniforms[uni]);
       }
     }
@@ -198,7 +224,7 @@ export class Program<
   private uniformAttachment<T>(name: string, conf: UniformConfig<T>) {
     const loc = this.gl.getUniformLocation(this.program, name);
     if (loc === null) throw new Error(`uniform location not found for ${name}`);
-    return new UniformAttachment<T>(this.gl, name, loc, conf.bind);
+    return new UniformAttachment(this.gl, name, loc, conf.bindFunc);
   }
 
   // associates the texture with the uniform of the given name
@@ -319,4 +345,15 @@ const p = new Program(gl, cfg);
 
 if (p.attributes) console.log(p.uniforms.dims);
 console.log(p);
+
+// type UniformAttachments<T> = {
+//   [P in keyof ProgramUniformConfig<T>]: UniformAttachment<
+//     ProgramUniformConfig<T>[P]
+//   >;
+// };
+    // conf: ValueOf<ProgramUniformConfig<UniformsT>>
+  // [P in keyof T]: T[P] extends UniformConfig<U> ? ;
+
+//  type ValueOf<T> = T[keyof T];
+
 */

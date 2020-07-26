@@ -12,7 +12,7 @@ import {
   ImportRenderParams as WarpImportRenderParams,
   fromExportWarpSettings,
   ExportWarpSettings,
-} from "../gfx/warpgrid/render";
+} from "../gfx/warpgrid/params";
 import { ExportAudioSettings, fromExportAudioSettings } from "../audio/audio";
 import { Manager } from "./settings";
 

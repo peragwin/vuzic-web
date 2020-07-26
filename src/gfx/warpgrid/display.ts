@@ -14,7 +14,7 @@ import {
   vertexShaderSource,
   fragmenShaderSource,
 } from "./shaders";
-import { RenderParams } from "./render";
+import { RenderParams } from "./params";
 import { Drivers } from "../../audio/audio";
 import { Camera } from "../util/camera";
 import { CameraController } from "../util/cameraController";

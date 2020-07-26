@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 
 import { AudioController } from "./audio";
-import { WarpController, warpRenderParamsInit } from "../gfx/warpgrid/render";
+import { WarpController, warpRenderParamsInit } from "../gfx/warpgrid/params";
 import { PpsController } from "../gfx/pps/params";
 import { useController as useWarpController } from "../components/visuals/Warp";
 import { useController as usePpsController } from "../components/visuals/Particles";

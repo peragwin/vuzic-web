@@ -5,7 +5,7 @@ import {
   renderParamReducer,
   WarpController,
   warpRenderParamsInit,
-} from "../../gfx/warpgrid/render";
+} from "../../gfx/warpgrid/params";
 import { WarpGrid } from "../../gfx/warpgrid/display";
 import { RouteProps } from "../../types/types";
 import { useSetRecoilState } from "recoil";

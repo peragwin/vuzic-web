@@ -1,305 +1,133 @@
-import { setUrlParam } from "../../hooks/routeSettings";
+import {
+  Program,
+  ShaderSourceConfig,
+  ProgramType,
+  makeConfig,
+} from "../program";
 
-export enum RenderParamKey {
-  valueScale,
-  valueOffset,
-  lightnessScale,
-  lightnessOffset,
-  alphaScale,
-  alphaOffset,
-  warpScale,
-  warpOffset,
-  scaleScale,
-  scaleOffset,
-  period,
-  colorCycle,
-  zscale,
-  all,
-}
-export class WarpController {
-  constructor(
-    public params: RenderParams,
-    private updateState: (action: RenderParamUpdate) => void
-  ) {}
+const shaders: ShaderSourceConfig[] = [
+  {
+    type: "vertex",
+    source: `#version 300 es
 
-  // this is a hacky interceptor which will push the update to the URL parameter
-  // as well updating the internal state. "load" is used to load URL parameters,
-  // so don't bother updating it in that case.
-  // TODO: refactor into a base class
-  public update(action: RenderParamUpdate) {
-    this.updateState(action);
-    if (action.type !== "load") {
-      const nextState = renderParamReducer(this.params, action);
-      setUrlParam("params", this.export(nextState));
-    }
-  }
-
-  private updater = (type: RenderParamKey) => (
-    e: React.ChangeEvent<{}>,
-    value: number
-  ) => this.update({ type, value });
-
-  public config = () => [
-    {
-      title: "Color Scaler",
-      min: -4,
-      max: 4,
-      step: 0.01,
-      update: this.updater(RenderParamKey.valueScale),
-    },
-    {
-      title: "Color Offset",
-      min: -4,
-      max: 4,
-      step: 0.01,
-      update: this.updater(RenderParamKey.valueOffset),
-    },
-    {
-      title: "Lightness Scaler",
-      min: -4,
-      max: 4,
-      step: 0.01,
-      update: this.updater(RenderParamKey.lightnessScale),
-    },
-    {
-      title: "Lightness Offset",
-      min: -4,
-      max: 4,
-      step: 0.01,
-      update: this.updater(RenderParamKey.lightnessOffset),
-    },
-    {
-      title: "Alpha Scale",
-      min: -2,
-      max: 8,
-      step: 0.01,
-      update: this.updater(RenderParamKey.alphaScale),
-    },
-    {
-      title: "Alpha Offset",
-      min: -4,
-      max: 4,
-      step: 0.01,
-      update: this.updater(RenderParamKey.alphaOffset),
-    },
-    {
-      title: "Horizontal Warp",
-      min: 0,
-      max: 16,
-      step: 0.05,
-      update: this.updater(RenderParamKey.warpScale),
-    },
-    {
-      title: "Horizontal Warp Offset",
-      min: -1,
-      max: 4,
-      step: 0.01,
-      update: this.updater(RenderParamKey.warpOffset),
-    },
-    {
-      title: "Vertical Warp",
-      min: -2,
-      max: 8,
-      step: 0.01,
-      update: this.updater(RenderParamKey.scaleScale),
-    },
-    {
-      title: "Vertical Warp Offset",
-      min: -1,
-      max: 4,
-      step: 0.01,
-      update: this.updater(RenderParamKey.scaleOffset),
-    },
-    {
-      title: "Color Period",
-      min: 1,
-      max: 360,
-      step: 1,
-      update: this.updater(RenderParamKey.period),
-    },
-    {
-      title: "Color Cycle Rate",
-      min: 0.0001,
-      max: 0.1,
-      step: 0.0001,
-      update: this.updater(RenderParamKey.colorCycle),
-    },
-    {
-      title: "Z Scale",
-      min: 0,
-      max: 2,
-      step: 0.01,
-      update: this.updater(RenderParamKey.zscale),
-    },
-  ];
-
-  public values = (params?: RenderParams) => {
-    params = params || this.params;
-    return [
-      this.params.valueScale,
-      this.params.valueOffset,
-      this.params.lightnessScale,
-      this.params.lightnessOffset,
-      this.params.alphaScale,
-      this.params.alphaOffset,
-      this.params.warpScale,
-      this.params.warpOffset,
-      this.params.scaleScale,
-      this.params.scaleOffset,
-      this.params.period,
-      this.params.colorCycle,
-      this.params.zscale,
-    ];
-  };
-
-  public version: VersionString = "v0.1";
-
-  public export = (params?: RenderParams) =>
-    [this.version as any].concat(this.values(params || this.params));
-}
-
-export type VersionString = "v0.1";
-
-export interface RenderParams {
-  rows: number;
-  columns: number;
-  aspect: number;
-  valueScale: number;
-  valueOffset: number;
-  lightnessScale: number;
-  lightnessOffset: number;
-  alphaScale: number;
-  alphaOffset: number;
-  warpScale: number;
-  warpOffset: number;
-  scaleScale: number;
-  scaleOffset: number;
-  period: number;
-  colorCycle: number;
-  zscale: number;
-}
-
-export const warpRenderParamsInit = (
-  buckets: number,
-  length: number
-): RenderParams => ({
-  rows: buckets,
-  columns: length,
-  aspect: 4 / 3,
-  valueScale: 2,
-  valueOffset: 0,
-  lightnessScale: 0.88,
-  lightnessOffset: 0,
-  alphaScale: 1,
-  alphaOffset: 0.25,
-  warpScale: 16,
-  warpOffset: 1.35,
-  scaleScale: 2.26,
-  scaleOffset: 0.45,
-  period: 3 * 60,
-  colorCycle: 0.01,
-  zscale: 0,
-});
-
-export interface RenderParamUpdate {
-  type: RenderParamKey | "all" | "load";
-  value: number | RenderParams | ImportRenderParams;
-}
-
-export const renderParamReducer = (
-  state: RenderParams,
-  action: RenderParamUpdate
-) => {
-  state = { ...state };
-  switch (action.type) {
-    case RenderParamKey.valueScale:
-      state.valueScale = action.value as number;
-      return state;
-    case RenderParamKey.valueOffset:
-      state.valueOffset = action.value as number;
-      return state;
-    case RenderParamKey.alphaScale:
-      state.alphaScale = action.value as number;
-      return state;
-    case RenderParamKey.alphaOffset:
-      state.alphaOffset = action.value as number;
-      return state;
-    case RenderParamKey.lightnessScale:
-      state.lightnessScale = action.value as number;
-      return state;
-    case RenderParamKey.lightnessOffset:
-      state.lightnessOffset = action.value as number;
-      return state;
-    case RenderParamKey.warpScale:
-      state.warpScale = action.value as number;
-      return state;
-    case RenderParamKey.warpOffset:
-      state.warpOffset = action.value as number;
-      return state;
-    case RenderParamKey.scaleScale:
-      state.scaleScale = action.value as number;
-      return state;
-    case RenderParamKey.scaleOffset:
-      state.scaleOffset = action.value as number;
-      return state;
-    case RenderParamKey.period:
-      state.period = action.value as number;
-      return state;
-    case RenderParamKey.colorCycle:
-      state.colorCycle = action.value as number;
-      return state;
-    case RenderParamKey.zscale:
-      state.zscale = action.value as number;
-      return state;
-    case RenderParamKey.all:
-    case "all":
-      return action.value as RenderParams;
-    case "load":
-      if (!action.value) return state;
-      const v = action.value as ImportRenderParams;
-      return { ...state, ...v };
-  }
+uniform float warp[{0}]; // for y rows
+uniform float scale[{1}]; // for x cols
+uniform float uzScale;
+layout (std140) uniform uCameraMatrix {
+  mat4 uView;
+  mat4 uTransform;
+  mat4 uProjection;
 };
 
-export type ExportWarpSettings = [VersionString, ...Array<number>];
+const vec2 gridSize = vec2({1}, {0});
 
-export interface ImportRenderParams {
-  valueScale: number;
-  valueOffset: number;
-  lightnessScale: number;
-  lightnessOffset: number;
-  alphaScale: number;
-  alphaOffset: number;
-  warpScale: number;
-  warpOffset: number;
-  scaleScale: number;
-  scaleOffset: number;
-  period: number;
-  colorCycle: number;
-  zscale?: number;
-}
+in vec3 vertPos;
+in vec2 texPos;
+in vec2 uvPos;
+out vec2 fragTexPos;
+out vec3 vUvw;
 
-export const fromExportWarpSettings = (
-  s: ExportWarpSettings
-): ImportRenderParams => {
-  const version = s[0];
-  if (version === "v0.1") {
-    return {
-      valueScale: s[1],
-      valueOffset: s[2],
-      lightnessScale: s[3],
-      lightnessOffset: s[4],
-      alphaScale: s[5],
-      alphaOffset: s[6],
-      warpScale: s[7],
-      warpOffset: s[8],
-      scaleScale: s[9],
-      scaleOffset: s[10],
-      period: s[11],
-      colorCycle: s[12],
-      zscale: s[13] || 0,
-    };
+float x, y, s, wv, sv;
+
+void main() {
+
+  x = vertPos.x;
+  y = vertPos.y;
+
+  ivec2 index = ivec2(gridSize * abs(vertPos.xy));
+
+  // sv = scale[int((x+1.)*float({1})/2.)];
+  // wv = warp[int((y+1.)*float({0})/2.)];
+  sv = scale[index.x];
+  wv = warp[index.y];
+  float elev = wv + sv;
+
+  if (x <= 0.0) {
+    x = pow(x + 1.1, wv) - 1.0; // wtf why 1.1? (<- adds cool overlapping effect)
   } else {
-    throw new Error(`could not load warp settings: unknown version ${version}`);
+    x = 1.0 - pow(abs(x - 1.1), wv);
   }
+
+  if (y <= 0.0) {
+    s = (1. + y/2.) * sv;
+    y = pow(y + 1.0, s) - 1.0;
+  } else {
+    s = (1. - y/2.) * sv;
+    y = 1.0 - pow(abs(y - 1.0), s);
+  }
+
+  // float z = max(-1000. + elev * vertPos.z, 0.);
+  float z = elev * vertPos.z * uzScale;
+  // float z = 0.;
+
+  vUvw = vec3(uvPos, elev);
+  fragTexPos = abs(2.*texPos-1.);
+  vec4 pos = vec4(elev * x, elev * y, z, 1.0);
+
+  gl_Position = uProjection * uTransform * uView * pos;
+}`,
+  },
+  {
+    type: "fragment",
+    source: `#version 300 es
+precision highp float;
+
+uniform sampler2D texImage;
+in vec2 fragTexPos;
+in vec3 vUvw;
+out vec4 fragColor;
+
+void main() {
+  vec4 color = texture(texImage, fragTexPos.xy);
+  // float r = length(vUvw.xy);
+  // float a = (1. - r*r);// vUvw.z * (1. - r*r);
+  // if (a < 0.) discard;
+  // fragColor = color * a;
+  fragColor = color;
+}`,
+  },
+];
+
+const uniform1fv = (
+  gl: WebGL2RenderingContext,
+  l: WebGLUniformLocation,
+  v: Float32Array
+) => {
+  gl.uniform1fv(l, v);
 };
+
+const uniform1f = (
+  gl: WebGL2RenderingContext,
+  l: WebGLUniformLocation,
+  v: number
+) => {
+  gl.uniform1f(l, v);
+};
+
+export class RenderPass {
+  static config = makeConfig({
+    sources: shaders,
+    textures: {
+      texImage: { binding: 0 },
+    },
+    uniforms: {
+      warp: { bindFunc: uniform1fv },
+      scale: { bindFunc: uniform1fv },
+      uzScale: { bindFunc: uniform1f },
+    },
+    uniformBuffers: {
+      uCameraMatrix: { location: 0 },
+    },
+  });
+  private program: ProgramType<typeof RenderPass.config>;
+
+  constructor(gl: WebGL2RenderingContext) {
+    const program = new Program(gl, RenderPass.config);
+    this.program = program;
+
+    program.uniforms.scale.bind(new Float32Array(4));
+    // program.uniforms.uzScale.bind();
+    // program.uniforms.uzScale.
+    // this.program.uniforms.warp.bind();
+  }
+}
