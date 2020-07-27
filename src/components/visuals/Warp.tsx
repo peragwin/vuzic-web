@@ -73,6 +73,7 @@ const Warp: React.FC<Props> = (props) => {
       };
     } catch (e) {
       setErrorState(e);
+      throw e;
     }
     // run once to initialize warp
     // eslint-disable-next-line react-hooks/exhaustive-deps

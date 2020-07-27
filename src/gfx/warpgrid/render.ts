@@ -5,9 +5,10 @@ import {
   makeConfig,
 } from "../program";
 import { VertexArrayObject, UniformBuffer } from "../buffers";
-import { Texture } from "../textures";
+import { Texture, TextureObject } from "../textures";
 import { Dims } from "../types";
-import { RenderTarget, drawWithProgram } from "../graphics";
+import { RenderTarget, drawWithProgram, FramebufferObject } from "../graphics";
+import { Bloom } from "../misc/bloom";
 
 const shaders = (size: Dims): ShaderSourceConfig[] => [
   {
@@ -30,7 +31,7 @@ const vec2 gridSize = vec2(WIDTH, HEIGHT);
 
 in vec3 vertPos;
 in vec2 texPos;
-in vec2 uvPos;
+// in vec2 uvPos;
 out vec2 fragTexPos;
 out vec3 vUvw;
 
@@ -65,7 +66,7 @@ void main() {
   float z = elev * vertPos.z * uzScale;
   // float z = 0.;
 
-  vUvw = vec3(uvPos, elev);
+  // vUvw = vec3(uvPos, elev);
   fragTexPos = abs(2.*texPos-1.);
   vec4 pos = vec4(elev * x, elev * y, z, 1.0);
 
@@ -118,13 +119,47 @@ interface Input {
   vaos: VertexArrayObject[];
 }
 
+interface Update {
+  resolution?: Dims;
+}
+
+class PreBloom {
+  image: TextureObject;
+  frameBuffer: FramebufferObject;
+
+  constructor(gl: WebGL2RenderingContext, resolution: Dims) {
+    this.image = new TextureObject(gl, {
+      mode: gl.LINEAR,
+      internalFormat: gl.RGBA8,
+      format: gl.RGBA,
+      type: gl.UNSIGNED_BYTE,
+      ...resolution,
+    });
+    this.image.updateData(
+      resolution.width,
+      resolution.height,
+      new Uint8Array(4 * resolution.width * resolution.height)
+    );
+    this.frameBuffer = new FramebufferObject(gl, resolution, true, true);
+    this.frameBuffer.attach(this.image, 0);
+    this.frameBuffer.bind();
+    this.frameBuffer.checkStatus();
+  }
+
+  public destroy() {
+    // TODO: (for now gl objects will be cleared by gc..)
+    // this.image.destroy();
+    // this.frameBuffer.destroy();
+  }
+}
+
 export class RenderPass {
   static config = makeConfig({
     sources: [], // placeholder
     attributes: {
       vertPos: {},
       texPos: {},
-      uvPos: {},
+      // uvPos: {},
     },
     textures: {
       texImage: { binding: 0 },
@@ -141,13 +176,37 @@ export class RenderPass {
 
   public readonly program: ProgramType<typeof RenderPass.config>;
 
-  constructor(gl: WebGL2RenderingContext, size: Dims) {
+  private bloom: Bloom;
+  private preBloom: PreBloom;
+
+  constructor(
+    private gl: WebGL2RenderingContext,
+    size: Dims,
+    resolution: Dims,
+    private enableBloom = true
+  ) {
     const config = { ...RenderPass.config, sources: shaders(size) };
     const program = new Program(gl, config);
     this.program = program;
+
+    this.bloom = new Bloom(gl, resolution);
+    this.preBloom = new PreBloom(gl, resolution);
+  }
+
+  public update(update: Update) {
+    if (update.resolution) {
+      this.preBloom.destroy();
+      this.preBloom = new PreBloom(this.gl, update.resolution);
+    }
+    this.bloom.update(update);
   }
 
   public render(input: Input, target: RenderTarget) {
+    const gl = this.gl;
+    const firstTarget = this.enableBloom ? this.preBloom.frameBuffer : target;
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.DST_ALPHA);
     drawWithProgram(
       this.program,
       () => {
@@ -157,8 +216,12 @@ export class RenderPass {
         this.program.textures.texImage.bind(input.image);
         this.program.uniformBuffers.uCameraMatrix.bind(input.cameraMatrix);
       },
-      target,
+      firstTarget,
       input.vaos
     );
+
+    if (this.enableBloom) {
+      this.bloom.render({ image: this.preBloom.image }, target);
+    }
   }
 }

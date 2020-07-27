@@ -9,7 +9,6 @@ import {
   RenderTarget,
 } from "../graphics";
 import { CameraController } from "../util/cameraController";
-import { mode } from "mathjs";
 
 const shaders = (gl: WebGL2RenderingContext) => {
   const vert = `#version 300 es

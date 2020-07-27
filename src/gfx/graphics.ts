@@ -82,7 +82,12 @@ export class FramebufferObject extends RenderTarget {
   private frameBuffer: WebGLFramebuffer;
   private textures: Array<{ id: number; tex: WebGLTexture }> = [];
 
-  constructor(private gl: WebGL2RenderingContext, private dims: Dims) {
+  constructor(
+    private gl: WebGL2RenderingContext,
+    private dims: Dims,
+    private staticAttachments = false,
+    private clearing = false
+  ) {
     super();
     const fb = gl.createFramebuffer();
     if (!fb) throw new Error("failed to create frameBuffer");
@@ -114,11 +119,17 @@ export class FramebufferObject extends RenderTarget {
     const gl = this.gl;
     this.bind();
     gl.drawBuffers(this.textures.map(({ id }) => gl.COLOR_ATTACHMENT0 + id));
-    this.textures = [];
+    if (!this.staticAttachments) {
+      this.textures = [];
+    }
   }
 
   public setView(layer: number) {
     this.gl.viewport(0, 0, this.dims.width, this.dims.height);
+    if (this.clearing) {
+      this.gl.clearColor(0, 0, 0, 1);
+      this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+    }
   }
 
   public readData(

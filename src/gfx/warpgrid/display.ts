@@ -15,9 +15,8 @@ import { Camera } from "../util/camera";
 import { CameraController } from "../util/cameraController";
 import { RenderView, XRRenderTarget } from "../xr/renderer";
 
-import { Program } from "../program";
 import { TextureObject } from "../textures";
-import { UniformBuffer, ArrayBuffer, VertexArrayObject } from "../buffers";
+import { UniformBuffer, VertexArrayObject } from "../buffers";
 import { RenderPass } from "./render";
 
 // const linTosRGB = (v: number) =>
@@ -179,7 +178,16 @@ export class WarpGrid {
     if (!gl) throw new Error("canvas does not support webgl");
     this.gl = gl;
 
-    this.canvasTarget = new CanvasObject(gl, undefined, true);
+    const ext = gl.getExtension("WEBGL_color_buffer_float");
+    console.log("EXTENSION:", ext);
+
+    this.canvasTarget = new CanvasObject(
+      gl,
+      (resolution) => {
+        this.renderPass.update({ resolution });
+      },
+      true
+    );
 
     this.camera = new Camera((45 * Math.PI) / 180, 1, -1, 1);
     this.camera.location = vec3.fromValues(0, 0, -2);
@@ -193,7 +201,8 @@ export class WarpGrid {
 
     this.textures = new Textures(gl, this.params);
 
-    this.renderPass = new RenderPass(gl, dims);
+    const resolution = { width: canvas.width, height: canvas.height };
+    this.renderPass = new RenderPass(gl, dims, resolution);
     this.renderVaos = [this.createGridVao()];
 
     const fbo = new FramebufferObject(gl, dims);
@@ -343,12 +352,12 @@ export class WarpGrid {
           offset: 3,
           stride: 7,
         },
-        {
-          attr: this.renderPass.program.attributes.uvPos,
-          size: 2,
-          offset: 5,
-          stride: 7,
-        },
+        // {
+        //   attr: this.renderPass.program.attributes.uvPos,
+        //   size: 2,
+        //   offset: 5,
+        //   stride: 7,
+        // },
       ],
     });
 
@@ -356,9 +365,6 @@ export class WarpGrid {
   }
 
   private render(target: RenderTarget) {
-    const gl = this.gl;
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.DST_ALPHA);
     this.renderPass.render(
       {
         warp: this.warp,
@@ -370,7 +376,6 @@ export class WarpGrid {
       },
       target
     );
-    gl.flush();
   }
 
   private update(g: Graphics) {

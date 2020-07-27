@@ -267,7 +267,7 @@ export class Program<
     })();
 
     const shader = gl.createShader(shadertype);
-    if (!shader) return null;
+    if (!shader) throw new Error(`failed to create shader ${type}`);
 
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
@@ -293,7 +293,9 @@ export class Program<
         }
         return l;
       });
-      console.debug(errInfo.join("\n"));
+      console.error(errInfo.join("\n"));
+    } else {
+      console.error("no shader info log :(");
     }
     this.gl.deleteShader(shader);
     return null;

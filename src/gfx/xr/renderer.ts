@@ -1,4 +1,4 @@
-import { RenderTarget, Graphics } from "../graphics";
+import { RenderTarget } from "../graphics";
 import { mat4 } from "gl-matrix";
 
 export interface RenderView {
