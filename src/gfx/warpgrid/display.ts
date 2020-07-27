@@ -26,8 +26,8 @@ import { RenderPass } from "./render";
 //   v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
 
 // const sRGB = (vals: number[]) => vals.map(sRGBtoLin);
-// const sRGB = (vals: number[]) => vals.map((v) => v * v);
-const sRGB = (x: number[]) => x;
+const sRGB = (vals: number[]) => vals.map((v) => Math.pow(v, 1.05));
+// const sRGB = (x: number[]) => x;
 
 const square = [
   // add degenerate triangle
@@ -112,14 +112,14 @@ class Textures {
       type: gl.UNSIGNED_BYTE,
       wrap: { s: gl.REPEAT, t: gl.CLAMP_TO_EDGE },
     });
-    const hbuf = new Uint8ClampedArray(36000 * 4);
-    for (let i = 0; i < 36000; i++) {
-      const hue = i % 360;
-      const val = Math.floor(i / 360);
+    const hbuf = new Uint8ClampedArray(720 * 256 * 4);
+    for (let i = 0; i < 720 * 256; i++) {
+      const hue = (i % 720) / 2;
+      const val = ((i / 720) * 100) / 256;
       let [r, g, b] = sRGB(hsluvToRgb([hue, 100, val]));
       hbuf.set([r * 255, g * 255, b * 255, 255], i * 4);
     }
-    this.hsluv.update(new ImageData(hbuf, 360, 100));
+    this.hsluv.update(new ImageData(hbuf, 720, 256));
   }
 
   public update(drivers: Drivers) {
@@ -454,6 +454,7 @@ export class WarpGrid {
     } else {
       this.params = params;
     }
+    this.renderPass.update({ params });
   }
 
   private columnIndex = 0;

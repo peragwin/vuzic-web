@@ -70,3 +70,19 @@ export function glBufferMode(gl: WebGL2RenderingContext, m: BufferMode) {
       return gl.STREAM_COPY;
   }
 }
+
+export const uniform1fv = (
+  gl: WebGL2RenderingContext,
+  l: WebGLUniformLocation,
+  v: Float32Array
+) => {
+  gl.uniform1fv(l, v);
+};
+
+export const uniform1f = (
+  gl: WebGL2RenderingContext,
+  l: WebGLUniformLocation,
+  v: number
+) => {
+  gl.uniform1f(l, v);
+};

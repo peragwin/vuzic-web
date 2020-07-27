@@ -5,7 +5,7 @@ import {
   Program,
 } from "../program";
 import { quadVertShader, quadVertAttributes, makeQuadVao } from "./quadvert";
-import { Dims } from "../types";
+import { Dims, uniform1f } from "../types";
 import { VertexArrayObject } from "../buffers";
 import { TextureObject, Texture } from "../textures";
 import { FramebufferObject, RenderTarget, drawWithProgram } from "../graphics";
@@ -265,6 +265,7 @@ precision highp sampler2D;
 uniform sampler2D texImage;
 uniform sampler2D texBloom;
 uniform vec2 iResolution;
+uniform float uBloom;
 
 vec3 saturate(vec3 x)
 {
@@ -375,7 +376,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec4 imgColor = ColorFetch(uv);
     vec4 bloomColor = GetBloom(uv);
 
-    vec3 color = imgColor.rgb + bloomColor.rgb * 0.25;
+    vec3 color = imgColor.rgb + bloomColor.rgb * uBloom;
     
     // color *= 200.0;
     
@@ -486,6 +487,11 @@ interface Input {
 
 interface Update {
   resolution?: Dims;
+  params?: Partial<Params>;
+}
+
+export interface Params {
+  bloom: number;
 }
 
 export class Bloom {
@@ -515,6 +521,7 @@ export class Bloom {
     sources: applyBloomShader(),
     attributes: quadVertAttributes,
     uniforms: {
+      uBloom: { bindFunc: uniform1f },
       iResolution: { bindFunc: setResolution },
     },
     textures: {
@@ -529,6 +536,8 @@ export class Bloom {
   private convolveHorizontal: ProgramType<typeof Bloom.convolverConfig>;
   private convolveVertical: ProgramType<typeof Bloom.convolverConfig>;
   private bloom: ProgramType<typeof Bloom.bloomConfig>;
+
+  private params: Params = { bloom: 0 };
 
   constructor(private gl: WebGL2RenderingContext, private size: Dims) {
     this.quad = makeQuadVao(gl);
@@ -553,6 +562,9 @@ export class Bloom {
       // this.targets.destroy() TODO
       this.targets = new Targets(this.gl, update.resolution);
       this.size = update.resolution;
+    }
+    if (update.params) {
+      this.params = { ...this.params, ...update.params };
     }
   }
 
@@ -593,6 +605,7 @@ export class Bloom {
       this.bloom,
       () => {
         this.bloom.uniforms.iResolution.bind(this.size);
+        this.bloom.uniforms.uBloom.bind(this.params.bloom);
         this.bloom.textures.texImage.bind(input.image);
         this.bloom.textures.texBloom.bind(this.targets.convolve2);
       },

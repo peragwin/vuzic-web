@@ -6,9 +6,9 @@ import {
 } from "../program";
 import { VertexArrayObject, UniformBuffer } from "../buffers";
 import { Texture, TextureObject } from "../textures";
-import { Dims } from "../types";
+import { Dims, uniform1fv, uniform1f } from "../types";
 import { RenderTarget, drawWithProgram, FramebufferObject } from "../graphics";
-import { Bloom } from "../misc/bloom";
+import { Bloom, Params as BloomParams } from "../misc/bloom";
 
 const shaders = (size: Dims): ShaderSourceConfig[] => [
   {
@@ -94,22 +94,6 @@ void main() {
   },
 ];
 
-const uniform1fv = (
-  gl: WebGL2RenderingContext,
-  l: WebGLUniformLocation,
-  v: Float32Array
-) => {
-  gl.uniform1fv(l, v);
-};
-
-const uniform1f = (
-  gl: WebGL2RenderingContext,
-  l: WebGLUniformLocation,
-  v: number
-) => {
-  gl.uniform1f(l, v);
-};
-
 interface Input {
   warp: Float32Array;
   scale: Float32Array;
@@ -121,6 +105,7 @@ interface Input {
 
 interface Update {
   resolution?: Dims;
+  params?: Partial<BloomParams>;
 }
 
 class PreBloom {

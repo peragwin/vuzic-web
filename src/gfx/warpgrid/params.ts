@@ -14,6 +14,7 @@ export enum RenderParamKey {
   period,
   colorCycle,
   zscale,
+  bloom,
   all,
 }
 export class WarpController {
@@ -131,6 +132,13 @@ export class WarpController {
       step: 0.01,
       update: this.updater(RenderParamKey.zscale),
     },
+    {
+      title: "Bloom",
+      min: 0,
+      max: 1,
+      step: 0.001,
+      update: this.updater(RenderParamKey.bloom),
+    },
   ];
 
   public values = (params?: RenderParams) => {
@@ -149,6 +157,7 @@ export class WarpController {
       this.params.period,
       this.params.colorCycle,
       this.params.zscale,
+      this.params.bloom,
     ];
   };
 
@@ -177,6 +186,7 @@ export interface RenderParams {
   period: number;
   colorCycle: number;
   zscale: number;
+  bloom: number;
 }
 
 export const warpRenderParamsInit = (
@@ -199,6 +209,7 @@ export const warpRenderParamsInit = (
   period: 3 * 60,
   colorCycle: 0.01,
   zscale: 0,
+  bloom: 0.1,
 });
 
 export interface RenderParamUpdate {
@@ -251,6 +262,9 @@ export const renderParamReducer = (
     case RenderParamKey.zscale:
       state.zscale = action.value as number;
       return state;
+    case RenderParamKey.bloom:
+      state.bloom = action.value as number;
+      return state;
     case RenderParamKey.all:
     case "all":
       return action.value as RenderParams;
@@ -277,6 +291,7 @@ export interface ImportRenderParams {
   period: number;
   colorCycle: number;
   zscale?: number;
+  bloom?: number;
 }
 
 export const fromExportWarpSettings = (
@@ -298,6 +313,7 @@ export const fromExportWarpSettings = (
       period: s[11],
       colorCycle: s[12],
       zscale: s[13] || 0,
+      bloom: s[14] || 0,
     };
   } else {
     throw new Error(`could not load warp settings: unknown version ${version}`);
