@@ -294,6 +294,22 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
                   value={audioParams.decay}
                   onChange={setAudioParam(AudioParamKey.decay)}
                 />
+                <ParamSlider
+                  title="Accumulation"
+                  min={0}
+                  max={8}
+                  step={0.001}
+                  value={audioParams.accum}
+                  onChange={setAudioParam(AudioParamKey.accum)}
+                />
+                <ParamSlider
+                  title="Drag"
+                  min={-0.00125}
+                  max={0.00125}
+                  step={0.000001}
+                  value={audioParams.drag}
+                  onChange={setAudioParam(AudioParamKey.drag)}
+                />
                 <FilterParamSlider
                   title="Intensity Filter"
                   min={0}

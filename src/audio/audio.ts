@@ -166,7 +166,9 @@ export class AudioProcessorParams {
     public ampScale: number,
     public ampOffset: number,
     public sync: number,
-    public decay: number
+    public decay: number,
+    public accum: number,
+    public drag: number
   ) {}
 }
 
@@ -182,7 +184,9 @@ export const audioParamsInit = new AudioProcessorParams(
   1.2, // amp scale
   0, //amp offset
   1e-2, //sync
-  0.35 // decay
+  0.35, // decay
+  1, // accum
+  0.0002 // drag
 );
 
 export enum AudioParamKey {
@@ -198,6 +202,8 @@ export enum AudioParamKey {
   ampOffset,
   sync,
   decay,
+  accum,
+  drag,
   all,
 }
 
@@ -248,6 +254,12 @@ export const audioParamReducer = (
     case AudioParamKey.decay:
       state.decay = action.value as number;
       break;
+    case AudioParamKey.accum:
+      state.accum = action.value as number;
+      break;
+    case AudioParamKey.drag:
+      state.drag = action.value as number;
+      break;
     case AudioParamKey.all:
       state = action.value as AudioProcessorParams;
       break;
@@ -284,6 +296,8 @@ export const fromExportAudioSettings = (
       ampOffset: s[16],
       sync: s[17],
       decay: s[18],
+      accum: s[19] || 1,
+      drag: s[20] || 0.0002,
     };
   } else {
     console.warn(`could not load settings: unsupported version ${version}`);
@@ -539,8 +553,8 @@ class FrequencyProcessor {
 
       diff[i] = dg * (this.diffFilter.values[i] + this.diffFeedback.values[i]);
 
-      let ph = energy[i] + 0.0002;
-      ph -= diff[i]; //Math.abs(diff[i])
+      let ph = energy[i] + this.params.drag;
+      ph -= diff[i] * this.params.accum; //Math.abs(diff[i])
       energy[i] = ph;
     }
   }

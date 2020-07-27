@@ -15,6 +15,8 @@ export enum RenderParamKey {
   colorCycle,
   zscale,
   bloom,
+  bloomSharpness,
+  baseColor,
   all,
 }
 export class WarpController {
@@ -139,6 +141,20 @@ export class WarpController {
       step: 0.001,
       update: this.updater(RenderParamKey.bloom),
     },
+    {
+      title: "Bloom Sharpness",
+      min: -1,
+      max: 2,
+      step: 0.001,
+      update: this.updater(RenderParamKey.bloomSharpness),
+    },
+    {
+      title: "Base Color",
+      min: -180,
+      max: 180,
+      step: 0.1,
+      update: this.updater(RenderParamKey.baseColor),
+    },
   ];
 
   public values = (params?: RenderParams) => {
@@ -158,6 +174,8 @@ export class WarpController {
       this.params.colorCycle,
       this.params.zscale,
       this.params.bloom,
+      this.params.bloomSharpness,
+      this.params.baseColor,
     ];
   };
 
@@ -187,6 +205,8 @@ export interface RenderParams {
   colorCycle: number;
   zscale: number;
   bloom: number;
+  bloomSharpness: number;
+  baseColor: number;
 }
 
 export const warpRenderParamsInit = (
@@ -210,6 +230,8 @@ export const warpRenderParamsInit = (
   colorCycle: 0.01,
   zscale: 0,
   bloom: 0.1,
+  bloomSharpness: 1,
+  baseColor: 0,
 });
 
 export interface RenderParamUpdate {
@@ -265,6 +287,12 @@ export const renderParamReducer = (
     case RenderParamKey.bloom:
       state.bloom = action.value as number;
       return state;
+    case RenderParamKey.bloomSharpness:
+      state.bloomSharpness = action.value as number;
+      return state;
+    case RenderParamKey.baseColor:
+      state.baseColor = action.value as number;
+      return state;
     case RenderParamKey.all:
     case "all":
       return action.value as RenderParams;
@@ -292,6 +320,8 @@ export interface ImportRenderParams {
   colorCycle: number;
   zscale?: number;
   bloom?: number;
+  bloomSharpness?: number;
+  baseColor?: number;
 }
 
 export const fromExportWarpSettings = (
@@ -314,6 +344,8 @@ export const fromExportWarpSettings = (
       colorCycle: s[12],
       zscale: s[13] || 0,
       bloom: s[14] || 0,
+      bloomSharpness: s[15] || 0,
+      baseColor: s[16] || 0,
     };
   } else {
     throw new Error(`could not load warp settings: unknown version ${version}`);

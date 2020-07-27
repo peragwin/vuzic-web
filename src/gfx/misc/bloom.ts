@@ -266,6 +266,7 @@ uniform sampler2D texImage;
 uniform sampler2D texBloom;
 uniform vec2 iResolution;
 uniform float uBloom;
+uniform float uSharpness;
 
 vec3 saturate(vec3 x)
 {
@@ -355,15 +356,17 @@ vec4 GetBloom(vec2 coord)
 {
   vec4 bloom = vec4(0.0);
   
+  float s = 1. - uSharpness / 2.;
+
   //Reconstruct bloom from multiple blurred images
   bloom += Grab(coord, 1.0, vec2(CalcOffset(0.0))) * 1.0;
-  bloom += Grab(coord, 2.0, vec2(CalcOffset(1.0))) * 1.5;
-  bloom += Grab(coord, 3.0, vec2(CalcOffset(2.0))) * 1.0;
-  bloom += Grab(coord, 4.0, vec2(CalcOffset(3.0))) * 1.5;
-  bloom += Grab(coord, 5.0, vec2(CalcOffset(4.0))) * 1.8;
-  bloom += Grab(coord, 6.0, vec2(CalcOffset(5.0))) * 1.0;
-  bloom += Grab(coord, 7.0, vec2(CalcOffset(6.0))) * 1.0;
-  bloom += Grab(coord, 8.0, vec2(CalcOffset(7.0))) * 1.0;
+  bloom += Grab(coord, 2.0, vec2(CalcOffset(1.0))) * 1.5 * s;
+  bloom += Grab(coord, 3.0, vec2(CalcOffset(2.0))) * 1.0 * pow(s, 2.);
+  bloom += Grab(coord, 4.0, vec2(CalcOffset(3.0))) * 1.5 * pow(s, 3.);
+  bloom += Grab(coord, 5.0, vec2(CalcOffset(4.0))) * 1.8 * pow(s, 4.);
+  bloom += Grab(coord, 6.0, vec2(CalcOffset(5.0))) * 1.0 * pow(s, 5.);
+  bloom += Grab(coord, 7.0, vec2(CalcOffset(6.0))) * 1.0 * pow(s, 6.);
+  bloom += Grab(coord, 8.0, vec2(CalcOffset(7.0))) * 1.0 * pow(s, 7.);
 
   return bloom;
 }
@@ -492,6 +495,7 @@ interface Update {
 
 export interface Params {
   bloom: number;
+  bloomSharpness: number;
 }
 
 export class Bloom {
@@ -522,6 +526,7 @@ export class Bloom {
     attributes: quadVertAttributes,
     uniforms: {
       uBloom: { bindFunc: uniform1f },
+      uSharpness: { bindFunc: uniform1f },
       iResolution: { bindFunc: setResolution },
     },
     textures: {
@@ -537,7 +542,7 @@ export class Bloom {
   private convolveVertical: ProgramType<typeof Bloom.convolverConfig>;
   private bloom: ProgramType<typeof Bloom.bloomConfig>;
 
-  private params: Params = { bloom: 0 };
+  private params: Params = { bloom: 0, bloomSharpness: 1 };
 
   constructor(private gl: WebGL2RenderingContext, private size: Dims) {
     this.quad = makeQuadVao(gl);
@@ -606,6 +611,7 @@ export class Bloom {
       () => {
         this.bloom.uniforms.iResolution.bind(this.size);
         this.bloom.uniforms.uBloom.bind(this.params.bloom);
+        this.bloom.uniforms.uSharpness.bind(this.params.bloomSharpness);
         this.bloom.textures.texImage.bind(input.image);
         this.bloom.textures.texBloom.bind(this.targets.convolve2);
       },
