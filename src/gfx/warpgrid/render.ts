@@ -6,52 +6,67 @@ import {
 } from "../program";
 import { VertexArrayObject, UniformBuffer } from "../buffers";
 import { Texture, TextureObject } from "../textures";
-import { Dims, uniform1fv, uniform1f } from "../types";
+import { Dims, uniform1f } from "../types";
 import { RenderTarget, drawWithProgram, FramebufferObject } from "../graphics";
 import { Bloom, Params as BloomParams } from "../misc/bloom";
 
-const shaders = (size: Dims): ShaderSourceConfig[] => [
+const shaders = (): ShaderSourceConfig[] => [
   {
     type: "vertex",
     // warp controls the zoom in the center of the display
     // scale controls the vertical scaling factor
     source: `#version 300 es
-#define WIDTH ${size.width}
-#define HEIGHT ${size.height}
-uniform float warp[HEIGHT]; // for y rows
-uniform float scale[WIDTH]; // for x cols
+precision highp float;
+precision highp sampler2D;
+
+uniform sampler2D texWarp;
+uniform sampler2D texScale;
+
+// uColumnIndex should be normalized [0,1) based on the actual width of texScale
+uniform float uColumnIndex;
+
 uniform float uzScale;
+uniform float uOffset;
+
 layout (std140) uniform uCameraMatrix {
   mat4 uView;
   mat4 uTransform;
   mat4 uProjection;
 };
 
-const vec2 gridSize = vec2(WIDTH, HEIGHT);
-
 in vec3 vertPos;
 in vec2 texPos;
-// in vec2 uvPos;
 out vec2 fragTexPos;
-out vec3 vUvw;
 
 float x, y, s, wv, sv;
+
+float fetchValue(in sampler2D tex, in float index) {
+  return texture(tex, vec2(index, 0.0)).r;
+}
 
 void main() {
 
   x = vertPos.x;
   y = vertPos.y;
 
-  ivec2 index = ivec2(gridSize * abs(vertPos.xy));
+  float warpIndex = abs(y);
+  float scaleIndex = mod(uColumnIndex - abs(x), 1.0);
 
-  sv = scale[index.x];
-  wv = warp[index.y];
-  float elev = wv + sv;
+  float ss = 1.0;// - abs(x) / 2.0;
+
+  sv = ss * fetchValue(texScale, scaleIndex);
+  wv = fetchValue(texWarp, warpIndex);
+  // sv = wv + 0.000001 * sv;
+
+  float elev = (wv + sv);
+
+  // wtf why +/-1.1? (<- adds cool overlapping effect, but should parameterize)
+  float os = 1.0 + uOffset;
 
   if (x <= 0.0) {
-    x = pow(x + 1.1, wv) - 1.0; // wtf why 1.1? (<- adds cool overlapping effect)
+    x = pow(x + os, wv) - 1.0;
   } else {
-    x = 1.0 - pow(abs(x - 1.1), wv);
+    x = 1.0 - pow(abs(x - os), wv);
   }
 
   if (y <= 0.0) {
@@ -62,13 +77,16 @@ void main() {
     y = 1.0 - pow(abs(y - 1.0), s);
   }
 
-  // float z = max(-1000. + elev * vertPos.z, 0.);
-  float z = elev * vertPos.z * uzScale;
-  // float z = 0.;
+  // float z = elev * vertPos.z;
+  const float z = 1.0;
 
-  // vUvw = vec3(uvPos, elev);
-  fragTexPos = abs(2.*texPos-1.);
-  vec4 pos = vec4(elev * x, elev * y, z, 1.0);
+  fragTexPos = abs(2.0 * texPos - 1.0);
+
+  x = mix(x, elev * x, uzScale);
+  y = mix(y, elev * y, uzScale);
+
+  // vec4 pos = vec4(elev * x, elev * y, 1.0, 1.0);
+  vec4 pos = vec4(x, y, z, 1.0);
 
   gl_Position = uProjection * uTransform * uView * pos;
 }`,
@@ -95,9 +113,11 @@ void main() {
 ];
 
 interface Input {
-  warp: Float32Array;
-  scale: Float32Array;
+  warp: Texture;
+  scale: Texture;
+  columnIndex: number;
   zScale: number;
+  offset: number;
   cameraMatrix: UniformBuffer;
   image: Texture;
   vaos: VertexArrayObject[];
@@ -140,18 +160,19 @@ class PreBloom {
 
 export class RenderPass {
   static config = makeConfig({
-    sources: [], // placeholder
+    sources: shaders(),
     attributes: {
       vertPos: {},
       texPos: {},
-      // uvPos: {},
     },
     textures: {
-      texImage: { binding: 0 },
+      texWarp: { binding: 0 },
+      texScale: { binding: 1 },
+      texImage: { binding: 2 },
     },
     uniforms: {
-      warp: { bindFunc: uniform1fv },
-      scale: { bindFunc: uniform1fv },
+      uColumnIndex: { bindFunc: uniform1f },
+      uOffset: { bindFunc: uniform1f },
       uzScale: { bindFunc: uniform1f },
     },
     uniformBuffers: {
@@ -166,11 +187,10 @@ export class RenderPass {
 
   constructor(
     private gl: WebGL2RenderingContext,
-    size: Dims,
     resolution: Dims,
     private enableBloom = true
   ) {
-    const config = { ...RenderPass.config, sources: shaders(size) };
+    const config = { ...RenderPass.config };
     const program = new Program(gl, config);
     this.program = program;
 
@@ -195,9 +215,11 @@ export class RenderPass {
     drawWithProgram(
       this.program,
       () => {
-        this.program.uniforms.warp.bind(input.warp);
-        this.program.uniforms.scale.bind(input.scale);
+        this.program.uniforms.uColumnIndex.bind(input.columnIndex);
+        this.program.uniforms.uOffset.bind(input.offset);
         this.program.uniforms.uzScale.bind(input.zScale);
+        this.program.textures.texWarp.bind(input.warp);
+        this.program.textures.texScale.bind(input.scale);
         this.program.textures.texImage.bind(input.image);
         this.program.uniformBuffers.uCameraMatrix.bind(input.cameraMatrix);
       },

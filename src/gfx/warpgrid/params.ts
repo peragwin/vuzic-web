@@ -1,4 +1,5 @@
 import { setUrlParam } from "../../hooks/routeSettings";
+import { Dims } from "../types";
 
 export enum RenderParamKey {
   valueScale,
@@ -17,8 +18,15 @@ export enum RenderParamKey {
   bloom,
   bloomSharpness,
   baseColor,
+  gammaRed,
+  gammaGreen,
+  gammaBlue,
+  offset,
   all,
 }
+
+export const BASE_AUDIO_LENGTH = 64;
+
 export class WarpController {
   constructor(
     public params: RenderParams,
@@ -155,6 +163,34 @@ export class WarpController {
       step: 0.1,
       update: this.updater(RenderParamKey.baseColor),
     },
+    {
+      title: "γ Red",
+      min: 0,
+      max: 3,
+      step: 0.001,
+      update: this.updater(RenderParamKey.gammaRed),
+    },
+    {
+      title: "γ Green",
+      min: 0,
+      max: 3,
+      step: 0.001,
+      update: this.updater(RenderParamKey.gammaGreen),
+    },
+    {
+      title: "γ Blue",
+      min: 0,
+      max: 3,
+      step: 0.001,
+      update: this.updater(RenderParamKey.gammaBlue),
+    },
+    {
+      title: "Offset",
+      min: -2,
+      max: 2,
+      step: 0.001,
+      update: this.updater(RenderParamKey.offset),
+    },
   ];
 
   public values = (params?: RenderParams) => {
@@ -176,6 +212,10 @@ export class WarpController {
       this.params.bloom,
       this.params.bloomSharpness,
       this.params.baseColor,
+      this.params.gammaRed,
+      this.params.gammaGreen,
+      this.params.gammaBlue,
+      this.params.offset,
     ];
   };
 
@@ -188,8 +228,8 @@ export class WarpController {
 export type VersionString = "v0.1";
 
 export interface RenderParams {
-  rows: number;
-  columns: number;
+  audioSize: Dims;
+  gridSize: Dims;
   aspect: number;
   valueScale: number;
   valueOffset: number;
@@ -207,14 +247,18 @@ export interface RenderParams {
   bloom: number;
   bloomSharpness: number;
   baseColor: number;
+  gammaRed: number;
+  gammaGreen: number;
+  gammaBlue: number;
+  offset: number;
 }
 
 export const warpRenderParamsInit = (
-  buckets: number,
-  length: number
+  audioSize: Dims,
+  gridSize: Dims
 ): RenderParams => ({
-  rows: buckets,
-  columns: length,
+  audioSize,
+  gridSize,
   aspect: 4 / 3,
   valueScale: 2,
   valueOffset: 0,
@@ -232,6 +276,10 @@ export const warpRenderParamsInit = (
   bloom: 0.1,
   bloomSharpness: 1,
   baseColor: 0,
+  gammaRed: 1,
+  gammaGreen: 1,
+  gammaBlue: 1,
+  offset: 0,
 });
 
 export interface RenderParamUpdate {
@@ -293,9 +341,21 @@ export const renderParamReducer = (
     case RenderParamKey.baseColor:
       state.baseColor = action.value as number;
       return state;
+    case RenderParamKey.gammaRed:
+      state.gammaRed = action.value as number;
+      return state;
+    case RenderParamKey.gammaGreen:
+      state.gammaGreen = action.value as number;
+      return state;
+    case RenderParamKey.gammaBlue:
+      state.gammaBlue = action.value as number;
+      return state;
+    case RenderParamKey.offset:
+      state.offset = action.value as number;
+      return state;
     case RenderParamKey.all:
     case "all":
-      return action.value as RenderParams;
+      return { ...state, ...(action.value as RenderParams) };
     case "load":
       if (!action.value) return state;
       const v = action.value as ImportRenderParams;
@@ -322,6 +382,10 @@ export interface ImportRenderParams {
   bloom?: number;
   bloomSharpness?: number;
   baseColor?: number;
+  gammaRed?: number;
+  gammaGreen?: number;
+  gammaBlue?: number;
+  offset?: number;
 }
 
 export const fromExportWarpSettings = (
@@ -346,6 +410,10 @@ export const fromExportWarpSettings = (
       bloom: s[14] || 0,
       bloomSharpness: s[15] || 0,
       baseColor: s[16] || 0,
+      gammaRed: s[17] || 1,
+      gammaGreen: s[18] || 1,
+      gammaBlue: s[19] || 1,
+      offset: s[20] || 0,
     };
   } else {
     throw new Error(`could not load warp settings: unknown version ${version}`);

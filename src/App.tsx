@@ -21,8 +21,9 @@ import useFullscreen from "./hooks/fullscreen";
 import Warp from "./components/visuals/Warp";
 import Particle from "./components/visuals/Particles";
 import { useSettingsFromRoute } from "./hooks/routeSettings";
-import { useSettingsManager, buckets, length } from "./hooks/settings";
+import { useSettingsManager } from "./hooks/settings";
 import { fpsState } from "./components/widgets/FPS";
+import { BASE_AUDIO_LENGTH } from "./gfx/warpgrid/params";
 
 const useStyles = makeStyles({
   app: {
@@ -47,6 +48,10 @@ const useStyles = makeStyles({
   canvas: { width: "100vw", height: "100vh" },
 });
 
+const buckets = 32;
+const length = BASE_AUDIO_LENGTH;
+const gridSize = { width: 128, height: 64 };
+
 const useVisualFromRoute = () => {
   const match = useRouteMatch<{ visual: VisualOptions }>("/:visual");
   if (match) return match.params.visual;
@@ -68,7 +73,9 @@ const App: React.FC = () => {
 
   const visual = useVisualFromRoute();
   const [warpController, ppsController, manager] = useSettingsManager(
-    audioController
+    audioController,
+    { width: length, height: buckets },
+    gridSize
   );
   useSettingsFromRoute(visual, manager);
 

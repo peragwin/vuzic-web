@@ -310,6 +310,14 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
                   value={audioParams.drag}
                   onChange={setAudioParam(AudioParamKey.drag)}
                 />
+                <ParamSlider
+                  title="Frame Downsampling"
+                  min={0.5}
+                  max={8}
+                  step={0.002}
+                  value={audioParams.decimation}
+                  onChange={setAudioParam(AudioParamKey.decimation)}
+                />
                 <FilterParamSlider
                   title="Intensity Filter"
                   min={0}

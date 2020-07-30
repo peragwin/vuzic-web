@@ -86,3 +86,35 @@ export const uniform1f = (
 ) => {
   gl.uniform1f(l, v);
 };
+
+export const uniform2f = (
+  gl: WebGL2RenderingContext,
+  l: WebGLUniformLocation,
+  v: number[]
+) => {
+  gl.uniform2f(l, v[0], v[1]);
+};
+
+export const uniform3f = (
+  gl: WebGL2RenderingContext,
+  l: WebGLUniformLocation,
+  v: number[]
+) => {
+  gl.uniform3f(l, v[0], v[1], v[2]);
+};
+
+export const uniform1i = (
+  gl: WebGL2RenderingContext,
+  l: WebGLUniformLocation,
+  v: number
+) => {
+  gl.uniform1i(l, v);
+};
+
+export const setDimensions = (
+  gl: WebGL2RenderingContext,
+  l: WebGLUniformLocation,
+  v: Dims
+) => {
+  gl.uniform2f(l, v.width, v.height);
+};

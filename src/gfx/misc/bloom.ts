@@ -5,7 +5,7 @@ import {
   Program,
 } from "../program";
 import { quadVertShader, quadVertAttributes, makeQuadVao } from "./quadvert";
-import { Dims, uniform1f } from "../types";
+import { Dims, uniform1f, setDimensions } from "../types";
 import { VertexArrayObject } from "../buffers";
 import { TextureObject, Texture } from "../textures";
 import { FramebufferObject, RenderTarget, drawWithProgram } from "../graphics";
@@ -395,7 +395,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
     color = saturate(color * 1.01);
     
-    color = pow(color, vec3(0.7 / 2.2));
+    // color = pow(color, vec3(0.7 / 2.2));
+    color = pow(color, vec3(1.0 / 2.2));
 
     fragColor = vec4(color, 1.0);
 
@@ -409,14 +410,6 @@ void main() {
 `,
   },
 ];
-
-const setResolution = (
-  gl: WebGL2RenderingContext,
-  l: WebGLUniformLocation,
-  v: Dims
-) => {
-  gl.uniform2f(l, v.width, v.height);
-};
 
 class Targets {
   sampled: TextureObject;
@@ -503,7 +496,7 @@ export class Bloom {
     sources: samplerShaders(),
     attributes: quadVertAttributes,
     uniforms: {
-      iResolution: { bindFunc: setResolution },
+      iResolution: { bindFunc: setDimensions },
     },
     textures: {
       texImage: { binding: 0 },
@@ -514,7 +507,7 @@ export class Bloom {
     sources: convolutionShaders("HORIZONTAL"),
     attributes: quadVertAttributes,
     uniforms: {
-      uResolution: { bindFunc: setResolution },
+      uResolution: { bindFunc: setDimensions },
     },
     textures: {
       texImage: { binding: 0 },
@@ -527,7 +520,7 @@ export class Bloom {
     uniforms: {
       uBloom: { bindFunc: uniform1f },
       uSharpness: { bindFunc: uniform1f },
-      iResolution: { bindFunc: setResolution },
+      iResolution: { bindFunc: setDimensions },
     },
     textures: {
       texImage: { binding: 0 },

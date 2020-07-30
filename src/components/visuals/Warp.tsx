@@ -4,7 +4,6 @@ import {
   RenderParams,
   renderParamReducer,
   WarpController,
-  warpRenderParamsInit,
 } from "../../gfx/warpgrid/params";
 import { WarpGrid } from "../../gfx/warpgrid/display";
 import { RouteProps } from "../../types/types";
@@ -29,7 +28,7 @@ const Warp: React.FC<Props> = (props) => {
   const isInit = Boolean(canvas.current && audio.current);
 
   useEffect(() => {
-    if (!canvas.current || !audio.current) {
+    if (!canvas.current || !audio.current || !controller.current) {
       return;
     }
 
@@ -42,20 +41,20 @@ const Warp: React.FC<Props> = (props) => {
     );
 
     try {
-      const params = warpRenderParamsInit(
-        audio.current.buckets,
-        audio.current.length
+      const wg = new WarpGrid(
+        canvas.current,
+        controller.current.params,
+        (w: WarpGrid) => {
+          if (!controller.current) return;
+          if (!audio.current) return;
+
+          const params = controller.current.params;
+          const [drivers, hasUpdate] = audio.current.getDrivers();
+
+          w.setParams(params);
+          if (hasUpdate) w.updateFromDrivers(drivers);
+        }
       );
-      const wg = new WarpGrid(canvas.current, params, (w: WarpGrid) => {
-        if (!controller.current) return;
-        if (!audio.current) return;
-
-        const params = controller.current.params;
-        const [drivers, hasUpdate] = audio.current.getDrivers();
-
-        w.setParams(params);
-        if (hasUpdate) w.updateFromDrivers(drivers);
-      });
 
       const xrManager = new XRManager(wg, {});
       setXRManager(xrManager);

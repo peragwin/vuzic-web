@@ -34,7 +34,7 @@ export class BufferObject {
     readonly buffer: WebGLBuffer,
     public setAttribPointers: () => void,
     public ondraw: (gl: WebGL2RenderingContext) => boolean
-  ) {}
+  ) { }
 
   public bindBuffer(gl: WebGL2RenderingContext) {
     // took literally like 3 hours to realize this line has to come before
@@ -51,7 +51,7 @@ export class BufferConfig {
     public attributes: { name: string; offset: number; size: number }[],
     public ondraw: (gl: WebGL2RenderingContext) => boolean,
     public type?: number
-  ) {}
+  ) { }
 }
 
 export class VertexArrayObject {
@@ -61,7 +61,7 @@ export class VertexArrayObject {
     public length: number,
     public glDrawType: number,
     public onDraw?: (gfx: Graphics) => boolean
-  ) {}
+  ) { }
 
   public draw(gfx: Graphics) {
     if (this.onDraw ? this.onDraw(gfx) : true) {
@@ -255,7 +255,7 @@ export class ShaderConfig {
     public type: number,
     public attributeNames?: Array<string>,
     public uniformNames?: Array<string>
-  ) {}
+  ) { }
 }
 
 export class Graphics {
@@ -398,7 +398,11 @@ export class Graphics {
 
   public bindTexture(tex: Texture, unit: number) {
     const u = this.uniforms.get(tex);
-    if (!u) throw new Error(`texture ${tex} is not attached to any uniform`);
+    if (u === undefined) {
+      console.log(this.uniforms);
+      console.log(tex);
+      throw new Error(`texture is not attached to any uniform`);
+    }
     u.bind(unit);
   }
 

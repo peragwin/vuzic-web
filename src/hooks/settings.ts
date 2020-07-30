@@ -8,9 +8,7 @@ import { useController as usePpsController } from "../components/visuals/Particl
 import { defaultParams as ppsDefaultParams } from "../gfx/pps/pps";
 import { VisualOptions } from "../types/types";
 import { AudioProcessorParams } from "../audio/audio";
-
-export const buckets = 32;
-export const length = 120;
+import { Dims } from "../gfx/types";
 
 export interface ParamSliderConfig {
   title: string;
@@ -66,7 +64,9 @@ export class Manager {
 }
 
 export const useSettingsManager = (
-  audio: AudioController
+  audio: AudioController,
+  audioSize: Dims,
+  gridSize: Dims
 ): [
   React.MutableRefObject<WarpController | null>,
   React.MutableRefObject<PpsController | null>,
@@ -74,7 +74,7 @@ export const useSettingsManager = (
 ] => {
   const warpControllerRef = useRef<WarpController | null>(null);
   const warpController = useWarpController(
-    warpRenderParamsInit(buckets, length)
+    warpRenderParamsInit(audioSize, gridSize)
   );
   useEffect(() => {
     warpControllerRef.current = warpController;
