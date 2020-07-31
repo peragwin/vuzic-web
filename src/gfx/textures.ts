@@ -14,10 +14,12 @@ export interface Texture {
   tex: WebGLTexture;
   cfg: TextureConfig;
   bind: (unit: number) => void;
+  isInit(): boolean;
 }
 
 export class TextureObject {
   readonly tex: WebGLTexture;
+  private _isInit = false;
 
   constructor(
     readonly gl: WebGL2RenderingContext | WebGL2ComputeRenderingContext,
@@ -90,6 +92,7 @@ export class TextureObject {
         image
       );
     }
+    this._isInit = true;
   }
 
   public updateData(
@@ -125,11 +128,17 @@ export class TextureObject {
         data
       );
     }
+    this._isInit = true;
+  }
+
+  public isInit() {
+    return this._isInit;
   }
 }
 
 export class Texture3DObject {
   readonly tex: WebGLTexture;
+  private _isInit = false;
 
   constructor(
     readonly gl: WebGL2RenderingContext | WebGL2ComputeRenderingContext,
@@ -243,5 +252,10 @@ export class Texture3DObject {
         data
       );
     }
+    this._isInit = true;
+  }
+
+  public isInit() {
+    return this._isInit;
   }
 }

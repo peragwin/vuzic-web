@@ -128,15 +128,6 @@ export class State {
       (_) => new FramebufferObject(gl, size)
     );
 
-    this.frameBuffers.forEach((fb, i) => {
-      fb.attach(this.positions[i], 0);
-      fb.attach(this.velocities[i], 1);
-      fb.attach(this.orientations[i], 2);
-      fb.attach(this.colors, 3);
-      fb.bind();
-      fb.checkStatus();
-    });
-
     const tdata = new Float32Array(20);
     for (let i = 0; i < 16; i++) {
       tdata[i] = 1000 * (i + 1);
@@ -229,6 +220,15 @@ export class State {
 
     const paldata = new ImageData(new Uint8ClampedArray(palette), 5, 1);
     this.palette.update(paldata);
+
+    this.frameBuffers.forEach((fb, i) => {
+      fb.attach(this.positions[i], 0);
+      fb.attach(this.velocities[i], 1);
+      fb.attach(this.orientations[i], 2);
+      fb.attach(this.colors, 3);
+      fb.bind();
+      fb.checkStatus();
+    });
   }
 
   public writeSortedPositions(

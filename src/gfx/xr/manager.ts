@@ -41,6 +41,7 @@ export class XRManager {
   }
 
   public async queryForXR() {
+    if (!("xr" in navigator)) return false;
     if (this.supported) return true;
     this.supported = await navigator.xr.isSessionSupported("immersive-vr");
     return this.supported;

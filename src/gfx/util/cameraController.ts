@@ -137,8 +137,7 @@ export class CameraController {
       }
     });
 
-    // @ts-ignore
-    this.canvas.addEventListener("mousewheel", (e: WheelEvent) => {
+    this.canvas.addEventListener("wheel", (e: WheelEvent) => {
       e.preventDefault();
       if (e.deltaY > 0) {
         this.scale *= 1.1;

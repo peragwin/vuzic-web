@@ -34,7 +34,7 @@ export class BufferObject {
     readonly buffer: WebGLBuffer,
     public setAttribPointers: () => void,
     public ondraw: (gl: WebGL2RenderingContext) => boolean
-  ) { }
+  ) {}
 
   public bindBuffer(gl: WebGL2RenderingContext) {
     // took literally like 3 hours to realize this line has to come before
@@ -51,7 +51,7 @@ export class BufferConfig {
     public attributes: { name: string; offset: number; size: number }[],
     public ondraw: (gl: WebGL2RenderingContext) => boolean,
     public type?: number
-  ) { }
+  ) {}
 }
 
 export class VertexArrayObject {
@@ -61,7 +61,7 @@ export class VertexArrayObject {
     public length: number,
     public glDrawType: number,
     public onDraw?: (gfx: Graphics) => boolean
-  ) { }
+  ) {}
 
   public draw(gfx: Graphics) {
     if (this.onDraw ? this.onDraw(gfx) : true) {
@@ -95,6 +95,7 @@ export class FramebufferObject extends RenderTarget {
   }
 
   public attach(tex: Texture, id: number) {
+    if (!tex.isInit()) throw new Error(`texture is not initialized: ${id}`);
     const findex = this.textures.findIndex((v) => v.id === id);
     if (findex !== -1) this.textures[findex] = { id, tex: tex.tex };
     else this.textures.push({ id, tex: tex.tex });
@@ -186,32 +187,16 @@ export class FramebufferObject extends RenderTarget {
 
 export class CanvasObject extends RenderTarget {
   private canvas: HTMLCanvasElement | OffscreenCanvas;
-  private views: RenderView[];
 
   constructor(
     private gl: WebGL2RenderingContext,
     private onResize?: (size: { width: number; height: number }) => void,
     private clearing = true,
     private stereo = false,
-    private onSetView?: (view: RenderView) => void
+    private onSetView?: () => void
   ) {
     super();
     this.canvas = gl.canvas;
-    this.views = [
-      {
-        eye: "none",
-        projection: mat4.create(),
-        transform: new XRRigidTransform(),
-        viewport: {
-          x: 0,
-          y: 0,
-          width: this.canvas.width,
-          height: this.canvas.height,
-        },
-      },
-    ];
-    // FIXME: this isnt right but also dont care atm
-    if (stereo) this.views.push(this.views[0]);
   }
 
   private resize(canvas: HTMLCanvasElement | OffscreenCanvas) {
@@ -245,7 +230,7 @@ export class CanvasObject extends RenderTarget {
       this.gl.clearColor(0, 0, 0, 1);
       this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
     }
-    if (this.onSetView) this.onSetView(this.views[layer]);
+    if (this.onSetView) this.onSetView();
   }
 }
 
@@ -255,7 +240,7 @@ export class ShaderConfig {
     public type: number,
     public attributeNames?: Array<string>,
     public uniformNames?: Array<string>
-  ) { }
+  ) {}
 }
 
 export class Graphics {
