@@ -67,28 +67,16 @@ export const useSettingsManager = (
   audio: AudioController,
   audioSize: Dims,
   gridSize: Dims
-): [
-  React.MutableRefObject<WarpController | null>,
-  React.MutableRefObject<PpsController | null>,
-  Manager
-] => {
-  const warpControllerRef = useRef<WarpController | null>(null);
+): [WarpController, PpsController, Manager] => {
   const warpController = useWarpController(
     warpRenderParamsInit(audioSize, gridSize)
   );
-  useEffect(() => {
-    warpControllerRef.current = warpController;
-  }, [warpController]);
 
-  const ppsControllerRef = useRef<PpsController | null>(null);
   const ppsController = usePpsController(ppsDefaultParams);
-  useEffect(() => {
-    ppsControllerRef.current = ppsController;
-  }, [ppsController]);
 
   return [
-    warpControllerRef,
-    ppsControllerRef,
+    warpController,
+    ppsController,
     new Manager(audio, [
       { visual: "warp", rc: warpController },
       { visual: "pps", rc: ppsController },

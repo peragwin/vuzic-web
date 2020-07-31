@@ -237,6 +237,7 @@ export class WarpGrid {
     const resolution = { width: canvas.width, height: canvas.height };
     this.renderPass = new RenderPass(gl, resolution);
     this.renderVaos = [this.createGridVao(params.gridSize)];
+    this.renderPass.update({ params });
 
     const fbo = new FramebufferObject(gl, audioSize, true);
     fbo.attach(this.textures.image, 0);
@@ -432,6 +433,7 @@ export class WarpGrid {
   }
 
   public setParams(params: RenderParams) {
+    console.log("SET PARAMS", params);
     if (params === this.params) return;
 
     if (

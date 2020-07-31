@@ -65,7 +65,6 @@ interface ColorParams {
 export class PPS {
   public readonly gl: WebGL2Context;
 
-  public params: RenderParams;
   public state: State;
 
   public paused = false;
@@ -85,6 +84,7 @@ export class PPS {
 
   constructor(
     private canvas: HTMLCanvasElement,
+    public params: RenderParams,
     private onRender: (pps: PPS) => void,
     public readonly mode: PPSMode = "2D"
   ) {
@@ -119,7 +119,6 @@ export class PPS {
       }
     }
 
-    this.params = { ...defaultParams };
     this.stateSize_ = this.getStateSize();
 
     const palette = resolvePaletteParam(this.params.palette);
@@ -152,6 +151,7 @@ export class PPS {
       this.gridSize,
       this.mode
     );
+    this.gradientField.setParams(params);
 
     this.initXR();
 

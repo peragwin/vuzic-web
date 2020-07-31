@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useMemo } from "react";
+import React, { useEffect, useReducer, useMemo, useRef } from "react";
 
 import {
   RenderParams,
@@ -12,7 +12,7 @@ import { xrManagerState } from "../XRButton";
 import { XRManager } from "../../gfx/xr/manager";
 
 interface Props extends RouteProps {
-  controller: React.RefObject<WarpController>;
+  controller: WarpController;
 }
 
 export const useController = (init: RenderParams) => {
@@ -27,9 +27,14 @@ const Warp: React.FC<Props> = (props) => {
 
   const isInit = Boolean(canvas.current);
 
+  const warpRef = useRef<WarpGrid | null>(null);
+  if (warpRef.current) {
+    warpRef.current.setParams(controller.params);
+  }
+
   useEffect(() => {
     const currentAudio = audio.audio;
-    if (!canvas.current || !currentAudio || !controller.current) {
+    if (!canvas.current || !currentAudio) {
       return;
     }
 
@@ -44,18 +49,14 @@ const Warp: React.FC<Props> = (props) => {
     try {
       const wg = new WarpGrid(
         canvas.current,
-        controller.current.params,
+        controller.params,
         (w: WarpGrid) => {
-          if (!controller.current) return;
           if (!currentAudio) return;
-
-          const params = controller.current.params;
           const [drivers, hasUpdate] = currentAudio.getDrivers();
-
-          w.setParams(params);
           if (hasUpdate) w.updateFromDrivers(drivers);
         }
       );
+      warpRef.current = wg;
 
       const xrManager = new XRManager(wg, {});
       setXRManager(xrManager);
@@ -71,6 +72,7 @@ const Warp: React.FC<Props> = (props) => {
         if (currentAudio) currentAudio.stop();
       };
     } catch (e) {
+      console.error(e);
       setErrorState(e);
       throw e;
     }

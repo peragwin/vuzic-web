@@ -1,4 +1,4 @@
-import React, { useReducer, useEffect, useMemo } from "react";
+import React, { useReducer, useEffect, useMemo, useRef } from "react";
 import { RouteProps } from "../../types/types";
 import { PpsController, ppsRenderParamsReducer } from "../../gfx/pps/params";
 import { RenderParams, PPS } from "../../gfx/pps/pps";
@@ -8,7 +8,7 @@ import { useSetRecoilState } from "recoil";
 import { xrManagerState } from "../XRButton";
 
 interface Props extends RouteProps {
-  controller: React.RefObject<PpsController>;
+  controller: PpsController;
   mode?: PPSMode;
 }
 
@@ -31,6 +31,11 @@ const Particle: React.FC<Props> = (props) => {
 
   const isInit = Boolean(canvas.current);
 
+  const ppsRef = useRef<PPS | null>(null);
+  if (ppsRef.current) {
+    ppsRef.current.setParams(controller.params);
+  }
+
   useEffect(() => {
     const currentAudio = audio.audio;
     if (!canvas.current) return;
@@ -43,17 +48,15 @@ const Particle: React.FC<Props> = (props) => {
     try {
       const pps = new PPS(
         canvas.current,
+        controller.params,
         (p: PPS) => {
-          if (!controller.current || !currentAudio) return;
-
-          const params = controller.current.params;
+          if (!currentAudio) return;
           const [drivers, hasUpdate] = currentAudio.getDrivers();
-
-          p.setParams(params);
           if (hasUpdate) p.updateAudioDrivers(drivers);
         },
         mode
       );
+      ppsRef.current = pps;
 
       const xrManager = new XRManager(pps, {});
       setXRManager(xrManager);
