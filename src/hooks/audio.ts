@@ -1,4 +1,4 @@
-import { useReducer, useRef, useEffect, useMemo } from "react";
+import { useReducer, useEffect, useMemo } from "react";
 
 import {
   AudioProcessorParams,
@@ -16,7 +16,6 @@ export class AudioController {
   private version: VersionString = "v0.1";
 
   constructor(
-    // readonly audio: React.MutableRefObject<AudioProcessor | null>,
     readonly audio: AudioProcessor,
     readonly params: AudioProcessorParams,
     private updateState: React.Dispatch<AudioParamUpdate>
@@ -69,20 +68,8 @@ interface Config {
 export const useAudio = (config: Config) => {
   const [params, update] = useReducer(audioParamReducer, audioParamsInit);
 
-  // create a ref to hold the audio processor, and initialize it once
-  // const ap = useRef<AudioProcessor | null>(null);
-  // useEffect(() => {
-  //   ap.current = new AudioProcessor(
-  //     config.window,
-  //     config.frame,
-  //     config.buckets,
-  //     config.length,
-  //     params
-  //   );
-  //   // init audio processor only once
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, []);
-
+  // React says not to really rely on this, but the processor is sortof stateless so
+  // this probably wont be an issue if the memo is recalculated...
   const ap = useMemo(
     () =>
       new AudioProcessor(
@@ -92,16 +79,17 @@ export const useAudio = (config: Config) => {
         config.length,
         params
       ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
   // trigger a callback to update the audio processor whenever params changes
   useEffect(() => {
-    // if (ap.current) ap.current.setAudioParams(params);
     ap.setAudioParams(params);
-  }, [params]);
+  }, [ap, params]);
 
   return useMemo(() => new AudioController(ap, params, update), [
+    ap,
     params,
     update,
   ]);

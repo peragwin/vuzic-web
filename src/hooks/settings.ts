@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React from "react";
 
 import { AudioController } from "./audio";
 import { WarpController, warpRenderParamsInit } from "../gfx/warpgrid/params";
