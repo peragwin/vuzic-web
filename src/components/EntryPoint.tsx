@@ -161,9 +161,9 @@ const EntryPoint: React.FC<Props> = () => {
           iOS or Safari.
         </Typography>
         <Typography className={classes.release}>
-          The current version is:{" "}
+          The current version is dated:{" "}
           <span style={{ fontFamily: "'Anonymous Pro', monospace" }}>
-            2020.7.12
+            2020.07.30
           </span>
         </Typography>
       </div>
