@@ -119,36 +119,39 @@ const App: React.FC = () => {
             <Route path="/" exact>
               <EntryPoint />
             </Route>
+
             <Route
               path="/warp"
               render={() => (
                 <Warp
                   canvas={canvasRef}
-                  audio={audioController.audio}
+                  audio={audioController}
                   controller={warpController}
                   setErrorState={setErrorState}
                   setFrameRate={setFrameRate}
                 />
               )}
             />
+
             <Route
               path="/pps"
               render={() => (
                 <Particle
                   canvas={canvasRef}
-                  audio={audioController.audio}
+                  audio={audioController}
                   controller={ppsController}
                   setErrorState={setErrorState}
                   setFrameRate={setFrameRate}
                 />
               )}
             />
+
             <Route
               path="/pps3"
               render={() => (
                 <Particle
                   canvas={canvasRef}
-                  audio={audioController.audio}
+                  audio={audioController}
                   controller={ppsController}
                   setErrorState={setErrorState}
                   setFrameRate={setFrameRate}

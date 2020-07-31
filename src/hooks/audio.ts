@@ -16,7 +16,8 @@ export class AudioController {
   private version: VersionString = "v0.1";
 
   constructor(
-    readonly audio: React.MutableRefObject<AudioProcessor | null>,
+    // readonly audio: React.MutableRefObject<AudioProcessor | null>,
+    readonly audio: AudioProcessor,
     readonly params: AudioProcessorParams,
     private updateState: React.Dispatch<AudioParamUpdate>
   ) {}
@@ -69,22 +70,35 @@ export const useAudio = (config: Config) => {
   const [params, update] = useReducer(audioParamReducer, audioParamsInit);
 
   // create a ref to hold the audio processor, and initialize it once
-  const ap = useRef<AudioProcessor | null>(null);
-  useEffect(() => {
-    ap.current = new AudioProcessor(
-      config.window,
-      config.frame,
-      config.buckets,
-      config.length,
-      params
-    );
-    // init audio processor only once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // const ap = useRef<AudioProcessor | null>(null);
+  // useEffect(() => {
+  //   ap.current = new AudioProcessor(
+  //     config.window,
+  //     config.frame,
+  //     config.buckets,
+  //     config.length,
+  //     params
+  //   );
+  //   // init audio processor only once
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, []);
+
+  const ap = useMemo(
+    () =>
+      new AudioProcessor(
+        config.window,
+        config.frame,
+        config.buckets,
+        config.length,
+        params
+      ),
+    []
+  );
 
   // trigger a callback to update the audio processor whenever params changes
   useEffect(() => {
-    if (ap.current) ap.current.setAudioParams(params);
+    // if (ap.current) ap.current.setAudioParams(params);
+    ap.setAudioParams(params);
   }, [params]);
 
   return useMemo(() => new AudioController(ap, params, update), [

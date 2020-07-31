@@ -32,9 +32,9 @@ const Particle: React.FC<Props> = (props) => {
   const isInit = Boolean(canvas.current);
 
   useEffect(() => {
-    if (!canvas.current || !audio.current) return;
-
-    audio.current.start(
+    const currentAudio = audio.audio;
+    if (!canvas.current) return;
+    currentAudio.start(
       (ready) =>
         // fixme: set some warning state in the app
         !ready && console.error("Vuzic requires acess to your microphone!")
@@ -44,10 +44,10 @@ const Particle: React.FC<Props> = (props) => {
       const pps = new PPS(
         canvas.current,
         (p: PPS) => {
-          if (!controller.current || !audio.current) return;
+          if (!controller.current || !currentAudio) return;
 
           const params = controller.current.params;
-          const [drivers, hasUpdate] = audio.current.getDrivers();
+          const [drivers, hasUpdate] = currentAudio.getDrivers();
 
           p.setParams(params);
           if (hasUpdate) p.updateAudioDrivers(drivers);
@@ -66,6 +66,7 @@ const Particle: React.FC<Props> = (props) => {
       return () => {
         clearInterval(intv);
         pps.stop();
+        if (currentAudio) currentAudio.stop();
       };
     } catch (e) {
       console.error(e);

@@ -25,14 +25,15 @@ const Warp: React.FC<Props> = (props) => {
 
   const setXRManager = useSetRecoilState(xrManagerState);
 
-  const isInit = Boolean(canvas.current && audio.current);
+  const isInit = Boolean(canvas.current);
 
   useEffect(() => {
-    if (!canvas.current || !audio.current || !controller.current) {
+    const currentAudio = audio.audio;
+    if (!canvas.current || !currentAudio || !controller.current) {
       return;
     }
 
-    audio.current.start(
+    currentAudio.start(
       (ready) =>
         !ready &&
         setErrorState(
@@ -46,10 +47,10 @@ const Warp: React.FC<Props> = (props) => {
         controller.current.params,
         (w: WarpGrid) => {
           if (!controller.current) return;
-          if (!audio.current) return;
+          if (!currentAudio) return;
 
           const params = controller.current.params;
-          const [drivers, hasUpdate] = audio.current.getDrivers();
+          const [drivers, hasUpdate] = currentAudio.getDrivers();
 
           w.setParams(params);
           if (hasUpdate) w.updateFromDrivers(drivers);
@@ -64,7 +65,6 @@ const Warp: React.FC<Props> = (props) => {
         setFrameRate(fr);
       }, 1000);
 
-      const currentAudio = audio.current;
       return () => {
         clearInterval(intv);
         wg.stop();

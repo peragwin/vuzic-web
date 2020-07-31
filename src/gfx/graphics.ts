@@ -1,5 +1,3 @@
-import { RenderView } from "./xr/renderer";
-import { mat4 } from "gl-matrix";
 import { Dims } from "./types";
 import { Texture } from "./textures";
 import {

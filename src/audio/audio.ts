@@ -59,6 +59,7 @@ export class AudioProcessor {
   }
 
   private context: AudioContext | null = null;
+  private source: MediaStreamAudioSourceNode | null = null;
 
   handleMediaStream(stream: MediaStream) {
     let audioContext;
@@ -73,6 +74,7 @@ export class AudioProcessor {
     console.log(`audio context latency: ${ctx.baseLatency} ms`);
     this.context = ctx;
     const source = ctx.createMediaStreamSource(stream);
+    this.source = source;
 
     this.analyzer = ctx.createAnalyser();
     if (!this.analyzer) throw new Error("could not create analyser node");
@@ -95,8 +97,12 @@ export class AudioProcessor {
   }
 
   public stop() {
+    console.log("STOP AUDIO");
     if (this.processHandle) {
       clearInterval(this.processHandle);
+    }
+    if (this.source) {
+      this.source.mediaStream.getTracks().forEach((t) => t.stop());
     }
     if (this.context) {
       this.context.close();
