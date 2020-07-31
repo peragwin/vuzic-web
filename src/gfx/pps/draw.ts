@@ -91,14 +91,17 @@ export class Draw {
     );
 
     const identity = mat4.create() as Float32Array;
-    let updateCamera = () => {
-      this.cameraController.update();
-      pps.state.uCameraMatrix.update([
-        this.camera.matrix as Float32Array,
-        identity,
-        this.camera.projectionMatrix as Float32Array,
-      ]);
-    };
+    let updateCamera =
+      pps.mode === "3D"
+        ? () => {
+            this.cameraController.update();
+            pps.state.uCameraMatrix.update([
+              this.camera.matrix as Float32Array,
+              identity,
+              this.camera.projectionMatrix as Float32Array,
+            ]);
+          }
+        : () => {};
     updateCamera();
     this.target = new CanvasObject(
       gl,

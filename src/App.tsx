@@ -45,7 +45,10 @@ const useStyles = makeStyles({
     lineHeight: 1.5,
     letterSpacing: "0.00938em",
   },
-  canvas: { width: "100vw", height: "100vh" },
+  canvas: {
+    width: "100vw",
+    height: "100vh",
+  },
 });
 
 const buckets = 32;
@@ -83,6 +86,15 @@ const App: React.FC = () => {
   const setFrameRate = useSetRecoilState(fpsState);
 
   const classes = useStyles();
+
+  // this is super hacky lol
+  if (visual) {
+    document.body.scrollTop = 0;
+    document.body.style.overflow = "hidden";
+  } else {
+    document.body.style.overflowY = "scroll";
+    document.body.style.overflowX = "hidden";
+  }
 
   return (
     <div className={classes.app}>
