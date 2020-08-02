@@ -181,6 +181,10 @@ export class FramebufferObject extends RenderTarget {
         return st;
     }
   }
+
+  public setSize(size: Dims) {
+    this.dims = size;
+  }
 }
 
 export class CanvasObject extends RenderTarget {
