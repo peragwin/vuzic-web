@@ -1,6 +1,7 @@
 # Vuzic Visualizer
 
 ![particle-simulation](https://github.com/peragwin/vuzic-web/blob/master/public/particles-2d.png)
+[Try me!](https://vuzic.app/pps?params=WyJ2MC4zIiwxMTkuMSwtMC4yOSwwLjE0NiwzLjA1LDAuMDEwMSw1MTQ3Miw0LjAxLDEsMC4xLDIsMCwxLDAsNDUsNDUsMCwwXQ) (🌋 this is running using a GTX 1660 with compute shaders enabled, ymmv...)
 
 Currently consists of separate particle simulator in 2D and 3D, and a rewrite of the audio visualization that runs on my LED panels.
 
