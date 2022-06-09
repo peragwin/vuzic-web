@@ -3,9 +3,10 @@ import { CountingSortComputer } from "./countingshader";
 
 const fromSpace = (x: number) => (x + 1) / 2;
 
-type SortFunc = (
-  p: Float32Array
-) => { count: Int32Array; output: Float32Array };
+type SortFunc = (p: Float32Array) => {
+  count: Int32Array;
+  output: Float32Array;
+};
 
 export class CountingSort {
   private computeShader: CountingSortComputer | null = null;
@@ -173,9 +174,10 @@ const countingSort = (
 
     for (let i = 0; i < positions.length; i += stride) {
       const p = positions.slice(i, i + 3);
+      const idx = [i / stride, 0, 0];
       const j = stride * index(p[0], p[1], p[2]) + 1;
       const x = count[j];
-      output.set(p, stride * x);
+      output.set(/*p*/ idx, stride * x);
       count[j] = x + 1;
     }
 

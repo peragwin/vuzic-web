@@ -66,57 +66,7 @@ class Textures {
   readonly hsluv: TextureObject;
 
   constructor(private gl: WebGL2RenderingContext, audioSize: Dims) {
-    const { width: columns, height: rows } = audioSize;
-
     this.updateAudioSize(audioSize);
-
-    // this.warp = new TextureObject(gl, {
-    //   mode: gl.NEAREST,
-    //   internalFormat: gl.R32F,
-    //   format: gl.RED,
-    //   type: gl.FLOAT,
-    // });
-    // const wbuf = new Float32Array(rows);
-    // this.warp.updateData(rows, 1, wbuf);
-
-    // this.scale = new TextureObject(gl, {
-    //   mode: gl.NEAREST,
-    //   internalFormat: gl.R32F,
-    //   format: gl.RED,
-    //   type: gl.FLOAT,
-    // });
-    // const sbuf = new Float32Array(columns);
-    // this.scale.updateData(columns, 1, sbuf);
-
-    // this.image = new TextureObject(gl, {
-    //   mode: gl.LINEAR,
-    //   internalFormat: gl.RGBA,
-    //   format: gl.RGBA,
-    //   type: gl.UNSIGNED_BYTE,
-    // });
-    // const ibuf = new Uint8ClampedArray(columns * rows * 4);
-    // ibuf.forEach((_, i, data) => {
-    //   if ((i & 0xf) < 8) data[i] = 255;
-    // });
-    // this.image.update(new ImageData(ibuf, columns, rows));
-
-    // this.drivers = new TextureObject(gl, {
-    //   mode: gl.NEAREST,
-    //   internalFormat: gl.RG32F,
-    //   format: gl.RG,
-    //   type: gl.FLOAT,
-    // });
-    // const dbuf = new Float32Array(rows * 2);
-    // this.drivers.updateData(rows, 1, dbuf);
-
-    // this.amplitudes = new TextureObject(gl, {
-    //   mode: gl.NEAREST,
-    //   internalFormat: gl.R32F,
-    //   format: gl.RED,
-    //   type: gl.FLOAT,
-    // });
-    // const abuf = new Float32Array(rows * columns);
-    // this.amplitudes.updateData(columns, rows, abuf);
 
     this.hsluv = new TextureObject(gl, {
       mode: gl.LINEAR,

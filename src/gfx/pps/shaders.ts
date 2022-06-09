@@ -115,7 +115,8 @@ ivec3 cellCoord(in vec3 pos, float gridSize) {
 }
 
 ivec3 wrap(in ivec3 coord, int gridSize) {
-  return coord % ivec3(gridSize);
+  ivec3 w = coord % ivec3(gridSize);
+  return ivec3(mix(vec3(w), vec3(w + gridSize), lessThan(w, ivec3(0))));
 }
 
 vec3 fetchIndex(in isampler2D tex, in int index) {
@@ -125,8 +126,7 @@ vec3 fetchIndex(in isampler2D tex, in int index) {
 
 vec3 wrapDistance(vec3 r) {
   vec3 a = abs(r);
-  a = step(vec3(1.), a) * (2. - a) + step(a, vec3(1.)) * a;
-  return sign(r) * a;
+  return sign(r) * mix(a, 2.0 - a, greaterThan(a, vec3(1.0)));
 }
 
 mat3 particleViewMatrix(in vec3 vel, in vec3 ori) {
@@ -141,7 +141,7 @@ mat3 particleViewMatrix(in vec3 vel, in vec3 ori) {
 void compareNeighbor(in vec3 r, in float radius, in vec3 bVel, in vec3 bOri, inout Compare compare) {
   if (r == vec3(0.)) return;
 
-  r = wrapDistance(r);
+  // r = wrapDistance(r);
   
   float rl = dot(r, r);
   float r2 = radius*radius;
@@ -197,11 +197,13 @@ Compare compareNeighbors(in ivec2 index, in vec3 aPos, in mat3 pView) {
         bucket = fetchCount(texCountedPositions, bCell);
 
         for (int i = 0; i < bucket.count; i++) {
-          int bIndex = bucket.index + i;
+          // int bIndex = bucket.index + i;
+          int sortedIndex = bucket.index + i;
+          int bIndex = int(fetchIndex(texSortedPositions, sortedIndex).x); // lazy to rename but this is now texSortedIndices
           if (aIndex == bIndex) continue; // don't count self
 
-          bPos = fetchIndex(texSortedPositions, bIndex);
-          vec3 r = aPos - bPos;
+          bPos = fetchIndex(texPositions, bIndex);
+          vec3 r = wrapDistance(aPos - bPos);
           if (length(r) > uRadius) continue;
 
           r = pView * r;
