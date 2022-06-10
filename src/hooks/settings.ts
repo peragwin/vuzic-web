@@ -9,6 +9,8 @@ import { defaultParams as ppsDefaultParams } from "../gfx/pps/pps";
 import { VisualOptions } from "../types/types";
 import { AudioProcessorParams } from "../audio/audio";
 import { Dims } from "../gfx/types";
+import { useController as useParticleLifeController } from "../components/visuals/ParticleLife";
+import { ParticleLifeController } from "../gfx/particle-life/particle-life";
 
 export interface ParamSliderConfig {
   title: string;
@@ -67,20 +69,23 @@ export const useSettingsManager = (
   audio: AudioController,
   audioSize: Dims,
   gridSize: Dims
-): [WarpController, PpsController, Manager] => {
+): [WarpController, PpsController, ParticleLifeController, Manager] => {
   const warpController = useWarpController(
     warpRenderParamsInit(audioSize, gridSize)
   );
 
   const ppsController = usePpsController(ppsDefaultParams);
+  const particleLifeController = useParticleLifeController();
 
   return [
     warpController,
     ppsController,
+    particleLifeController,
     new Manager(audio, [
       { visual: "warp", rc: warpController },
       { visual: "pps", rc: ppsController },
       { visual: "pps3", rc: ppsController },
+      { visual: "particleLife", rc: particleLifeController },
     ]),
   ];
 };

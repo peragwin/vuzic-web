@@ -24,6 +24,7 @@ import { useSettingsFromRoute } from "./hooks/routeSettings";
 import { useSettingsManager } from "./hooks/settings";
 import { fpsState } from "./components/widgets/FPS";
 import { BASE_AUDIO_LENGTH } from "./gfx/warpgrid/params";
+import ParticleLife from "./components/visuals/ParticleLife";
 
 const useStyles = makeStyles({
   app: {
@@ -75,11 +76,12 @@ const App: React.FC = () => {
   });
 
   const visual = useVisualFromRoute();
-  const [warpController, ppsController, manager] = useSettingsManager(
-    audioController,
-    { width: length, height: buckets },
-    gridSize
-  );
+  const [warpController, ppsController, particleLifeController, manager] =
+    useSettingsManager(
+      audioController,
+      { width: length, height: buckets },
+      gridSize
+    );
   useSettingsFromRoute(visual, manager);
 
   const [errorState, setErrorState] = useState<Error | null>(null);
@@ -168,6 +170,19 @@ const App: React.FC = () => {
                   setErrorState={setErrorState}
                   setFrameRate={setFrameRate}
                   mode={"3D"}
+                />
+              )}
+            />
+
+            <Route
+              path="/particleLife"
+              render={() => (
+                <ParticleLife
+                  canvas={canvasRef}
+                  audio={audioController}
+                  controller={particleLifeController}
+                  setErrorState={setErrorState}
+                  setFrameRate={setFrameRate}
                 />
               )}
             />

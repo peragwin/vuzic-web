@@ -57,7 +57,7 @@ function glDrawMode(gl: WebGL2RenderingContext, mode: DrawMode) {
 }
 
 export interface VertexArrayObjectConfig {
-  buffer: ArrayBufferConfig;
+  buffer?: ArrayBufferConfig;
   offset: number;
   length: number;
   drawMode: DrawMode;
@@ -73,7 +73,7 @@ export interface VertexArrayObjectConfig {
 }
 
 export class VertexArrayObject {
-  private buffer: ArrayBuffer;
+  private buffer?: ArrayBuffer;
   private vao: WebGLVertexArrayObject;
 
   constructor(
@@ -88,13 +88,16 @@ export class VertexArrayObject {
 
     gl.bindVertexArray(vao);
 
-    this.buffer = new ArrayBuffer(gl, config.buffer);
-    this.execute(config);
+    if (config.buffer) {
+      this.buffer = new ArrayBuffer(gl, config.buffer);
+      this.execute(config);
+    }
 
     gl.bindVertexArray(null);
   }
 
   private execute(config: VertexArrayObjectConfig) {
+    if (!this.buffer || !config.buffer) return;
     const gl = this.gl;
     // for (let c of config) {
 
@@ -129,7 +132,6 @@ export class VertexArrayObject {
         a.default(gl);
       }
     }
-    // }
   }
 
   public draw() {
