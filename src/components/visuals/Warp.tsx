@@ -73,7 +73,7 @@ const Warp: React.FC<Props> = (props) => {
       };
     } catch (e) {
       console.error(e);
-      setErrorState(e);
+      setErrorState(e as Error);
       throw e;
     }
     // run once to initialize warp

@@ -7,16 +7,17 @@ import {
   ShaderSourceConfig,
 } from "../program";
 import { Texture } from "../textures";
-import { Dims, setDimensions, uniform1f, uniform1i } from "../types";
-import { TEX_WIDTH } from "./particleLife";
+import { uniform1f, uniform1i } from "../types";
+// import { TEX_WIDTH } from "./particleLife";
 
 const shaders = (): ShaderSourceConfig[] => [
   {
     type: "vertex",
     source: `#version 300 es
 precision mediump float;
+precision highp isampler2D;
 
-#define TEX_WIDTH ${TEX_WIDTH}
+#define TEX_WIDTH 1024
 
 uniform isampler2D tex_positions;
 uniform isampler2D tex_types;
@@ -25,6 +26,7 @@ uniform int num_particles;
 uniform float point_size;
 
 out vec4 color;
+out float v_point_size;
 
 void main() {
   int w = min(num_particles, TEX_WIDTH);
@@ -37,11 +39,12 @@ void main() {
     intBitsToFloat(ipos.z),
     1.0
   );
-  gl_Position = pos;
+  gl_Position = 2.0 * pos - 1.0;
   
   int ptype = texelFetch(tex_types, index, 0).x;
   color = texelFetch(tex_colors, ivec2(ptype, 0), 0);
 
+  v_point_size = point_size;
   gl_PointSize = point_size;
 }
 `,
@@ -55,16 +58,18 @@ precision mediump float;
 uniform float sharpness; // range[0.0, 1.0]
 
 in vec4 color;
+in float v_point_size;
 out vec4 frag_color;
 
 void main() {
-  float psize = gl_PointSize;
   vec2 p = 2.0 * gl_PointCoord.xy - 1.0;
+  // float psize = v_point_size;
   float r = length(p);
-  float a = smoothstep(psize * sharpness, psize, r);
+  float a = 1.0 - smoothstep(sharpness, 1.0, r);
+  // float a = 1.0 - pow(r, 2.0*sharpness);
   // vec4 bg_color = texture(tex_background, gl_FragCoord.xy);
   // frag_color = mix(color, bg_color, a);
-  frag_color = vec4(color.rgb, a);
+  frag_color = a * vec4(color.rgb, 1.0);
 }
 `,
   },
@@ -97,13 +102,12 @@ export class Draw {
   private readonly program: ProgramType<typeof Draw.config>;
   private points: VertexArrayObject;
 
-  constructor(private gl: WebGL2RenderingContext, stateSize: Dims) {
+  constructor(private gl: WebGL2RenderingContext, numParticles: number) {
     const config = { ...Draw.config };
     this.program = new Program(gl, config);
-    const length = stateSize.width * stateSize.height;
     this.points = new VertexArrayObject(gl, {
       offset: 0,
-      length,
+      length: numParticles,
       drawMode: "points",
       attriutes: [],
     });

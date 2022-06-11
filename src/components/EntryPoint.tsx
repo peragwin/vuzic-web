@@ -1,5 +1,5 @@
 import React from "react";
-import { useHistory } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { makeStyles } from "@material-ui/core";
 import Button from "@material-ui/core/Button";
@@ -83,7 +83,7 @@ interface Props {}
 
 const EntryPoint: React.FC<Props> = () => {
   const classes = useStyles();
-  const history = useHistory();
+  const navigate = useNavigate();
   return (
     <div>
       <Typography variant="h1" className={classes.title}>
@@ -93,10 +93,29 @@ const EntryPoint: React.FC<Props> = () => {
         <div>
           <Paper elevation={3} className={classes.paper}>
             <Typography variant="h3" className={classes.cardHeading}>
-              Particle System Simulator
+              Particle Simulators
             </Typography>
+
             <Typography className={classes.cardInfo}>
-              The particle system is based on the Primordial Particle System
+              This particle system is based on{" "}
+              <a
+                style={{ color: "white" }}
+                href="https://www.ventrella.com/Clusters/"
+              >
+                Clusters
+              </a>{" "}
+              by Jeffrey Ventrella.
+            </Typography>
+            <Button
+              className={classes.button}
+              size="large"
+              onClick={() => navigate("/particleLife")}
+            >
+              Particle Life
+            </Button>
+
+            <Typography className={classes.cardInfo}>
+              This particle system is based on the Primordial Particle System
               described in this{" "}
               <a
                 style={{ color: "white" }}
@@ -109,20 +128,22 @@ const EntryPoint: React.FC<Props> = () => {
             <Button
               className={classes.button}
               size="large"
-              onClick={() => history.push("/pps")}
+              onClick={() => navigate("/pps")}
             >
               2D Particle System
             </Button>
+
             <Typography className={classes.cardInfo}>
               It's also possible to extend into three dimensions.
             </Typography>
             <Button
               className={classes.button}
               size="large"
-              onClick={() => history.push("/pps3")}
+              onClick={() => navigate("/pps3")}
             >
               3D Particle System
             </Button>
+
             <Typography className={classes.cardInfo}>
               For better performance, it's possible to enable WebGL support for
               compute shaders in Chromium based browsers on Windows and Linux.
@@ -148,7 +169,7 @@ const EntryPoint: React.FC<Props> = () => {
             <Button
               size="large"
               className={classes.button}
-              onClick={() => history.push("/warp")}
+              onClick={() => navigate("/warp")}
             >
               Music Visualizer
             </Button>

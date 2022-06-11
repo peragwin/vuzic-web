@@ -188,7 +188,7 @@ export class FramebufferObject extends RenderTarget {
 }
 
 export class CanvasObject extends RenderTarget {
-  private canvas: HTMLCanvasElement | OffscreenCanvas;
+  private canvas: HTMLCanvasElement;
 
   constructor(
     private gl: WebGL2RenderingContext,
@@ -201,7 +201,7 @@ export class CanvasObject extends RenderTarget {
     this.canvas = gl.canvas;
   }
 
-  private resize(canvas: HTMLCanvasElement | OffscreenCanvas) {
+  private resize(canvas: HTMLCanvasElement) {
     if (canvas instanceof HTMLCanvasElement) {
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;

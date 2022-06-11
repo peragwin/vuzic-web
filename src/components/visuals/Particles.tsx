@@ -18,14 +18,8 @@ export const useController = (init: RenderParams) => {
 };
 
 const Particle: React.FC<Props> = (props) => {
-  const {
-    canvas,
-    controller,
-    setFrameRate,
-    setErrorState,
-    mode,
-    audio,
-  } = props;
+  const { canvas, controller, setFrameRate, setErrorState, mode, audio } =
+    props;
 
   const setXRManager = useSetRecoilState(xrManagerState);
 
@@ -73,7 +67,7 @@ const Particle: React.FC<Props> = (props) => {
       };
     } catch (e) {
       console.error(e);
-      setErrorState(e);
+      setErrorState(e as Error);
       throw e;
     }
     // run once to initialize PPS

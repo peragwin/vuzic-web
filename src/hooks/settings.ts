@@ -10,7 +10,7 @@ import { VisualOptions } from "../types/types";
 import { AudioProcessorParams } from "../audio/audio";
 import { Dims } from "../gfx/types";
 import { useController as useParticleLifeController } from "../components/visuals/ParticleLife";
-import { ParticleLifeController } from "../gfx/particle-life/particle-life";
+import { ParticleLifeController } from "../gfx/particle-life/particleLife";
 
 export interface ParamSliderConfig {
   title: string;

@@ -50,9 +50,11 @@ export class AudioProcessor {
         "getUserMedia" in navigator.mediaDevices
       ) {
         navigator.mediaDevices.getUserMedia({ audio: true }).then(success, err);
-      } else if ("getUserMedia" in navigator) {
-        navigator.getUserMedia({ audio: true }, success, err);
       }
+      // else if ("getUserMedia" in navigator) {
+      //   // eslint-disable-next-line
+      //   navigator.getUserMedia({ audio: true }, success, err);
+      // }
     } catch (e) {
       console.error(e);
     }

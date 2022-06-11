@@ -1,9 +1,9 @@
 import React, { useRef, useState } from "react";
 import {
   BrowserRouter as Router,
-  Switch,
+  Routes,
   Route,
-  useRouteMatch,
+  useMatch,
 } from "react-router-dom";
 import { RecoilRoot, useSetRecoilState } from "recoil";
 
@@ -57,8 +57,8 @@ const length = BASE_AUDIO_LENGTH;
 const gridSize = { width: 128, height: 64 };
 
 const useVisualFromRoute = () => {
-  const match = useRouteMatch<{ visual: VisualOptions }>("/:visual");
-  if (match) return match.params.visual;
+  const match = useMatch("/:visual");
+  if (match) return match.params.visual as VisualOptions;
 };
 
 const App: React.FC = () => {
@@ -129,14 +129,12 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <Switch>
-            <Route path="/" exact>
-              <EntryPoint />
-            </Route>
+          <Routes>
+            <Route path="/" element={<EntryPoint />} />
 
             <Route
               path="/warp"
-              render={() => (
+              element={
                 <Warp
                   canvas={canvasRef}
                   audio={audioController}
@@ -144,12 +142,12 @@ const App: React.FC = () => {
                   setErrorState={setErrorState}
                   setFrameRate={setFrameRate}
                 />
-              )}
+              }
             />
 
             <Route
               path="/pps"
-              render={() => (
+              element={
                 <Particle
                   canvas={canvasRef}
                   audio={audioController}
@@ -157,12 +155,12 @@ const App: React.FC = () => {
                   setErrorState={setErrorState}
                   setFrameRate={setFrameRate}
                 />
-              )}
+              }
             />
 
             <Route
               path="/pps3"
-              render={() => (
+              element={
                 <Particle
                   canvas={canvasRef}
                   audio={audioController}
@@ -171,12 +169,12 @@ const App: React.FC = () => {
                   setFrameRate={setFrameRate}
                   mode={"3D"}
                 />
-              )}
+              }
             />
 
             <Route
               path="/particleLife"
-              render={() => (
+              element={
                 <ParticleLife
                   canvas={canvasRef}
                   audio={audioController}
@@ -184,9 +182,9 @@ const App: React.FC = () => {
                   setErrorState={setErrorState}
                   setFrameRate={setFrameRate}
                 />
-              )}
+              }
             />
-          </Switch>
+          </Routes>
         </React.Fragment>
       )}
     </div>

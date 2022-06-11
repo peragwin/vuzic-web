@@ -26,6 +26,7 @@ interface ProfileData {
   pps?: { params: any };
   pps3?: { params: any };
   warp?: { params: any };
+  particleLife?: { params: any };
   audioParams: AudioProcessorParams;
   thumb?: string;
 }

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useHistory } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import base64url from "base64url";
 import copy from "copy-to-clipboard";
 
@@ -113,7 +113,7 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [showRenderSettings, setShowRenderSettings] = useState(false);
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const handleShowMenu = () => {
     setShowMenu(true);
@@ -143,12 +143,12 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
 
   const audioController = props.manager.audio;
   const audioParams = audioController.params;
-  const setAudioParam = (type: AudioParamKey) => (
-    _: React.ChangeEvent<{}>,
-    value: number | FilterParams
-  ) => audioController.update({ type, value });
+  const setAudioParam =
+    (type: AudioParamKey) =>
+    (_: React.ChangeEvent<{}>, value: number | FilterParams) =>
+      audioController.update({ type, value });
 
-  const handleMain = () => history.push("/");
+  const handleMain = () => navigate("/");
 
   return (
     <div>
