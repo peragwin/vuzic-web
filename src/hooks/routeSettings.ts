@@ -15,8 +15,12 @@ import {
 } from "../gfx/warpgrid/params";
 import { ExportAudioSettings, fromExportAudioSettings } from "../audio/audio";
 import { Manager } from "./settings";
+import { ParticleLifeController } from "../gfx/particle-life/particleLife";
 
-type ImportRenderParams = WarpImportRenderParams | PpsImportRenderParams;
+type ImportRenderParams =
+  | WarpImportRenderParams
+  | PpsImportRenderParams
+  | object;
 
 interface Settings {
   audio?: AudioProcessorParams;
@@ -41,6 +45,8 @@ const fromVisualSettings = (visual: VisualOptions, dec: ExportSettings) => {
       return fromExportPpsSettings(dec as ExportPpsSettings);
     case "warp":
       return fromExportWarpSettings(dec as ExportWarpSettings);
+    case "particleLife":
+      return dec;
   }
 };
 
@@ -57,7 +63,9 @@ const getSettingsFromRoute = (visual: VisualOptions | undefined) => {
   enc = query.get("params");
   if (enc) {
     const dec = decodeSettings<ExportSettings>(enc);
-    if (dec) ret.params = fromVisualSettings(visual, dec);
+    if (dec) {
+      ret.params = fromVisualSettings(visual, dec);
+    }
   }
   return ret;
 };
@@ -82,7 +90,7 @@ export const useSettingsFromRoute = (
 };
 
 export const setUrlParam = (name: string, value: any) => {
-  console.log("value to encode", JSON.stringify(value));
+  // console.log("value to encode", JSON.stringify(value));
   const enc = Base64.encodeURL(JSON.stringify(value));
   const query = new URLSearchParams(window.location.search);
   query.set(name, enc);

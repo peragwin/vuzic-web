@@ -4,7 +4,7 @@ import * as TweakpaneEssentialsPlugin from "@tweakpane/plugin-essentials";
 import { AudioProcessor } from "../../audio/audio";
 import { CanvasObject } from "../graphics";
 import { RenderParams, RenderPipeline } from "./render";
-import { MAX_PARTICLE_NUM, MAX_PARTICLE_TYPES } from "./state";
+import { setUrlParam } from "../../hooks/routeSettings";
 
 export class ParticleLifeController {
   private pane: Pane;
@@ -145,7 +145,7 @@ export class ParticleLifeController {
       pane.hidden = true;
     });
 
-    console.log(pane.exportPreset());
+    pane.on("change", (ev) => setUrlParam("params", pane.exportPreset()));
 
     document.addEventListener("keyup", (ev) => {
       ev.preventDefault();
@@ -170,16 +170,24 @@ export class ParticleLifeController {
     return [];
   }
   public values() {
-    return [];
+    return [this.pane.exportPreset()];
   }
   public update(action: { type: "all" | "load"; value: any }) {
     if (action.value) {
+      const { numParticles, numTypes } = this.params;
       this.pane.importPreset(action.value);
+      if (
+        this.params.numParticles !== numParticles ||
+        this.params.numTypes !== numTypes
+      ) {
+        this.reseed = true;
+      }
+      setUrlParam("params", action.value);
     }
   }
 
   public export() {
-    return [{ ...this.pane.exportPreset() }];
+    return [this.pane.exportPreset()];
   }
   public exportPreset() {
     return this.pane.exportPreset();
@@ -200,11 +208,12 @@ class Universe {
     canvas: HTMLCanvasElement,
     audio: AudioProcessor
   ) {
-    audio.start(() => {});
-
     const numParticles = controller.params.numParticles;
     const numTypes = controller.params.numTypes;
     const canvasSize = { width: canvas.width, height: canvas.height };
+    // do this before initializing the pipeline which calculates matricies
+    // based on audio size
+    audio.resize(numTypes);
 
     const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
     if (!gl) throw new Error("webgl2 is required");
@@ -224,7 +233,9 @@ class Universe {
       audio,
       controller.params
     );
+
     this.loopHandle = requestAnimationFrame(this.loop.bind(this, true));
+    audio.start(() => {});
   }
 
   public loop(repeat = true) {

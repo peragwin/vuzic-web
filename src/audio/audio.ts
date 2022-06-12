@@ -13,12 +13,17 @@ export class AudioProcessor {
   private fft: SlidingFFT;
   private bucketer: Bucketer;
   private processHandle?: number;
+  private context: AudioContext | null = null;
+  private source: MediaStreamAudioSourceNode | null = null;
+  private frame: Float32Array;
+  private freqBins: Float32Array;
+  private audioSize: AudioSize;
 
   constructor(
     readonly size: number,
     readonly blockSize: number,
-    readonly buckets: number,
-    readonly length: number,
+    buckets: number,
+    length: number,
     private params: AudioProcessorParams
   ) {
     polyfill();
@@ -33,6 +38,37 @@ export class AudioProcessor {
 
     const processor = new FrequencyProcessor(this.audioSize, params);
     this.fs = processor;
+
+    this.frame = new Float32Array(this.blockSize / 2);
+    this.freqBins = new Float32Array(this.buckets);
+  }
+
+  public resize(buckets: number) {
+    if (buckets === this.buckets) return;
+    const wasRunning = !!this.processHandle;
+    if (wasRunning) {
+      window.clearInterval(this.processHandle);
+    }
+
+    this.audioSize.buckets = buckets;
+    this.bucketer = new Bucketer(this.size / 2, this.buckets, 32, 16000);
+    this.fs = new FrequencyProcessor(this.audioSize, this.params);
+    this.freqBins = new Float32Array(this.buckets);
+
+    if (wasRunning) {
+      this.processHandle = window.setInterval(
+        this.process.bind(this),
+        (1000 * this.blockSize) / 44100
+      );
+    }
+  }
+
+  public get buckets() {
+    return this.audioSize.buckets;
+  }
+
+  public get length() {
+    return this.audioSize.length;
   }
 
   public start(cb: (ready: boolean) => void) {
@@ -60,9 +96,6 @@ export class AudioProcessor {
     }
   }
 
-  private context: AudioContext | null = null;
-  private source: MediaStreamAudioSourceNode | null = null;
-
   handleMediaStream(stream: MediaStream) {
     let audioContext;
     try {
@@ -83,12 +116,8 @@ export class AudioProcessor {
 
     this.analyzer.fftSize = this.blockSize;
     this.analyzer.smoothingTimeConstant = 0;
-    this.frame = new Float32Array(this.blockSize / 2);
-
     // this.analyzer.fftSize = this.size;
     // this.frame = new Float32Array(this.analyzer.frequencyBinCount);
-
-    this.freqBins = new Float32Array(this.buckets);
 
     source.connect(this.analyzer);
 
@@ -111,19 +140,16 @@ export class AudioProcessor {
     }
   }
 
-  private frame: Float32Array | null = null;
-  private freqBins: Float32Array | null = null;
-
   public process() {
     if (!this.analyzer) return;
 
-    this.analyzer.getFloatTimeDomainData(this.frame!);
+    this.analyzer.getFloatTimeDomainData(this.frame);
 
     // this returns -Infinity if the input is silent.. well that's complete 🗑
     // this.analyzer.getFloatFrequencyData(this.frame!);
 
-    const fft = this.fft.process(this.frame!);
-    const bucketed = this.bucketer.bucket(fft, this.freqBins!);
+    const fft = this.fft.process(this.frame);
+    const bucketed = this.bucketer.bucket(fft, this.freqBins);
 
     // const bucketed = this.bucketer.bucket(this.frame!, this.freqBins!);
 
@@ -133,8 +159,6 @@ export class AudioProcessor {
   public getDrivers() {
     return this.fs.getDrivers();
   }
-
-  private audioSize: AudioSize;
 
   public setAudioParams(params: AudioProcessorParams) {
     if (params.decimation !== this.params.decimation) {

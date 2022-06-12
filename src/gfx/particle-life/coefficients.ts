@@ -55,7 +55,6 @@ export class Coefficients {
       make_audio_channel_map(numTypes, audio.buckets)
     );
     this.audioEffectMatrix = random_orthonomal(numTypes, numTypes);
-    // this.constructAudioCoefficients(numTypes, audio.buckets);
   }
 
   // private constructAudioCoefficients(numTypes: number, numBuckets: number) {
@@ -72,6 +71,7 @@ export class Coefficients {
 
   public resize() {
     const numTypes = this.state.numTypes;
+    this.audio.resize(numTypes);
     this.baseAttraction = new Float32Array(numTypes * numTypes);
     this.minRadii = new Float32Array(numTypes * numTypes);
     this.maxRadii = new Float32Array(numTypes * numTypes);
