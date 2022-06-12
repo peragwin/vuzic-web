@@ -16,7 +16,6 @@ const ParticleLife: React.FC<Props> = (props) => {
   const { canvas, controller, audio, setErrorState } = props;
 
   const isInit = Boolean(canvas.current);
-  console.log(isInit);
 
   useEffect(() => {
     if (!canvas.current) return;

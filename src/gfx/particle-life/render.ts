@@ -96,7 +96,7 @@ export class RenderPipeline {
   }
 
   public render(input: RenderParams, target: RenderTarget) {
-    this.coefficients.updateFromAudio();
+    this.coefficients.update();
 
     this.iterate.render(
       {

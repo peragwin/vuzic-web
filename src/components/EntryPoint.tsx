@@ -95,25 +95,6 @@ const EntryPoint: React.FC<Props> = () => {
             <Typography variant="h3" className={classes.cardHeading}>
               Particle Simulators
             </Typography>
-
-            <Typography className={classes.cardInfo}>
-              This particle system is based on{" "}
-              <a
-                style={{ color: "white" }}
-                href="https://www.ventrella.com/Clusters/"
-              >
-                Clusters
-              </a>{" "}
-              by Jeffrey Ventrella.
-            </Typography>
-            <Button
-              className={classes.button}
-              size="large"
-              onClick={() => navigate("/particleLife")}
-            >
-              Particle Life
-            </Button>
-
             <Typography className={classes.cardInfo}>
               This particle system is based on the Primordial Particle System
               described in this{" "}
@@ -161,8 +142,25 @@ const EntryPoint: React.FC<Props> = () => {
         <div>
           <Paper elevation={3} className={classes.paper}>
             <Typography variant="h3" className={classes.cardHeading}>
-              Music Visualizer
+              Music Visualizers
             </Typography>
+            <Typography className={classes.cardInfo}>
+              This particle system is based on{" "}
+              <a
+                style={{ color: "white" }}
+                href="https://www.ventrella.com/Clusters/"
+              >
+                Clusters
+              </a>{" "}
+              by Jeffrey Ventrella.
+            </Typography>
+            <Button
+              className={classes.button}
+              size="large"
+              onClick={() => navigate("/particleLife")}
+            >
+              Particle Life
+            </Button>
             <Typography className={classes.cardInfo}>
               A music visualizer using a connected microphone as input.
             </Typography>

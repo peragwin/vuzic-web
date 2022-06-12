@@ -474,13 +474,16 @@ class GainController {
       const err = this.err[i];
       u = kp * e[i] + kd * (e[i] - err);
       gain += u;
-      if (gain > 1e8) gain = 1e8;
-      if (gain < 1e-8) gain = 1e-8;
+      if (gain > MAX_GAIN) gain = MAX_GAIN;
+      if (gain < MIN_GAIN) gain = MIN_GAIN;
       this.gain[i] = gain;
       this.err[i] = e[i];
     }
   }
 }
+
+const MAX_GAIN = 1e2;
+const MIN_GAIN = 1 / MAX_GAIN;
 
 class FrequencyProcessor {
   private params: AudioProcessorParams;

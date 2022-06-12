@@ -5,83 +5,127 @@ import { CanvasObject } from "../graphics";
 import { RenderParams, RenderPipeline } from "./render";
 
 export class ParticleLifeController {
-  private pane?: Pane;
+  private pane: Pane;
   public params: RenderParams = {
     numParticles: 1024,
     numTypes: 16,
-    friction: 0.1,
-    fade: 0.96,
-    sharpness: 0.9,
-    pointSize: 2.0,
+    friction: 0.15,
+    fade: 0.9,
+    sharpness: 0.75,
+    pointSize: 4.0,
     coefficients: {
-      sigma: 0.05,
-      mean: 0.0,
-      minRadius: { x: 1.0, y: 10.0 },
-      maxRadius: { x: 10.0, y: 25.0 },
+      particleInit: {
+        sigma: 0.05,
+        mean: 0.0,
+        minRadius: { min: 1.0, max: 6.0 },
+        maxRadius: { min: 6.0, max: 24.0 },
+      },
+      audio: {
+        colorEffect: { x: 0.35, y: 0.3 },
+        motionEffect: 0.2,
+      },
+      color: {
+        spread: 8.0,
+        lightness: 0.5,
+        cycleRate: 1,
+      },
     },
     bloom: {
-      bloom: 1.8,
-      bloomSharpness: 1.0,
+      bloom: 2.0,
+      bloomSharpness: 1.65,
     },
   };
   public fps: number = 0.0;
 
+  constructor() {
+    const pane = new Pane({
+      container: document.getElementById("tweakpane-container") || undefined,
+    });
+    this.pane = pane;
+
+    pane.addInput(this.params, "numParticles");
+    pane.addInput(this.params, "numTypes");
+    pane.addInput(this.params, "friction", {
+      min: 0.0,
+      max: 1.0,
+      step: 0.001,
+    });
+
+    const audio = pane.addFolder({ title: "Audio" });
+    audio.addInput(this.params.coefficients.audio, "motionEffect", {
+      min: 0,
+      max: 1.0,
+      step: 0.01,
+    });
+    audio.addInput(this.params.coefficients.audio, "colorEffect", {
+      x: { min: 0, max: 1.0 },
+      y: { min: 0, max: 1.0, inverted: true },
+    });
+
+    const color = pane.addFolder({ title: "Color" });
+    color.addInput(this.params.coefficients.color, "lightness", {
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+    });
+    color.addInput(this.params.coefficients.color, "spread", {
+      min: 0.0,
+      max: 45,
+      step: 1,
+    });
+    color.addInput(this.params.coefficients.color, "cycleRate", {
+      min: 0,
+      max: 100,
+      step: 1,
+    });
+
+    const particleShape = pane.addFolder({ title: "Particle Shape" });
+    particleShape.addInput(this.params, "pointSize", {
+      label: "size",
+      min: 0.0,
+      max: 10.0,
+      step: 0.1,
+    });
+    particleShape.addInput(this.params, "sharpness", {
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+    });
+    particleShape.addInput(this.params, "fade", {
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+    });
+
+    const bloom = pane.addFolder({ title: "Bloom" });
+    bloom.addInput(this.params.bloom, "bloom", {
+      min: 0.0,
+      max: 10.0,
+      step: 0.1,
+    });
+    bloom.addInput(this.params.bloom, "bloomSharpness", {
+      label: "sharpness",
+      min: 0.0,
+      max: 2.0,
+      step: 0.01,
+    });
+
+    pane.addMonitor(this, "fps");
+
+    document.addEventListener("keyup", (ev) => {
+      ev.preventDefault();
+      if (ev.key.toLowerCase() === "s") {
+        this.pane.hidden = !this.pane.hidden;
+      }
+    });
+  }
+
   public show() {
-    if (!this.pane) {
-      const pane = new Pane({
-        container: document.getElementById("tweakpane-container") || undefined,
-      });
-      this.pane = pane;
-
-      pane.addInput(this.params, "numParticles");
-      pane.addInput(this.params, "numTypes");
-      pane.addInput(this.params, "friction", {
-        min: 0.0,
-        max: 1.0,
-        step: 0.001,
-      });
-
-      const particleShape = pane.addFolder({ title: "Particle Shape" });
-      particleShape.addInput(this.params, "pointSize", {
-        label: "size",
-        min: 0.0,
-        max: 10.0,
-        step: 0.1,
-      });
-      particleShape.addInput(this.params, "sharpness", {
-        min: 0.0,
-        max: 1.0,
-        step: 0.01,
-      });
-      particleShape.addInput(this.params, "fade", {
-        min: 0.0,
-        max: 1.0,
-        step: 0.01,
-      });
-
-      const bloom = pane.addFolder({ title: "Bloom" });
-      bloom.addInput(this.params.bloom, "bloom", {
-        min: 0.0,
-        max: 10.0,
-        step: 0.1,
-      });
-      bloom.addInput(this.params.bloom, "bloomSharpness", {
-        label: "sharpness",
-        min: 0.0,
-        max: 2.0,
-        step: 0.01,
-      });
-
-      pane.addMonitor(this, "fps");
-    }
-    return this.pane;
+    this.pane.hidden = false;
   }
 
   public hide() {
-    if (this.pane) {
-      this.pane.dispose();
-    }
-    delete this.pane;
+    this.pane.hidden = true;
   }
 
   public config() {
@@ -111,6 +155,7 @@ class Universe {
     audio: AudioProcessor
   ) {
     controller.show();
+    audio.start(() => {});
 
     const numParticles = controller.params.numParticles;
     const numTypes = controller.params.numTypes;
