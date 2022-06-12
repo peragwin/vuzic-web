@@ -182,7 +182,7 @@ const EntryPoint: React.FC<Props> = () => {
         <Typography className={classes.release}>
           The current version is dated:{" "}
           <span style={{ fontFamily: "'Anonymous Pro', monospace" }}>
-            2020.07.30
+            2022.06.11
           </span>
         </Typography>
       </div>

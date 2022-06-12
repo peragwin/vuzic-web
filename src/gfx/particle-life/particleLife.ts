@@ -42,6 +42,7 @@ export class ParticleLifeController {
       container: document.getElementById("tweakpane-container") || undefined,
     });
     this.pane = pane;
+    pane.hidden = true;
 
     pane.addInput(this.params, "numParticles");
     pane.addInput(this.params, "numTypes");

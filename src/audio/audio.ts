@@ -215,7 +215,7 @@ export const audioParamsInit = new AudioProcessorParams(
   1e-2, //sync
   0.35, // decay
   1, // accum
-  0.0002, // drag
+  0.0, // drag
   1 // decimation
 );
 
