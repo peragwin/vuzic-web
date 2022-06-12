@@ -7,10 +7,15 @@ import {
 } from "react-router-dom";
 import { RecoilRoot, useSetRecoilState } from "recoil";
 
-import { makeStyles } from "@material-ui/core";
-import Paper from "@material-ui/core/Paper";
-import Typography from "@material-ui/core/Typography";
-import MenuPanel from "./components/MenuPanel";
+import { makeStyles } from "@mui/styles";
+import Paper from "@mui/material/Paper";
+import Typography from "@mui/material/Typography";
+import {
+  createTheme,
+  ThemeProvider,
+  StyledEngineProvider,
+} from "@mui/material/styles";
+import { useDoubleTap } from "use-double-tap";
 
 import "./App.css";
 
@@ -24,6 +29,7 @@ import { useSettingsFromRoute } from "./hooks/routeSettings";
 import { useSettingsManager } from "./hooks/settings";
 import { fpsState } from "./components/widgets/FPS";
 import { BASE_AUDIO_LENGTH } from "./gfx/warpgrid/params";
+import MenuPanel from "./components/MenuPanel";
 import ParticleLife from "./components/visuals/ParticleLife";
 
 const useStyles = makeStyles({
@@ -67,6 +73,9 @@ const App: React.FC = () => {
     canvasRef.current && canvasRef.current.toDataURL();
 
   const handleFullscreen = useFullscreen();
+  const doubleTapBinding = useDoubleTap((ev) => {
+    handleFullscreen(ev);
+  });
 
   const audioController = useAudio({
     window: 1024,
@@ -120,11 +129,13 @@ const App: React.FC = () => {
                 visual={visual}
                 manager={manager}
                 captureCanvas={captureCanvas}
+                handleFullscreen={handleFullscreen}
               />
               <canvas
                 ref={canvasRef}
                 className={classes.canvas}
-                onDoubleClick={handleFullscreen}
+                // onDoubleClick={handleFullscreen}
+                {...doubleTapBinding}
               />
             </div>
           )}
@@ -191,10 +202,16 @@ const App: React.FC = () => {
   );
 };
 
+const theme = createTheme({});
+
 export default () => (
   <RecoilRoot>
     <Router>
-      <App />
+      <StyledEngineProvider injectFirst>
+        <ThemeProvider theme={theme}>
+          <App />
+        </ThemeProvider>
+      </StyledEngineProvider>
     </Router>
   </RecoilRoot>
 );

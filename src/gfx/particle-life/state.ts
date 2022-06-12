@@ -3,7 +3,8 @@ import { Dims } from "../types";
 import { random_normal } from "./coefficients";
 
 export const TEX_WIDTH = 1024;
-const MAX_PARTICLE_TYPES = 128;
+export const MAX_PARTICLE_NUM = TEX_WIDTH * TEX_WIDTH;
+export const MAX_PARTICLE_TYPES = 128;
 
 export class State {
   positions: TextureObject[];
@@ -19,10 +20,7 @@ export class State {
     public numParticles: number,
     public numTypes: number
   ) {
-    const stateSize = {
-      width: Math.max(numParticles, TEX_WIDTH),
-      height: Math.floor(numParticles / TEX_WIDTH),
-    };
+    const stateSize = State.getStateSize(numParticles);
     this.stateSize = stateSize;
     this.numTypes = numTypes;
 
@@ -93,8 +91,20 @@ export class State {
     this.randomizeParticleState();
   }
 
-  public resize(size: Dims) {
-    // todo;
+  public resize(numParticles: number, numTypes: number) {
+    const [changedParticles, changedTypes] = [
+      numParticles !== this.numParticles,
+      numTypes !== this.numTypes,
+    ];
+    if (changedParticles) {
+      this.numParticles = numParticles;
+      const stateSize = State.getStateSize(numParticles);
+      this.stateSize = stateSize;
+    }
+    if (changedTypes) {
+      this.numTypes = numTypes;
+    }
+    return [changedParticles, changedTypes];
   }
 
   public randomizeParticleTypes() {
@@ -144,4 +154,9 @@ export class State {
       )
     );
   }
+
+  private static getStateSize = (numParticles: number): Dims => ({
+    width: Math.max(numParticles, TEX_WIDTH),
+    height: Math.ceil(numParticles / TEX_WIDTH),
+  });
 }

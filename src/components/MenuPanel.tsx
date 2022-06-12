@@ -1,22 +1,32 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import base64url from "base64url";
+import { Base64 } from "js-base64";
 import copy from "copy-to-clipboard";
 
-import { makeStyles } from "@material-ui/core";
-import AppBar from "@material-ui/core/AppBar";
-import AppsIcon from "@material-ui/icons/Apps";
-import Button from "@material-ui/core/Button";
-import ClickAwayListener from "@material-ui/core/ClickAwayListener";
-import FileCopyIcon from "@material-ui/icons/FileCopy";
-import IconButton from "@material-ui/core/IconButton";
-import InputAdornment from "@material-ui/core/InputAdornment";
-import MenuIcon from "@material-ui/icons/Menu";
-import Paper from "@material-ui/core/Paper";
-import Slide from "@material-ui/core/Slide";
-import TextField from "@material-ui/core/TextField";
-import Toolbar from "@material-ui/core/Toolbar";
-import Typography from "@material-ui/core/Typography";
+import {
+  Box,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Slide,
+  SwipeableDrawer,
+} from "@mui/material";
+import FullscreenIcon from "@mui/icons-material/Fullscreen";
+import FullscreenExit from "@mui/icons-material/FullscreenExit";
+import AppsIcon from "@mui/icons-material/Apps";
+import Button from "@mui/material/Button";
+import ClickAwayListener from "@mui/material/ClickAwayListener";
+import FileCopyIcon from "@mui/icons-material/FileCopy";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import MenuIcon from "@mui/icons-material/Menu";
+import Paper from "@mui/material/Paper";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { makeStyles } from "@mui/styles";
 
 import { ExportSettings, Manager } from "../hooks/settings";
 import { VisualOptions } from "../types/types";
@@ -26,26 +36,31 @@ import SaveMenu from "./SaveMenu";
 import { FPSInfo } from "./widgets/FPS";
 import { XRButton } from "./XRButton";
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles((theme: any) => ({
   root: {
     flexGrow: 1,
   },
   background: {
     background:
-      "linear-gradient(90deg, rgba(233,30,99,1) 0%, rgba(213,0,249,1) 50%, rgba(33,150,243,1) 100%)",
+      "linear-gradient(180deg, rgba(233,30,99,1) 0%, rgba(213,0,249,1) 50%, rgba(33,150,243,1) 100%)",
+    color: "#FFFFFF",
+    borderRadius: 8,
   },
   menuButton: {
-    marginRight: theme.spacing(2),
+    // marginRight: theme.spacing(2),
+    color: "#FFFFFF",
   },
   title: {
     flexGrow: 1,
   },
   menuTriggerArea: {
     position: "absolute",
-    top: 0,
+    left: 8,
+    top: 8,
     zIndex: 100,
     minHeight: "20vh",
-    minWidth: "100vw",
+    minWidth: "20vw",
+    maxWidth: "250px",
   },
   settingsContainer: {
     width: "100vw",
@@ -106,6 +121,7 @@ export interface MenuPanelProps {
   manager: Manager;
   captureCanvas: () => string | null;
   children?: React.ReactNode;
+  handleFullscreen: (e: React.MouseEvent<Element, MouseEvent>) => void;
 }
 
 const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
@@ -114,14 +130,18 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
   const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [showRenderSettings, setShowRenderSettings] = useState(false);
   const navigate = useNavigate();
+  const controller = props.manager.controller(props.visual);
 
   const handleShowMenu = () => {
     setShowMenu(true);
   };
 
   const handleShowRenderSettings = () => {
-    setShowAudioSettings(false);
-    setShowRenderSettings(true);
+    if (controller.show) controller.show();
+    else {
+      setShowAudioSettings(false);
+      setShowRenderSettings(true);
+    }
   };
 
   const handleHideRenderSettings = () => {
@@ -144,8 +164,7 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
   const audioController = props.manager.audio;
   const audioParams = audioController.params;
   const setAudioParam =
-    (type: AudioParamKey) =>
-    (_: React.ChangeEvent<{}>, value: number | FilterParams) =>
+    (type: AudioParamKey) => (_: Event, value: number | FilterParams) =>
       audioController.update({ type, value });
 
   const handleMain = () => navigate("/");
@@ -157,7 +176,93 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
         onMouseOver={handleShowMenu}
         onMouseOut={() => setShowMenu(false)}
       >
-        <Slide appear={false} in={showMenu} direction="down">
+        <Slide appear={false} in={showMenu} direction="right">
+          {/* <Drawer
+          anchor="left"
+          open={showMenu}
+          onClose={() => setShowMenu(false)}
+          onMouseOut={() => setShowMenu(false)}
+          hideBackdrop
+        > */}
+          <Box
+            sx={{ width: 250, height: "100%" }}
+            className={classes.background}
+          >
+            <List>
+              <ListItem disablePadding>
+                <ListItemButton onClick={handleMain}>
+                  <ListItemIcon className={classes.menuButton}>
+                    <AppsIcon color="inherit" />
+                  </ListItemIcon>
+                  <ListItemText
+                    className={classes.title}
+                    primary="Main"
+                    primaryTypographyProps={{ variant: "h6" }}
+                  />
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding>
+                <ListItemButton onClick={handleShowRenderSettings}>
+                  <ListItemIcon className={classes.menuButton}>
+                    <MenuIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    className={classes.title}
+                    primary="Visualizer"
+                    primaryTypographyProps={{ variant: "h6" }}
+                  />
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding>
+                <ListItemButton onClick={handleShowAudioSettings}>
+                  <ListItemIcon className={classes.menuButton}>
+                    <MenuIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    className={classes.title}
+                    primary="Audio"
+                    primaryTypographyProps={{ variant: "h6" }}
+                  />
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding>
+                <ListItemButton onClick={props.handleFullscreen}>
+                  <ListItemIcon className={classes.menuButton}>
+                    {document.fullscreenElement === null ? (
+                      <FullscreenIcon />
+                    ) : (
+                      <FullscreenExit />
+                    )}
+                  </ListItemIcon>
+                  <ListItemText
+                    className={classes.title}
+                    primary="Fullscreen"
+                    primaryTypographyProps={{ variant: "h6" }}
+                  />
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding>
+                <XRButton listItemClass={classes.menuButton} />
+              </ListItem>
+              <ListItem disablePadding>
+                <SaveMenu
+                  {...props}
+                  listItemClass={classes.menuButton}
+                  setShowImportExport={setShowImportExport}
+                />
+              </ListItem>
+            </List>
+          </Box>
+          {/* </Drawer> */}
+        </Slide>
+      </div>
+      {/* 
+      <div
+        className={classes.menuTriggerArea}
+        onMouseOver={handleShowMenu}
+        onMouseOut={() => setShowMenu(false)}
+      >
+        <Slide appear={false} in={showMenu} direction="right">
           <AppBar position="static" className={classes.background}>
             <Toolbar>
               <IconButton
@@ -214,7 +319,7 @@ const MenuPanel: React.FC<MenuPanelProps> = (props: MenuPanelProps) => {
             </Toolbar>
           </AppBar>
         </Slide>
-      </div>
+      </div> */}
       <div
         className={
           showRenderSettings || showAudioSettings || showImportExport
@@ -401,7 +506,7 @@ const Share: React.FC<ShareProps> = (props) => {
   const classes = useStyles();
   const [imported, setImported] = useState("");
   const [settings, setSettings] = useState<ExportSettings | null>(null);
-  const exported = base64url.encode(JSON.stringify(props.currentSettings));
+  const exported = Base64.encodeURL(JSON.stringify(props.currentSettings));
   const exportURL = `${process.env.REACT_APP_HOSTNAME}/#${exported}`;
   return (
     <Paper className={classes.settings} style={{ width: "unset" }}>
@@ -420,7 +525,7 @@ const Share: React.FC<ShareProps> = (props) => {
               try {
                 params = JSON.parse(value);
               } catch (e) {
-                const dec = base64url.decode(value);
+                const dec = Base64.decode(value);
                 params = JSON.parse(dec);
               }
               setSettings(params);

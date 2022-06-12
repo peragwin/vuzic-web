@@ -1,18 +1,20 @@
 import { Pane } from "tweakpane";
+import * as TweakpaneEssentialsPlugin from "@tweakpane/plugin-essentials";
 
 import { AudioProcessor } from "../../audio/audio";
 import { CanvasObject } from "../graphics";
 import { RenderParams, RenderPipeline } from "./render";
+import { MAX_PARTICLE_NUM, MAX_PARTICLE_TYPES } from "./state";
 
 export class ParticleLifeController {
   private pane: Pane;
   public params: RenderParams = {
     numParticles: 1024,
     numTypes: 16,
-    friction: 0.15,
-    fade: 0.9,
-    sharpness: 0.75,
-    pointSize: 4.0,
+    friction: 0.13,
+    fade: 0.99,
+    sharpness: 0.25,
+    pointSize: 10.0,
     coefficients: {
       particleInit: {
         sigma: 0.05,
@@ -21,35 +23,61 @@ export class ParticleLifeController {
         maxRadius: { min: 6.0, max: 24.0 },
       },
       audio: {
-        colorEffect: { x: 0.35, y: 0.3 },
-        motionEffect: 0.2,
+        colorEffect: { x: 0.38, y: 0.09 },
+        motionEffect: 0.1,
       },
       color: {
-        spread: 8.0,
+        spread: 16.0,
         lightness: 0.5,
-        cycleRate: 1,
+        cycleRate: 10,
       },
     },
     bloom: {
-      bloom: 2.0,
-      bloomSharpness: 1.65,
+      bloom: 0.8,
+      bloomSharpness: 0.98,
     },
   };
   public fps: number = 0.0;
+  public reseed = false;
 
   constructor() {
     const pane = new Pane({
       container: document.getElementById("tweakpane-container") || undefined,
+      title: "Visualizer Settings",
     });
+    pane.registerPlugin(TweakpaneEssentialsPlugin);
     this.pane = pane;
     pane.hidden = true;
 
-    pane.addInput(this.params, "numParticles");
-    pane.addInput(this.params, "numTypes");
-    pane.addInput(this.params, "friction", {
+    const sim = pane.addFolder({ title: "Simulation" });
+
+    sim.addInput(this.params, "numParticles", { format: (v) => v.toFixed(0) });
+    sim.addInput(this.params, "numTypes", { format: (v) => v.toFixed(0) });
+    sim.addInput(this.params, "friction", {
       min: 0.0,
       max: 1.0,
       step: 0.001,
+    });
+    sim.addInput(this.params.coefficients.particleInit, "sigma", {
+      min: 0.0,
+      max: 0.1,
+      step: 0.001,
+    });
+    sim.addInput(this.params.coefficients.particleInit, "mean", {
+      min: -0.1,
+      max: 0.1,
+      step: 0.002,
+    });
+    sim.addInput(this.params.coefficients.particleInit, "minRadius", {
+      min: 0,
+      max: 50,
+    });
+    sim.addInput(this.params.coefficients.particleInit, "maxRadius", {
+      min: 0,
+      max: 50,
+    });
+    sim.addButton({ title: "reseed", label: "reseed" }).on("click", (ev) => {
+      this.reseed = true;
     });
 
     const audio = pane.addFolder({ title: "Audio" });
@@ -113,10 +141,19 @@ export class ParticleLifeController {
 
     pane.addMonitor(this, "fps");
 
+    pane.addButton({ title: "close" }).on("click", (_) => {
+      pane.hidden = true;
+    });
+
+    console.log(pane.exportPreset());
+
     document.addEventListener("keyup", (ev) => {
       ev.preventDefault();
       if (ev.key.toLowerCase() === "s") {
         this.pane.hidden = !this.pane.hidden;
+      }
+      if (ev.key === "Enter" && ev.shiftKey) {
+        this.reseed = true;
       }
     });
   }
@@ -135,9 +172,17 @@ export class ParticleLifeController {
   public values() {
     return [];
   }
-  public update(action: { type: "all" | "load"; value: any }) {}
+  public update(action: { type: "all" | "load"; value: any }) {
+    if (action.value) {
+      this.pane.importPreset(action.value);
+    }
+  }
+
   public export() {
-    return [];
+    return [{ ...this.pane.exportPreset() }];
+  }
+  public exportPreset() {
+    return this.pane.exportPreset();
   }
 }
 
@@ -155,7 +200,6 @@ class Universe {
     canvas: HTMLCanvasElement,
     audio: AudioProcessor
   ) {
-    controller.show();
     audio.start(() => {});
 
     const numParticles = controller.params.numParticles;
@@ -188,9 +232,14 @@ class Universe {
       this.loopHandle = requestAnimationFrame(this.loop.bind(this, true));
     }
 
+    if (this.controller.reseed) {
+      this.controller.reseed = false;
+      this.pipeline.reseed(this.controller.params);
+    }
+
     this.pipeline.render({ ...this.controller.params }, this.canvasTarget);
 
-    this.frameCount = (this.frameCount + 1) & 0xffff;
+    this.frameCount++;
     const now = performance.now();
     const e = now - this.lastTime;
     if (e > 1000) {

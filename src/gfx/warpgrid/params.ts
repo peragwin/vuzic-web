@@ -45,10 +45,8 @@ export class WarpController {
     }
   }
 
-  private updater = (type: RenderParamKey) => (
-    e: React.ChangeEvent<{}>,
-    value: number
-  ) => this.update({ type, value });
+  private updater = (type: RenderParamKey) => (e: Event, value: number) =>
+    this.update({ type, value });
 
   public config = () => [
     {

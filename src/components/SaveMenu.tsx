@@ -1,20 +1,21 @@
 import React from "react";
 
-import CreateIcon from "@material-ui/icons/Create";
-import FolderOpenIcon from "@material-ui/icons/FolderOpen";
-import IconButton from "@material-ui/core/IconButton";
-import ListItemIcon from "@material-ui/core/ListItemIcon";
-import Menu from "@material-ui/core/Menu";
-import MenuItem from "@material-ui/core/MenuItem";
-import SaveIcon from "@material-ui/icons/Save";
-import ShareIcon from "@material-ui/icons/Share";
-import Tooltip from "@material-ui/core/Tooltip";
-import Typography from "@material-ui/core/Typography";
+import CreateIcon from "@mui/icons-material/Create";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
+import IconButton from "@mui/material/IconButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import SaveIcon from "@mui/icons-material/Save";
+import ShareIcon from "@mui/icons-material/Share";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 
 import { MenuPanelProps } from "./MenuPanel";
 import { AudioParamKey, AudioProcessorParams } from "../audio/audio";
-import { makeStyles } from "@material-ui/core";
+import { makeStyles } from "@mui/styles";
 import { VisualOptions } from "../types/types";
+import { ListItemButton, ListItemText } from "@mui/material";
 
 const useStyles = makeStyles({
   title: {
@@ -33,6 +34,8 @@ interface ProfileData {
 
 interface SaveMenuProps extends MenuPanelProps {
   setShowImportExport: (show: boolean) => void;
+  listItemClass?: string;
+  textClass?: string;
 }
 
 const setProfile = (
@@ -91,11 +94,15 @@ const SaveMenu: React.FC<SaveMenuProps> = (props: SaveMenuProps) => {
   };
 
   const saveProfile = (name: string) => {
+    handleCloseMenu();
+
     let thumb: string | undefined;
 
     const save = (thumb?: string) => {
-      setProfile(visual, name, renderController.params, audioParams, thumb);
-      handleCloseMenu();
+      const data = renderController.exportPreset
+        ? renderController.exportPreset()
+        : renderController.params;
+      setProfile(visual, name, data, audioParams, thumb);
     };
 
     const capture = props.captureCanvas();
@@ -123,6 +130,8 @@ const SaveMenu: React.FC<SaveMenuProps> = (props: SaveMenuProps) => {
   };
 
   const loadProfile = (name: string, audioOnly?: boolean) => {
+    handleCloseMenu();
+
     const prof = loadProfileData(visual, name);
     if (!prof) return;
 
@@ -136,22 +145,22 @@ const SaveMenu: React.FC<SaveMenuProps> = (props: SaveMenuProps) => {
       type: AudioParamKey.all,
       value: audioParams,
     });
-    handleCloseMenu();
   };
 
   const classes = useStyles();
 
   return (
-    <div className={classes.title}>
-      <IconButton
-        aria-label="account of current user"
-        aria-controls="menu-appbar"
-        aria-haspopup="true"
-        onClick={handleShowMenu}
-        color="inherit"
-      >
-        <SaveIcon />
-      </IconButton>
+    <React.Fragment>
+      <ListItemButton onClick={handleShowMenu}>
+        <ListItemIcon className={props.listItemClass}>
+          <SaveIcon />
+        </ListItemIcon>
+        <ListItemText
+          className={props.textClass}
+          primary="Save / Load"
+          primaryTypographyProps={{ variant: "h6" }}
+        />
+      </ListItemButton>
       <Menu
         id="menu-appbar"
         anchorEl={anchorMenu}
@@ -206,7 +215,7 @@ const SaveMenu: React.FC<SaveMenuProps> = (props: SaveMenuProps) => {
           </div>
         ))}
       </Menu>
-    </div>
+    </React.Fragment>
   );
 };
 

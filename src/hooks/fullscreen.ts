@@ -60,7 +60,7 @@ const useFullscreen = () => {
     document.addEventListener("visibilitychange", visibility);
   }, [wakelockEnabled]);
 
-  const handleFullscreen = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleFullscreen = (e: React.MouseEvent<Element, MouseEvent>) => {
     if (!document.fullscreenEnabled) return;
     const isFullscreen = document.fullscreenElement !== null;
     if (isFullscreen) {

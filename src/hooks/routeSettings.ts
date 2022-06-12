@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import base64url from "base64url";
+import { Base64 } from "js-base64";
 
 import { VisualOptions } from "../types/types";
 import { AudioProcessorParams } from "../audio/audio";
@@ -27,7 +27,7 @@ type ExportSettings = [string, ...Array<any>];
 
 function decodeSettings<T extends ExportSettings>(enc: string) {
   try {
-    const dec = base64url.decode(enc);
+    const dec = Base64.decode(enc);
     return JSON.parse(dec) as T;
   } catch (e) {
     console.error("failed to parse settings");
@@ -82,7 +82,8 @@ export const useSettingsFromRoute = (
 };
 
 export const setUrlParam = (name: string, value: any) => {
-  const enc = base64url.encode(JSON.stringify(value));
+  console.log("value to encode", JSON.stringify(value));
+  const enc = Base64.encodeURL(JSON.stringify(value));
   const query = new URLSearchParams(window.location.search);
   query.set(name, enc);
   window.history.pushState(

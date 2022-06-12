@@ -1,23 +1,14 @@
 import React from "react";
 
-// import CreateIcon from "@material-ui/icons/Create";
-// import FolderOpenIcon from "@material-ui/icons/FolderOpen";
-import IconButton from "@material-ui/core/IconButton";
-import SvgIcon, { SvgIconProps } from "@material-ui/core/SvgIcon";
-// import ListItemIcon from "@material-ui/core/ListItemIcon";
-// import Menu from "@material-ui/core/Menu";
-// import MenuItem from "@material-ui/core/MenuItem";
-// import SaveIcon from "@material-ui/icons/Save";
-// import ShareIcon from "@material-ui/icons/Share";
-// import Tooltip from "@material-ui/core/Tooltip";
-// import Typography from "@material-ui/core/Typography";
+import IconButton from "@mui/material/IconButton";
+import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
 import { XRManager } from "../gfx/xr/manager";
 import { atom, useRecoilValue } from "recoil";
+import { ListItemButton, ListItemIcon, ListItemText } from "@mui/material";
 
 type XRIconProps = SvgIconProps & { supported: boolean };
 
 const XRIcon = (props: XRIconProps) => {
-  // let aspect = 28 / 18;
   const svgProps = { ...props, supported: undefined };
   return props.supported ? (
     <SvgIcon {...svgProps} viewBox="0 0 28 18" xmlSpace="preserve">
@@ -54,6 +45,8 @@ const XRIcon = (props: XRIconProps) => {
 
 interface Props {
   className?: string;
+  listItemClass?: string;
+  textClass?: string;
 }
 
 export const xrManagerState = atom<XRManager | null>({
@@ -87,17 +80,15 @@ export const XRButton: React.FC<Props> = (props) => {
   };
 
   return (
-    <div className={props.className}>
-      <IconButton
-        aria-label="enable xr"
-        aria-controls="menu-appbar"
-        color="inherit"
-        // FIXME: edit styles so that disabled isnt grey
-        // disabled={!xrSupported}
-        onClick={handleClick}
-      >
+    <ListItemButton onClick={handleClick}>
+      <ListItemIcon className={props.listItemClass}>
         <XRIcon supported={xrSupported} />
-      </IconButton>
-    </div>
+      </ListItemIcon>
+      <ListItemText
+        className={props.textClass}
+        primary="Enable VR"
+        primaryTypographyProps={{ variant: "h6" }}
+      />
+    </ListItemButton>
   );
 };

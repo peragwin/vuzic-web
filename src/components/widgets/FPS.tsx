@@ -1,7 +1,7 @@
 import React from "react";
 import { atom, useRecoilValue } from "recoil";
 
-import Typography from "@material-ui/core/Typography";
+import Typography from "@mui/material/Typography";
 
 export const fpsState = atom({
   key: "frameRate",

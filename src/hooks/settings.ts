@@ -17,7 +17,7 @@ export interface ParamSliderConfig {
   min: number;
   max: number;
   step: number;
-  update: (e: React.ChangeEvent<{}>, value: number) => void;
+  update: (e: Event, value: number) => void;
 }
 
 export interface RenderController {
@@ -26,6 +26,8 @@ export interface RenderController {
   params: any;
   update: (action: { type: "all" | "load"; value: any }) => void;
   export: () => any[];
+  show?: () => void;
+  exportPreset?: () => any;
 }
 
 export interface ExportSettings {

@@ -25,5 +25,6 @@
 #tweakpane-container {
   position: absolute;
   right: 8px;
-  bottom: 8px;
+  top: 8px;
+  z-index: 200;
 }

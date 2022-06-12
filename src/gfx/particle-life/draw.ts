@@ -102,7 +102,10 @@ export class Draw {
   private readonly program: ProgramType<typeof Draw.config>;
   private points: VertexArrayObject;
 
-  constructor(private gl: WebGL2RenderingContext, numParticles: number) {
+  constructor(
+    private gl: WebGL2RenderingContext,
+    private numParticles: number
+  ) {
     const config = { ...Draw.config };
     this.program = new Program(gl, config);
     this.points = new VertexArrayObject(gl, {
@@ -113,7 +116,20 @@ export class Draw {
     });
   }
 
+  public resize(numParticles: number) {
+    this.numParticles = numParticles;
+    this.points = new VertexArrayObject(this.gl, {
+      offset: 0,
+      length: numParticles,
+      drawMode: "points",
+      attriutes: [],
+    });
+  }
+
   public render(input: Input, target: RenderTarget) {
+    if (this.numParticles !== input.numParticles) {
+      this.resize(input.numParticles);
+    }
     const gl = this.gl;
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

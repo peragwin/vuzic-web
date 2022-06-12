@@ -1,15 +1,15 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-import { makeStyles } from "@material-ui/core";
-import Button from "@material-ui/core/Button";
-import Paper from "@material-ui/core/Paper";
-import Typography from "@material-ui/core/Typography";
-import GitHubIcon from "@material-ui/icons/GitHub";
-import InstagramIcon from "@material-ui/icons/Instagram";
-import IconButton from "@material-ui/core/IconButton";
+import { makeStyles } from "@mui/styles";
+import Button from "@mui/material/Button";
+import Paper from "@mui/material/Paper";
+import Typography from "@mui/material/Typography";
+import GitHubIcon from "@mui/icons-material/GitHub";
+import InstagramIcon from "@mui/icons-material/Instagram";
+import IconButton from "@mui/material/IconButton";
 
-export const useStyles = makeStyles((theme) => ({
+export const useStyles = makeStyles((theme: any) => ({
   title: {
     margin: "auto",
     marginBottom: theme.spacing(4),

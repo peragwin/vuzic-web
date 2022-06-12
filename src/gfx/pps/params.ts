@@ -208,10 +208,8 @@ export class PpsController {
   public export = (params?: RenderParams) =>
     [this.version as any].concat(this.values(params || this.params));
 
-  private updater = (type: PpsRenderParamKey) => (
-    e: React.ChangeEvent<{}>,
-    value: number
-  ) => this.update({ type, value });
+  private updater = (type: PpsRenderParamKey) => (e: Event, value: number) =>
+    this.update({ type, value });
 
   public config = () => [
     {

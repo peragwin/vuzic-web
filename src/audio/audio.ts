@@ -209,8 +209,8 @@ export const audioParamsInit = new AudioProcessorParams(
   { tao: 56.6, gain: -0.05 }, // diff feedback param
   { tao: 69, gain: 1 }, // pos value scale params
   { tao: 693, gain: 1 }, // neg value scale params
-  1.3, //diffGain
-  1.2, // amp scale
+  1.0, //diffGain
+  1.0, // amp scale
   0, //amp offset
   1e-2, //sync
   0.35, // decay

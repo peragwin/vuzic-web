@@ -1,7 +1,7 @@
 import { AudioProcessor, Drivers } from "../../audio/audio";
 import { State } from "./state";
 import { hsluvToRgb } from "hsluv";
-import { mod, matrix, Matrix } from "mathjs";
+import { mod, matrix, Matrix, pow } from "mathjs";
 const math = require("mathjs");
 
 export function random_normal() {
@@ -50,7 +50,7 @@ export class Coefficients {
     this.baseAttraction = new Float32Array(numTypes * numTypes);
     this.minRadii = new Float32Array(numTypes * numTypes);
     this.maxRadii = new Float32Array(numTypes * numTypes);
-    this.randomizeCoefficients(numTypes);
+    this.randomizeCoefficients();
     this.audioChannelMap = matrix(
       make_audio_channel_map(numTypes, audio.buckets)
     );
@@ -70,7 +70,20 @@ export class Coefficients {
   //   }
   // }
 
-  public randomizeCoefficients(numTypes: number) {
+  public resize() {
+    const numTypes = this.state.numTypes;
+    this.baseAttraction = new Float32Array(numTypes * numTypes);
+    this.minRadii = new Float32Array(numTypes * numTypes);
+    this.maxRadii = new Float32Array(numTypes * numTypes);
+    this.randomizeCoefficients();
+    this.audioChannelMap = matrix(
+      make_audio_channel_map(numTypes, this.audio.buckets)
+    );
+    this.audioEffectMatrix = random_orthonomal(numTypes, numTypes);
+  }
+
+  public randomizeCoefficients() {
+    const numTypes = this.state.numTypes;
     const { params, state, baseAttraction, minRadii, maxRadii } = this;
     const { sigma, mean, minRadius, maxRadius } = params.particleInit;
 

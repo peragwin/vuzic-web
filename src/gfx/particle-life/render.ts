@@ -7,7 +7,7 @@ import { Dims } from "../types";
 import { CoefficientParams, Coefficients } from "./coefficients";
 import { Draw } from "./draw";
 import { Iterate } from "./iterate";
-import { State } from "./state";
+import { MAX_PARTICLE_NUM, MAX_PARTICLE_TYPES, State } from "./state";
 
 export interface RenderParams {
   numParticles: number;
@@ -135,16 +135,16 @@ export class RenderPipeline {
 
   public resize(size: { stateSize?: Dims; canvasSize?: Dims }) {
     const { stateSize, canvasSize } = size;
-    if (stateSize) {
-      this.state.resize(stateSize);
-      this.fb.iterate.forEach((fb, i) => {
-        fb.setSize(stateSize);
-        fb.attach(this.state.positions[i], 0);
-        fb.attach(this.state.velocities[i], 1);
-        fb.bind();
-        fb.checkStatus();
-      });
-    }
+    // if (stateSize) {
+    //   this.state.resize(stateSize);
+    //   this.fb.iterate.forEach((fb, i) => {
+    //     fb.setSize(stateSize);
+    //     fb.attach(this.state.positions[i], 0);
+    //     fb.attach(this.state.velocities[i], 1);
+    //     fb.bind();
+    //     fb.checkStatus();
+    //   });
+    // }
     if (canvasSize) {
       const gl = this.gl;
       this.drawBuffers = Array.from(Array(2)).map((_) => {
@@ -169,7 +169,30 @@ export class RenderPipeline {
     }
   }
 
-  // public setNumTypes(numTypes: number) {
-  //   this.numTypes = numTypes;
-  // }
+  public reseed(params: RenderParams) {
+    if (params.numTypes > MAX_PARTICLE_TYPES)
+      params.numTypes = MAX_PARTICLE_TYPES;
+    if (params.numParticles > MAX_PARTICLE_NUM)
+      params.numParticles = MAX_PARTICLE_NUM;
+    const [changedNum, changedTypes] = this.state.resize(
+      params.numParticles,
+      params.numTypes
+    );
+    this.state.randomizeParticleState();
+    this.state.randomizeParticleTypes();
+    if (changedNum) {
+      this.fb.iterate.forEach((fb, i) => {
+        fb.setSize(this.state.stateSize);
+        fb.attach(this.state.positions[i], 0);
+        fb.attach(this.state.velocities[i], 1);
+        fb.bind();
+        fb.checkStatus();
+      });
+    }
+    if (changedTypes) {
+      this.coefficients.resize();
+    } else {
+      this.coefficients.randomizeCoefficients();
+    }
+  }
 }

@@ -1,8 +1,8 @@
 import React from "react";
 
-import Slider from "@material-ui/core/Slider";
-import Typography from "@material-ui/core/Typography";
-import { makeStyles } from "@material-ui/core";
+import Slider from "@mui/material/Slider";
+import Typography from "@mui/material/Typography";
+import { makeStyles } from "@mui/styles";
 
 import { FilterParams } from "../audio/audio";
 
@@ -22,7 +22,7 @@ interface ParamSliderProps {
   min: number;
   max: number;
   value: number;
-  onChange: (e: React.ChangeEvent<{}>, value: number) => void;
+  onChange: (e: Event, value: number) => void;
   step: number;
   displayValue?: number;
 }
@@ -59,7 +59,7 @@ interface FilterParamSliderProps {
   min: number;
   max: number;
   value: FilterParams;
-  onChange: (e: React.ChangeEvent<{}>, value: FilterParams) => void;
+  onChange: (e: Event, value: FilterParams) => void;
   step: number;
 }
 
@@ -67,19 +67,17 @@ export const FilterParamSlider: React.FC<FilterParamSliderProps> = (
   props: FilterParamSliderProps
 ) => {
   const { title, min, max, value, onChange, step } = props;
-  const handleChange = (key: "tao" | "gain") => (
-    e: React.ChangeEvent<{}>,
-    val: number | number[]
-  ) => {
-    switch (key) {
-      case "tao":
-        onChange(e, { ...value, tao: (val as number) * (val as number) });
-        break;
-      case "gain":
-        onChange(e, { ...value, gain: val as number });
-        break;
-    }
-  };
+  const handleChange =
+    (key: "tao" | "gain") => (e: Event, val: number | number[], _: number) => {
+      switch (key) {
+        case "tao":
+          onChange(e, { ...value, tao: (val as number) * (val as number) });
+          break;
+        case "gain":
+          onChange(e, { ...value, gain: val as number });
+          break;
+      }
+    };
   const classes = useStyles();
   return (
     <div className={classes.filterParamSlider}>
