@@ -30,6 +30,7 @@ export class ParticleLifeController {
         spread: 16.0,
         lightness: 0.5,
         cycleRate: 10,
+        baseHue: 0,
       },
     },
     bloom: {
@@ -41,8 +42,11 @@ export class ParticleLifeController {
   public reseed = false;
 
   constructor() {
+    const container = document.getElementById("tweakpane-container");
+    if (!container) throw new Error("no settings container");
+
     const pane = new Pane({
-      container: document.getElementById("tweakpane-container") || undefined,
+      container,
       title: "Visualizer Settings",
     });
     pane.registerPlugin(TweakpaneEssentialsPlugin);
@@ -102,6 +106,11 @@ export class ParticleLifeController {
       max: 45,
       step: 1,
     });
+    color.addInput(this.params.coefficients.color, "baseHue", {
+      min: 0,
+      max: 360,
+      step: 1,
+    });
     color.addInput(this.params.coefficients.color, "cycleRate", {
       min: 0,
       max: 100,
@@ -147,6 +156,20 @@ export class ParticleLifeController {
 
     pane.on("change", (ev) => setUrlParam("params", pane.exportPreset()));
 
+    // giving up for now.. this should be on the canvas actually..
+    // const clickAwayArea = document.getElementById("tweakpane-click-away");
+    // if (clickAwayArea) {
+    //   console.log(clickAwayArea);
+    //   clickAwayArea.addEventListener("click", (ev) => {
+    //     if (
+    //       !this.pane.hidden &&
+    //       ev.target &&
+    //       !container.contains(ev.target as Node)
+    //     ) {
+    //       this.pane.hidden = true;
+    //     }
+    //   });
+    // }
     document.addEventListener("keyup", (ev) => {
       ev.preventDefault();
       if (ev.key.toLowerCase() === "s") {

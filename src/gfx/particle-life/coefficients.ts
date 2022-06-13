@@ -25,6 +25,7 @@ export interface CoefficientParams {
     spread: number;
     lightness: number;
     cycleRate: number;
+    baseHue: number;
   };
 }
 
@@ -132,7 +133,7 @@ export class Coefficients {
     const channels = drivers.rows;
     const {
       audio: { colorEffect },
-      color: { spread, lightness, cycleRate },
+      color: { spread, lightness, cycleRate, baseHue },
     } = this.params;
 
     const time = performance.now() / 1000;
@@ -142,7 +143,7 @@ export class Coefficients {
     const colors = new Uint8ClampedArray(
       Array.from(Array(this.state.numTypes))
         .map((_, i) => {
-          const bhue = spread * i + this.colorCycle;
+          const bhue = spread * i + this.colorCycle + baseHue;
           if (i < channels) {
             let aval = drivers.scales[i] * (drivers.getColumn(0)[i] - 1.0);
             const cval = lightness + colorEffect.x * (sigmoid(aval) - 0.5);

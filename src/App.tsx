@@ -133,7 +133,7 @@ const App: React.FC = () => {
               />
               <canvas
                 ref={canvasRef}
-                className={classes.canvas}
+                className={classes.canvas + " render-canvas"}
                 // onDoubleClick={handleFullscreen}
                 {...doubleTapBinding}
               />

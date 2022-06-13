@@ -623,58 +623,12 @@ class FrequencyProcessor {
 
   private applySync() {
     const { buckets } = this.size;
+    const { sync } = this.params;
     const energy = this.drivers.energy;
 
-    let mean = 0;
     for (let i = 0; i < buckets; i++) {
-      mean += energy[i];
-    }
-    mean /= buckets;
-
-    let diff, sign;
-    for (let i = 0; i < buckets; i++) {
-      if (i !== 0) {
-        diff = energy[i - 1] - energy[i];
-        sign = diff < 0 ? -1 : 1;
-        diff = sign * diff * diff;
-        energy[i] += this.params.sync * diff;
-      }
-      if (i !== buckets - 1) {
-        diff = energy[i + 1] - energy[i];
-        sign = diff < 0 ? -1.0 : 1.0;
-        diff = sign * diff * diff;
-        energy[i] += this.params.sync * diff;
-      }
-      diff = mean - energy[i];
-      sign = diff < 0 ? -1.0 : 1.0;
-      diff = sign * diff * diff;
-      energy[i] += this.params.sync * diff;
-    }
-
-    mean = 0;
-    for (let i = 0; i < buckets; i++) {
-      mean += energy[i];
-    }
-    mean /= buckets;
-
-    if (mean < -2 * Math.PI) {
-      // wait until all elements go past the mark so theres no sign flips
-      for (let i = 0; i < buckets; i++) {
-        if (energy[i] >= -2 * Math.PI) return;
-      }
-      for (let i = 0; i < buckets; i++) {
-        energy[i] = 2 * Math.PI + energy[i]; // (energy[i] % 2 * Math.PI)
-      }
-      mean = 2 * Math.PI + mean; //(mean % 2 * Math.PI)
-    }
-    if (mean > 2 * Math.PI) {
-      for (let i = 0; i < buckets; i++) {
-        if (energy[i] <= 2 * Math.PI) return;
-      }
-      for (let i = 0; i < buckets; i++) {
-        energy[i] -= 2 * Math.PI; //(energy[i] % 2 * Math.PI)
-      }
-      mean -= 2 * Math.PI; //(mean % 2 * Math.PI)
+      const e = energy[i];
+      energy[i] -= e * sync * sync;
     }
   }
 

@@ -22,6 +22,16 @@
   --tp-monitor-foreground-color: hsla(0, 0%, 100%, 0.3);
 }
 
+#tweakpane-click-away {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    /* z-index less than my menu which is 100, but greater than the canvas */
+    z-index: 50;
+}
+
 #tweakpane-container {
   position: absolute;
   right: 8px;
