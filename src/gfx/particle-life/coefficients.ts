@@ -206,7 +206,7 @@ export class Coefficients {
 }
 
 const random_vector = (height: number) =>
-  Array.from(Array(height)).map((_) => Math.random());
+  Array.from(Array(height)).map((_) => random_normal());
 
 const normalize = (vec: Array<number>) => {
   const norm = Math.sqrt(math.dot(vec, vec));
