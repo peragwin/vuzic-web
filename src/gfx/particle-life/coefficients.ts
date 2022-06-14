@@ -41,6 +41,7 @@ export class Coefficients {
   public maxRadii: Float32Array;
   private audioChannelMap: Matrix;
   public audioEffectMatrix: Float32Array;
+  private interactionMatrixBuffer: Float32Array = new Float32Array();
 
   constructor(
     private state: State,
@@ -111,13 +112,17 @@ export class Coefficients {
       }
     }
 
-    const interactionMatrix = new Float32Array(
+    this.interactionMatrixBuffer = new Float32Array(
       Array.from(baseAttraction)
         .map((a, i) => [a, minRadii[i], maxRadii[i]])
         .flat()
         .map((v) => v * PARAMETER_SCALE)
     );
-    state.interactionMatrix.updateData(numTypes, numTypes, interactionMatrix);
+    state.interactionMatrix.updateData(
+      numTypes,
+      numTypes,
+      this.interactionMatrixBuffer
+    );
   }
 
   public update() {
@@ -179,27 +184,23 @@ export class Coefficients {
       Array.from(audio.map((a, i) => scale[i] * (a - 1.0)))
     );
 
-    const interactionMatrix = new Float32Array(
-      Array.from(this.baseAttraction)
-        .map((a, i) => [a, this.minRadii[i], this.maxRadii[i]])
-        .flat()
-        .map((v) => v * PARAMETER_SCALE)
-    );
     const STRIDE = 3;
 
     for (let i = 0; i < numTypes; i++) {
       const av = audioValues.get([i]);
       for (let j = 0; j < numTypes; j++) {
         const idx = i * numTypes + j;
-        interactionMatrix[STRIDE * idx] +=
-          PARAMETER_SCALE * motionEffect * av * this.audioEffectMatrix[idx];
+        this.interactionMatrixBuffer[STRIDE * idx] =
+          PARAMETER_SCALE *
+          (this.baseAttraction[idx] +
+            motionEffect * av * this.audioEffectMatrix[idx]);
       }
     }
 
     this.state.interactionMatrix.updateData(
       numTypes,
       numTypes,
-      interactionMatrix
+      this.interactionMatrixBuffer
     );
   }
 }
