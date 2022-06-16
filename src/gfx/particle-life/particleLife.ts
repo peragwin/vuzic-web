@@ -70,15 +70,17 @@ export class ParticleLifeController {
     sim.addInput(this.params.coefficients.particleInit, "mean", {
       min: -0.1,
       max: 0.1,
-      step: 0.002,
+      step: 0.001,
     });
     sim.addInput(this.params.coefficients.particleInit, "minRadius", {
       min: 0,
-      max: 50,
+      max: 20,
+      step: 0.01,
     });
     sim.addInput(this.params.coefficients.particleInit, "maxRadius", {
       min: 0,
       max: 50,
+      step: 0.01,
     });
     sim.addButton({ title: "reseed", label: "reseed" }).on("click", (ev) => {
       this.reseed = true;
@@ -87,12 +89,12 @@ export class ParticleLifeController {
     const audio = pane.addFolder({ title: "Audio" });
     audio.addInput(this.params.coefficients.audio, "motionEffect", {
       min: 0,
-      max: 1.0,
-      step: 0.01,
+      max: 0.2,
+      step: 0.001,
     });
     audio.addInput(this.params.coefficients.audio, "colorEffect", {
-      x: { min: 0, max: 1.0 },
-      y: { min: 0, max: 1.0, inverted: true },
+      x: { min: 0, max: 0.5 },
+      y: { min: 0, max: 0.5, inverted: true },
     });
 
     const color = pane.addFolder({ title: "Color" });
@@ -132,7 +134,6 @@ export class ParticleLifeController {
     particleShape.addInput(this.params, "fade", {
       min: 0.0,
       max: 1.0,
-      step: 0.01,
     });
 
     const bloom = pane.addFolder({ title: "Bloom" });
@@ -144,7 +145,7 @@ export class ParticleLifeController {
     bloom.addInput(this.params.bloom, "bloomSharpness", {
       label: "sharpness",
       min: 0.0,
-      max: 2.0,
+      max: 3.0,
       step: 0.01,
     });
 
