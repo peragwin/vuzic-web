@@ -13,7 +13,8 @@ import {
 } from "../program";
 import { Texture } from "../textures";
 import { uniform1f, uniform1i } from "../types";
-// import { TEX_WIDTH } from "./particleLife";
+
+export const TEX_WIDTH = 1024;
 
 const shaderSrc = `#version 300 es
 
@@ -26,14 +27,15 @@ uniform isampler2D texVelocity;
 uniform isampler2D texTypes;
 uniform sampler2D texInteraction;
 
-#define TEX_WIDTH 1024
+#define TEX_WIDTH ${TEX_WIDTH}
 uniform int uNumParticles;
 uniform float uFriction;
 
 layout(location = 0) out ivec3 position;
 layout(location = 1) out ivec3 velocity;
 
-#define R_SMOOTH 0.002
+#define R_SMOOTH 0.001
+#define R_0_FORCE 100.0
 
 vec3 fetch(in isampler2D tex, in ivec2 index) {
     ivec3 ipos = texelFetch(tex, index, 0).xyz;
@@ -118,12 +120,12 @@ void main() {
             float r = sqrt(r2);
 
             float f;
-            if (r > nt.minR) {
+            if (r > nt.minR && r < nt.maxR) {
                 float nu = 2.0 * abs(r - 0.5 * (nt.maxR + nt.minR));
                 float de = nt.maxR - nt.minR;
                 f = nt.attract * (1.0 - nu / de);
             } else {
-                f = 20.0 * R_SMOOTH * nt.minR * (1.0 / (nt.minR + R_SMOOTH) - 1.0 / (r + R_SMOOTH));
+                f = R_0_FORCE * R_SMOOTH * nt.minR * (1.0 / (nt.minR + R_SMOOTH) - 1.0 / (r + R_SMOOTH));
             }
 
             p.vel += f * d;

@@ -105,7 +105,7 @@ export class ParticleLifeController {
     });
     color.addInput(this.params.coefficients.color, "spread", {
       min: 0.0,
-      max: 45,
+      max: 120,
       step: 1,
     });
     color.addInput(this.params.coefficients.color, "baseHue", {
@@ -134,6 +134,7 @@ export class ParticleLifeController {
     particleShape.addInput(this.params, "fade", {
       min: 0.0,
       max: 1.0,
+      step: 0.001,
     });
 
     const bloom = pane.addFolder({ title: "Bloom" });
